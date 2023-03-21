@@ -5,6 +5,10 @@ import java.util.List;
 import MyLang.MyLangAST.*;
 
 public record MyLangClass(String name, Map<String, MyLangCallable> methods, List<VariableDeclaration> fields, MyLangCallable constructor, MyLangEnviroment env) implements MyLangCallable {
+    public MyLangClass {
+        System.out.println(methods.keySet());
+    }
+    
     public String getName() {
         return name;
     }
@@ -29,5 +33,10 @@ public record MyLangClass(String name, Map<String, MyLangCallable> methods, List
         interpreter.env = previousEnv;
 
         return instance;
+    }
+
+    @Override
+    public String toString() {
+        return "<class '"+name+"'>";
     }
 }

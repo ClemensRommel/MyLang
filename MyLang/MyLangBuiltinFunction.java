@@ -200,4 +200,9 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
     public String getName() {
         return name;
     }
+
+    @Override
+    public String toString() {
+        return "<builtin function '" + name + "'>";
+    }
 }

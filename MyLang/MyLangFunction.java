@@ -27,5 +27,8 @@ public record MyLangFunction(String name, List<Token> parameters, MyLangEnvirome
         return result;
     }
 
-    
+    @Override
+    public String toString() {
+        return "<function '"+name+"'>";
+    }
 }

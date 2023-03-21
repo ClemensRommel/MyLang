@@ -76,10 +76,6 @@ public class MyLangParser {
         return true;
     }
 
-    private boolean someValueIdentifier() {
-        return match(TokenType.VALUE_IDENTIFIER) || match(TokenType.VALUE_THIS);
-    }
-
     public static Optional<MyLangAST> parse(String source) {
         var parser = new MyLangParser(source);
         return parser.parse();
@@ -493,7 +489,7 @@ public class MyLangParser {
         } else if(match(TokenType.NULL)) {
             return new NullLiteral(previous());
         } else {
-            throw new ParseError("Expected literal, got "+previous().type(), previous().line());
+            throw new ParseError("Expected literal, got "+next().type(), next().line());
         }
     }
 }

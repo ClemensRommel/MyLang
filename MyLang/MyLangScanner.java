@@ -210,10 +210,9 @@ public final class MyLangScanner {
     private Token stringLiteral() {
         StringBuilder builder = new StringBuilder();
         while(!atEnd() && next() != '"') {
-            next();
             builder.append(previous());
         }
-        if(atEnd()) {
+        if(atEnd() && previous() != '"') {
             return new Token(TokenType.ERROR, "Unterminated string literal", line);
         }
 

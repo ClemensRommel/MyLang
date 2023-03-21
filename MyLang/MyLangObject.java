@@ -11,13 +11,17 @@ public class MyLangObject {
     public Object getField(String name) {
         if(fields.containsKey(name)) {
             return fields.get(name);
+        } else if(klass.methods().containsKey(name)) {
+            return klass.methods().get(name).bind(this);
         } else {
             throw new InterpreterError("Object of class "+klass.name()+" has no field '"+name+"'");
         }
     }
 
     public void setField(String name, Object value) {
-        if(fields.containsKey(name)) {
+        if(klass.methods().containsKey(name)) {
+            throw new InterpreterError("Cannot reassign methods of objects");
+        } else if(fields.containsKey(name)) {
             if(readability.get(name)) {
                 fields.put(name, value);
             } else {
@@ -26,5 +30,10 @@ public class MyLangObject {
         } else {
             throw new InterpreterError("Object of class "+klass.name()+" has no field '"+name+"'");
         }
+    }
+
+    @Override
+    public String toString() {
+        return "<object of class '"+klass.name()+"'>";
     }
 }
