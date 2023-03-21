@@ -166,6 +166,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
             case STAR -> (double) left * (double) right;
             case SLASH -> (double) left / (double) right;
             case PERCENT -> (double) left % (double) right;
+            case EXPO -> Math.pow((double) left, (double) right);
             case EQUAL -> left.equals(right);
             case NOT_EQUAL -> !left.equals(right);
             case GREATER -> (double) left > (double) right;

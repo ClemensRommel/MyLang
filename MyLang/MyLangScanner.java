@@ -104,7 +104,13 @@ public final class MyLangScanner {
             case ',' -> new Token(TokenType.COMMA,",", line);
             case '+' -> new Token(TokenType.PLUS,"+", line);
             case '-' -> new Token(TokenType.MINUS,"-", line);
-            case '*' -> new Token(TokenType.STAR,"*", line);
+            case '*' -> {
+                if(match('*')) {
+                    yield new Token(TokenType.EXPO, "**", line);
+                } else {
+                    yield new Token(TokenType.STAR,"*", line);
+                }
+            }
             case '/' -> new Token(TokenType.SLASH,"/", line);
             case '%' -> new Token(TokenType.PERCENT,"%", line);
             case '!' -> {

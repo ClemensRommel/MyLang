@@ -301,7 +301,7 @@ public class MyLangParser {
 
     private Expression multiplication() {
         var left = unaryExpression();
-        while(match(TokenType.STAR) || match(TokenType.SLASH) || match(TokenType.PERCENT)) {
+        while(match(TokenType.STAR) || match(TokenType.SLASH) || match(TokenType.PERCENT) || match(TokenType.EXPO)) {
             var operator = previous();
             var right = unaryExpression();
             left = new BinaryOperation(operator, left, right);
