@@ -1,0 +1,10 @@
+class A := {
+    val x := 3;
+    var counter := 0;
+    init(a) := {
+        this.counter := a;
+    };
+};
+
+val a := new A(3);
+print(a.counter);

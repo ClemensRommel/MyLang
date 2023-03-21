@@ -1,0 +1,36 @@
+Expression < MyLangAST = NumericLiteral: double value
+                       | StringLiteral: String value
+                       | BooleanLiteral: boolean value
+                       | NullLiteral: Token keyword
+                       | Identifier: Token value
+                       | BinaryOperation: Token operator, Expression left, Expression right
+                       | UnaryOperation: Token operator, Expression operand
+                       | FunctionCall: Expression callee, List<Expression> arguments
+                       | FunctionExpression: String optionalName, List<Token> parameters, Expression body
+                       | IfExpression: Expression condition, Expression thenBranch, Expression elseBranch
+                       | ListExpression: List<Expression> elements
+                       | IndexExpression: Expression list, Expression index
+                       | PropertyExpression: Expression object, Token name
+                       | BlockExpression: List<DeclarationOrStatement> statements, Expression returnValue
+                       | WhileYieldExpression: Expression condition, Expression body
+                       | WhileDoExpression: Expression condition, Statement body
+                       | ForYieldExpression: Token variable, Expression collection, Expression guard, Expression body
+                       | ForDoExpression: Token variable, Expression collection, Expression guard, Statement body
+                       | RangeExpression: Expression start, Expression end, Expression step
+                       | ThisExpression: Token keyword;
+
+Declaration < MyLangAST, DeclarationOrStatement, ConstructorOrDeclaration =
+        VariableDeclaration: Token Name, Expression initializer, boolean isReassignable
+    |   FunctionDeclaration: Token Name, List<Token> parameters, Expression body
+    |   ClassDeclaration:    Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor;
+Statement < MyLangAST, DeclarationOrStatement =
+        ExpressionStatement: Expression expression
+    |   SetStatement: Token name, Expression expression
+    |   SetIndexStatement: Expression list, Expression index, Expression expression
+    |   SetPropertyStatement: Expression target, Token name, Expression expression;
+
+Constructor < MyLangAST, ConstructorOrDeclaration = 
+        ClassConstructor: Token keyword, List<Token> parameters, Expression body;
+
+ConstructorOrDeclaration < MyLangAST;
+DeclarationOrStatement < MyLangAST;
