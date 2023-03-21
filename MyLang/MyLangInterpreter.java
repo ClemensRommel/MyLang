@@ -462,7 +462,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
     @Override
     public Void visitClassDeclaration(ClassDeclaration value) {
         env = env.openScope();
-        var constructor = compileConstructorToMethod(value.Name().lexeme(), value.constructor());
+        var constructor = value.constructor() != null ? compileConstructorToMethod(value.Name().lexeme(), value.constructor()) : null;
         var fields = compileFields(value.fieldsAndMethods());
         Map<String, MyLangCallable> methods = compileMethods(value.fieldsAndMethods());
         env.closeScope();
