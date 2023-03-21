@@ -143,8 +143,16 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
     public Object visitBinaryOperation(BinaryOperation value) {
         if(value.operator().type().shortCircuits()) {
             return switch(value.operator().type()) {
-                case AND -> truthy(value.left().accept(this)) && truthy(value.right().accept(this));
-                case OR -> truthy(value.left().accept(this)) || truthy(value.right().accept(this));
+                case AND -> {
+                    var left = interpretExpression(value.left());
+                    if(truthy(left)) yield interpretExpression(value.right());
+                    else yield left;
+                }
+                case OR -> {
+                    var left = interpretExpression(value.left());
+                    if(truthy(left)) yield left;
+                    else yield interpretExpression(value.right());
+                }
                 default -> throw new InterpreterError("Unknown short-circuit operator: " + value.operator().type());
             };
         }

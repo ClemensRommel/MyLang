@@ -95,7 +95,6 @@ public class MyLangParser {
             }
             return Optional.of(new MyLangProgram(program));
         } catch(ParseError error) {
-            error.printStackTrace();
             return Optional.empty();
         }
     }
@@ -106,7 +105,6 @@ public class MyLangParser {
             consume(TokenType.EOF);
             return Optional.of(value);
         } catch(ParseError e) {
-            e.printStackTrace();
             return Optional.empty();
         }
     }
