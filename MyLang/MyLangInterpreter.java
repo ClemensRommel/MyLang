@@ -9,7 +9,7 @@ import java.util.Random;
 import java.util.Scanner;
 import java.util.stream.Collectors;
 
-public class MyLangInterpreter implements ExpressionVisitor<Object>, DeclarationVisitor<Void>, StatementVisitor<Void> {
+public class MyLangInterpreter implements ExpressionVisitor<Object>, DeclarationVisitor<Void>, StatementVisitor<Void>, ParameterVisitor<List<Object>> {
 
     public Scanner inScanner = new Scanner(System.in);
     public Random random = new Random();
@@ -80,6 +80,10 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
 
     public Object interpretExpression(Expression expression) {
         return expression.accept(this);
+    }
+
+    public List<Object> interpretParameter(Parameter parameter) {
+        return parameter.accept(this);
     }
 
     private void openScope() {
@@ -216,8 +220,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
         var function = interpretExpression(value.callee());
         if(function instanceof MyLangCallable theFunction) {
             List<Object> arguments = new ArrayList<>();
-            for (Expression argument : value.arguments()) {
-                arguments.add(interpretExpression(argument));
+            for (Parameter argument : value.arguments()) {
+                arguments.addAll(interpretParameter(argument));
             }
             return theFunction.call(this, arguments);
         } else {
@@ -242,8 +246,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
     @Override
     public Object visitListExpression(ListExpression value) {
         List<Object> elements = new ArrayList<>();
-        for(Expression element : value.elements()) {
-            elements.add(interpretExpression(element));
+        for(Parameter element : value.elements()) {
+            elements.addAll(interpretParameter(element));
         }
         return elements;
     }
@@ -515,6 +519,23 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
             throw new InterpreterError("Cannot use 'this' outside of a class.");
         }
         return env.getVariable("this");
+    }
+
+    @Override
+    public List<Object> visitExpressionParameter(ExpressionParameter value) {
+        return List.of(interpretExpression(value.expr()));
+    }
+
+    @Override
+    public List<Object> visitSpreadParameter(SpreadParameter value) {
+        var result = interpretExpression(value.collection());
+        if(result instanceof List list) {
+            return list;
+        } else if(result instanceof MyLangRange range) {
+            return (List) MyLangBuiltinFunction.RangeAsList.call(this, List.of(range));
+        } else {
+            throw new InterpreterError("Invalid type for spread operator: "+result.getClass());
+        }
     }
     
 }

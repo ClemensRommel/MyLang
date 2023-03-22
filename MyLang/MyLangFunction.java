@@ -14,7 +14,7 @@ public record MyLangFunction(String name, List<Token> parameters, MyLangEnvirome
         interpreter.env = env.openScope();
 
         if(args.size() != parameters.size()) {
-            throw new InterpreterError("Wrong number of arguments");
+            throw new InterpreterError("Wrong number of arguments: expected "+parameters.size()+", got "+args.size()+" ("+args+")");
         }
         for(int i = 0; i < parameters.size(); i++) {
             interpreter.env.declareVariable(parameters.get(i).lexeme(), args.get(i), false);

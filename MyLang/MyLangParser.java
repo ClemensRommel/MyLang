@@ -414,7 +414,7 @@ public class MyLangParser {
     }
 
     private Expression finishListExpression() {
-        if(match(TokenType.RBRACKET)) {
+        /* if(match(TokenType.RBRACKET)) {
             return new ListExpression(List.of());
         }
         var first = parseExpression();
@@ -434,6 +434,37 @@ public class MyLangParser {
         var items = parseCommaSeparated(TokenType.RBRACKET);
         items.add(0, first);
         return new ListExpression(items);
+        */
+        if(match(TokenType.RBRACKET)) {
+            return new ListExpression(List.of());
+        }
+        var first = parseExpression();
+        if(match(TokenType.DOTS)) {
+            if(!match(TokenType.COMMA)) {
+                if(match(TokenType.RBRACKET)) {
+                    return new ListExpression(List.of(new SpreadParameter(first)));
+                }
+                var second = parseExpression();
+                Expression step = new NumericLiteral(1);
+                if(match(TokenType.COLON)) {
+                    step = parseExpression();
+                }
+                consume(TokenType.RBRACKET);
+                return new RangeExpression(first, second, step);
+            } else {
+                var next = parseCommaSeparated(TokenType.RBRACKET);
+                next.add(0, new SpreadParameter(first));
+                return new ListExpression(next);
+            }
+        } else {
+            if(match(TokenType.RBRACKET)) {
+                return new ListExpression(List.of(new ExpressionParameter(first)));
+            }
+            consume(TokenType.COMMA);
+            var next = parseCommaSeparated(TokenType.RBRACKET);
+            next.add(0, new ExpressionParameter(first));
+            return new ListExpression(next);
+        }
     }
 
     private Expression finishFunctionExpression() {
@@ -464,15 +495,20 @@ public class MyLangParser {
         return new BlockExpression(statements, new NullLiteral(previous()));
     }
 
-    private List<Expression> parseCommaSeparated(TokenType endDelimiter) {
-        List<Expression> expressions = new ArrayList<>();
+    private List<Parameter> parseCommaSeparated(TokenType endDelimiter) {
+        List<Parameter> parameters = new ArrayList<>();
         if(!match(endDelimiter)) {
             do {
-                expressions.add(parseExpression());
+                var expression = parseExpression();
+                if(match(TokenType.DOTS)) {
+                    parameters.add(new SpreadParameter(expression));
+                } else {
+                    parameters.add(new ExpressionParameter(expression));
+                }
             } while(match(TokenType.COMMA));
             consume(endDelimiter);
         }
-        return expressions;
+        return parameters;
     }
 
     private Expression literal() {

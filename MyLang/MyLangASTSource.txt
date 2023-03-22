@@ -5,10 +5,10 @@ Expression < MyLangAST = NumericLiteral: double value
                        | Identifier: Token value
                        | BinaryOperation: Token operator, Expression left, Expression right
                        | UnaryOperation: Token operator, Expression operand
-                       | FunctionCall: Expression callee, List<Expression> arguments
+                       | FunctionCall: Expression callee, List<Parameter> arguments
                        | FunctionExpression: String optionalName, List<Token> parameters, Expression body
                        | IfExpression: Expression condition, Expression thenBranch, Expression elseBranch
-                       | ListExpression: List<Expression> elements
+                       | ListExpression: List<Parameter> elements
                        | IndexExpression: Expression list, Expression index
                        | PropertyExpression: Expression object, Token name
                        | BlockExpression: List<DeclarationOrStatement> statements, Expression returnValue
@@ -31,6 +31,10 @@ Statement < MyLangAST, DeclarationOrStatement =
 
 Constructor < MyLangAST, ConstructorOrDeclaration = 
         ClassConstructor: Token keyword, List<Token> parameters, Expression body;
+
+Parameter < MyLangAST = 
+        ExpressionParameter: Expression expr
+    |   SpreadParameter: Expression collection;
 
 ConstructorOrDeclaration < MyLangAST;
 DeclarationOrStatement < MyLangAST;
