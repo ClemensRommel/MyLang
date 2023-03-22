@@ -167,7 +167,7 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
             }
             if(args.get(0) instanceof MyLangRange r) {
                 List<Object> list = new ArrayList<>();
-                for(double i = r.start(); i <= r.end(); i += r.step()) {
+                for(double i = r.start(); i < r.end(); i += r.step()) {
                     list.add(i);
                 }
                 return list;

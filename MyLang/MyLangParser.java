@@ -164,10 +164,15 @@ public class MyLangParser {
         var keyword = previous();
         consume(TokenType.LPAREN);
         var parameters = parseParameters();
+        Token varargsParameter = null;
+        if(match(TokenType.DOTS)) {
+            varargsParameter = parameters.remove(parameters.size() - 1);
+        }
+        consume(TokenType.RPAREN);
         consume(TokenType.ASSIGN);
         var body = parseExpression();
         consume(TokenType.SEMICOLON);
-        return new ClassConstructor(keyword, parameters, body);
+        return new ClassConstructor(keyword, parameters, varargsParameter, body);
     }
 
     private Declaration parseDeclaration() {
@@ -191,19 +196,23 @@ public class MyLangParser {
     private Declaration finalizeFunctionDeclaration() {
         var name = consume(TokenType.VALUE_IDENTIFIER);
         var expression = finalizeFunctionExpressionWithName(name.lexeme(), 1);
-        return new FunctionDeclaration(name, expression.parameters(), expression.body());
+        return new FunctionDeclaration(name, expression.parameters(),expression.varargsName(), expression.body());
     }
     private FunctionExpression finalizeFunctionExpressionWithName(String name, int counter) {
         consume(TokenType.LPAREN);
         var parameters = parseParameters();
-        // consume(TokenType.RPAREN); // done by parseParameters
+        Token varargsName = null;
+        if(match(TokenType.DOTS)) {
+            varargsName = parameters.remove(parameters.size() - 1);
+        }
+        consume(TokenType.RPAREN); 
         if(peek().type() == TokenType.LPAREN) {
-            return new FunctionExpression(name+"$"+counter, parameters, finalizeFunctionExpressionWithName(name, counter+1));
+            return new FunctionExpression(name+"$"+counter, parameters, varargsName, finalizeFunctionExpressionWithName(name, counter+1));
         }
         consume(TokenType.ASSIGN);
         var body = parseExpression();
         consume(TokenType.SEMICOLON);
-        return new FunctionExpression(name, parameters, body);
+        return new FunctionExpression(name, parameters, varargsName, body);
     }
 
     private Declaration finalizeClassDeclaration() {
@@ -233,7 +242,6 @@ public class MyLangParser {
             do {
                 parameters.add(consume(TokenType.VALUE_IDENTIFIER));
             } while(match(TokenType.COMMA));
-            consume(TokenType.RPAREN);
         }
     
         return parameters;
@@ -357,7 +365,7 @@ public class MyLangParser {
                 return new WhileDoExpression(condition, body);
             } else {
                 consume(TokenType.YIELD);
-                var body = parseExpression();
+                var body = parseParameter();
                 return new WhileYieldExpression(condition, body);
             }
         } else if(match(TokenType.FOR)) {
@@ -373,7 +381,7 @@ public class MyLangParser {
                 return new ForDoExpression(variableName, collection, guard, body);
             } else {
                 consume(TokenType.YIELD);
-                var body = parseExpression();
+                var body = parseParameter();
                 return new ForYieldExpression(variableName, collection, guard, body);
             }
         } else if(match(TokenType.LBRACE)) {
@@ -413,36 +421,27 @@ public class MyLangParser {
         return resulting;
     }
 
-    private Expression finishListExpression() {
-        /* if(match(TokenType.RBRACKET)) {
-            return new ListExpression(List.of());
-        }
-        var first = parseExpression();
+    private Parameter parseParameter() {
+        var expr = parseExpression();
         if(match(TokenType.DOTS)) {
-            var second = parseExpression();
-            Expression step =  new NumericLiteral(1);
-            if(match(TokenType.COLON)) {
-                step = parseExpression();
-            }
-            consume(TokenType.RBRACKET);
-            return new RangeExpression(first, step, second);
-        } else if(match(TokenType.RBRACKET)) {
-            return new ListExpression(List.of(first));
+            return new SpreadParameter(expr);
+        } else if(match(TokenType.IF)) {
+            var guard = parseExpression();
+            return new ConditionalParameter(expr, guard);
         } else {
-            consume(TokenType.COMMA);
+            return new ExpressionParameter(expr);
         }
-        var items = parseCommaSeparated(TokenType.RBRACKET);
-        items.add(0, first);
-        return new ListExpression(items);
-        */
+    }
+
+    private Expression finishListExpression() {
         if(match(TokenType.RBRACKET)) {
             return new ListExpression(List.of());
         }
-        var first = parseExpression();
-        if(match(TokenType.DOTS)) {
+        var first = parseParameter();
+        if(previous().type() == TokenType.DOTS) {
             if(!match(TokenType.COMMA)) {
                 if(match(TokenType.RBRACKET)) {
-                    return new ListExpression(List.of(new SpreadParameter(first)));
+                    return new ListExpression(List.of(first));
                 }
                 var second = parseExpression();
                 Expression step = new NumericLiteral(1);
@@ -450,19 +449,19 @@ public class MyLangParser {
                     step = parseExpression();
                 }
                 consume(TokenType.RBRACKET);
-                return new RangeExpression(first, second, step);
+                return new RangeExpression(((SpreadParameter) first).collection(), second, step);
             } else {
                 var next = parseCommaSeparated(TokenType.RBRACKET);
-                next.add(0, new SpreadParameter(first));
+                next.add(0, first);
                 return new ListExpression(next);
             }
         } else {
             if(match(TokenType.RBRACKET)) {
-                return new ListExpression(List.of(new ExpressionParameter(first)));
+                return new ListExpression(List.of(first));
             }
             consume(TokenType.COMMA);
             var next = parseCommaSeparated(TokenType.RBRACKET);
-            next.add(0, new ExpressionParameter(first));
+            next.add(0, first);
             return new ListExpression(next);
         }
     }
@@ -470,6 +469,11 @@ public class MyLangParser {
     private Expression finishFunctionExpression() {
         consume(TokenType.LPAREN);
         var parameters = parseParameters();
+        Token varargsName = null;
+        if(match(TokenType.DOTS)) {
+            varargsName = parameters.remove(parameters.size() - 1);
+        }
+        consume(TokenType.RPAREN);
         Expression body;
         if(peek().type() == TokenType.LPAREN) {
             body = finishFunctionExpression();
@@ -477,7 +481,7 @@ public class MyLangParser {
             consume(TokenType.ASSIGN);
             body = parseExpression();
         }
-        return new FunctionExpression("Anonymous Function", parameters, body);
+        return new FunctionExpression("Anonymous Function", parameters,varargsName, body);
     }
 
     private Expression finishBlockExpression() {
@@ -499,12 +503,7 @@ public class MyLangParser {
         List<Parameter> parameters = new ArrayList<>();
         if(!match(endDelimiter)) {
             do {
-                var expression = parseExpression();
-                if(match(TokenType.DOTS)) {
-                    parameters.add(new SpreadParameter(expression));
-                } else {
-                    parameters.add(new ExpressionParameter(expression));
-                }
+                parameters.add(parseParameter());
             } while(match(TokenType.COMMA));
             consume(endDelimiter);
         }

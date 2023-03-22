@@ -196,7 +196,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
             return r.contains(left);
         } else if(right instanceof MyLangRange r) {
             double l = (double) left;
-            return l >= r.start() && l <= r.end() && (l - r.start()) % r.step() == 0;
+            return l >= r.start() && l < r.end() && (l - r.start()) % r.step() == 0;
         } else if(right instanceof String s) {
             return s.contains((String) left);
         } else {
@@ -231,7 +231,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
 
     @Override
     public Object visitFunctionExpression(FunctionExpression value) {
-        return new MyLangFunction(value.optionalName(), value.parameters(), env, value.body());
+        return new MyLangFunction(value.optionalName(), value.parameters(), value.varargsName(), env, value.body());
     }
 
     @Override
@@ -341,7 +341,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
 
     @Override
     public Void visitFunctionDeclaration(FunctionDeclaration value) {
-        MyLangFunction function = new MyLangFunction(value.Name().lexeme(), value.parameters(), env, value.body());
+        MyLangFunction function = new MyLangFunction(value.Name().lexeme(), value.parameters(), value.varargsName(), env, value.body());
         env.declareVariable(value.Name().lexeme(), function, false);
         return null;
     }
@@ -394,7 +394,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
     public Object visitWhileYieldExpression(WhileYieldExpression value) {
         List<Object> results = new ArrayList<>();
         while(truthy(interpretExpression(value.condition()))) {
-            results.add(interpretExpression(value.body()));
+            results.addAll(interpretParameter(value.body()));
         }
         return results;
     }
@@ -416,17 +416,17 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
                 openScope();
                 env.declareVariable(value.variable().lexeme(), element, false);
                 if(truthy(interpretExpression(value.guard()))) {
-                    results.add(interpretExpression(value.body()));
+                    results.addAll(interpretParameter(value.body()));
                 }
                 closeScope();
             }
             return results;
         } else if(collection instanceof MyLangRange range) {
-            for(double i = range.start(); i <= range.end(); i += range.step()) {
+            for(double i = range.start(); i < range.end(); i += range.step()) {
                 openScope();
                 env.declareVariable(value.variable().lexeme(), i, false);
                 if(truthy(interpretExpression(value.guard()))) {
-                    results.add(interpretExpression(value.body()));
+                    results.addAll(interpretParameter(value.body()));
                 }
                 closeScope();
             }
@@ -450,7 +450,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
             }
             return null;
         } else if(collection instanceof MyLangRange range) {
-            for(double i = range.start(); i <= range.end(); i += range.step()) {
+            for(double i = range.start(); i < range.end(); i += range.step()) {
                 openScope();
                 env.declareVariable(value.variable().lexeme(), i, false);
                 if(truthy(interpretExpression(value.guard()))) {
@@ -469,7 +469,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
         var start = interpretExpression(value.start());
         var step = interpretExpression(value.step());
         var end = interpretExpression(value.end());
-        return new MyLangRange((double) start, (double) step, (double) end);
+        return new MyLangRange((double) start, (double) end, (double) step);
     }
 
     @Override
@@ -503,13 +503,13 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
             .map(field -> (FunctionDeclaration) field)
             .map((FunctionDeclaration declaration) -> {
                 declaration.parameters().add(0, new Token(TokenType.VALUE_THIS, "this", declaration.Name().line()));
-                return new MyLangFunction(declaration.Name().lexeme(), declaration.parameters(), env, declaration.body());
+                return new MyLangFunction(declaration.Name().lexeme(), declaration.parameters(), declaration.varargsName(), env, declaration.body());
             }).collect(Collectors.toMap((MyLangCallable method) -> (method.getName()), (MyLangCallable method) -> (method)));
     }
 
     private MyLangFunction compileConstructorToMethod(String className, ClassConstructor constructor) {
         constructor.parameters().add(0, new Token(TokenType.VALUE_THIS, "this", constructor.keyword().line()));
-        return new MyLangFunction(className+"Init", constructor.parameters(), env, constructor.body());
+        return new MyLangFunction(className+"Init", constructor.parameters(), constructor.varargsName(), env, constructor.body());
     }
 
     @Override
@@ -523,7 +523,9 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
 
     @Override
     public List<Object> visitExpressionParameter(ExpressionParameter value) {
-        return List.of(interpretExpression(value.expr()));
+        List<Object> list = new ArrayList<>();
+        list.add(interpretExpression(value.expr()));
+        return list;
     }
 
     @Override
@@ -535,6 +537,17 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
             return (List) MyLangBuiltinFunction.RangeAsList.call(this, List.of(range));
         } else {
             throw new InterpreterError("Invalid type for spread operator: "+result.getClass());
+        }
+    }
+
+    @Override
+    public List<Object> visitConditionalParameter(ConditionalParameter value) {
+        if(truthy(interpretExpression(value.guard()))) {
+            List<Object> list = new ArrayList<>();
+            list.add(interpretExpression(value.body()));
+            return list;
+        } else {
+            return List.of();
         }
     }
     

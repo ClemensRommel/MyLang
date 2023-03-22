@@ -6,22 +6,22 @@ Expression < MyLangAST = NumericLiteral: double value
                        | BinaryOperation: Token operator, Expression left, Expression right
                        | UnaryOperation: Token operator, Expression operand
                        | FunctionCall: Expression callee, List<Parameter> arguments
-                       | FunctionExpression: String optionalName, List<Token> parameters, Expression body
+                       | FunctionExpression: String optionalName, List<Token> parameters, Token varargsName, Expression body
                        | IfExpression: Expression condition, Expression thenBranch, Expression elseBranch
                        | ListExpression: List<Parameter> elements
                        | IndexExpression: Expression list, Expression index
                        | PropertyExpression: Expression object, Token name
                        | BlockExpression: List<DeclarationOrStatement> statements, Expression returnValue
-                       | WhileYieldExpression: Expression condition, Expression body
+                       | WhileYieldExpression: Expression condition, Parameter body
                        | WhileDoExpression: Expression condition, Statement body
-                       | ForYieldExpression: Token variable, Expression collection, Expression guard, Expression body
+                       | ForYieldExpression: Token variable, Expression collection, Expression guard, Parameter body
                        | ForDoExpression: Token variable, Expression collection, Expression guard, Statement body
                        | RangeExpression: Expression start, Expression end, Expression step
                        | ThisExpression: Token keyword;
 
 Declaration < MyLangAST, DeclarationOrStatement, ConstructorOrDeclaration =
         VariableDeclaration: Token Name, Expression initializer, boolean isReassignable
-    |   FunctionDeclaration: Token Name, List<Token> parameters, Expression body
+    |   FunctionDeclaration: Token Name, List<Token> parameters, Token varargsName, Expression body
     |   ClassDeclaration:    Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor;
 Statement < MyLangAST, DeclarationOrStatement =
         ExpressionStatement: Expression expression
@@ -30,11 +30,12 @@ Statement < MyLangAST, DeclarationOrStatement =
     |   SetPropertyStatement: Expression target, Token name, Expression expression;
 
 Constructor < MyLangAST, ConstructorOrDeclaration = 
-        ClassConstructor: Token keyword, List<Token> parameters, Expression body;
+        ClassConstructor: Token keyword, List<Token> parameters,Token varargsName, Expression body;
 
 Parameter < MyLangAST = 
         ExpressionParameter: Expression expr
-    |   SpreadParameter: Expression collection;
+    |   SpreadParameter: Expression collection
+    |   ConditionalParameter: Expression body, Expression guard;
 
 ConstructorOrDeclaration < MyLangAST;
 DeclarationOrStatement < MyLangAST;
