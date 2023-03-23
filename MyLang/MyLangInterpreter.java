@@ -8,11 +8,17 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.stream.Collectors;
+import java.nio.file.*;
+import java.io.IOException;
 
 public class MyLangInterpreter implements ExpressionVisitor<Object>, DeclarationVisitor<Void>, StatementVisitor<Void>, ParameterVisitor<List<Object>> {
 
+    public MyLangModule currentModule = new MyLangModule();
+
     public Scanner inScanner = new Scanner(System.in);
     public Random random = new Random();
+
+    private Path workingDirectory = null;
 
     private Map<String, MyLangCallable> listMethods = Map.ofEntries(
         Map.entry("push", MyLangBuiltinFunction.listPush),
@@ -26,7 +32,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
     private MyLangClass listClass = new MyLangClass("List", listMethods, List.of(), null, new MyLangEnviroment());
     
 
-    MyLangEnviroment env = new MyLangEnviroment();
+    MyLangEnviroment env = currentModule.names;
 
     public MyLangInterpreter() {
         loadBuiltins();
@@ -57,9 +63,14 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
         return null;
     }
 
-    public void interpretProgram(MyLangProgram program) {
+    public void interpretProgram(MyLangProgram program, Path parentDirectory, boolean runMain) {
+        workingDirectory = parentDirectory;
         for(var stmt: program.stmts()) {
-            interpretDeclarationOrStatement(stmt);
+            interpretDeclaration(stmt);
+        }
+        if(runMain) {
+            var main = (MyLangCallable) currentModule.names.getVariable("main");
+            main.call(this, new ArrayList<>());
         }
     }
 
@@ -304,6 +315,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
             } else {
                 throw new InterpreterError("Range has no property "+ value.name().lexeme());
             }
+        } else if(object instanceof MyLangModule m) {
+            return m.exports.getVariable(value.name().lexeme());
         } else {
             throw new InterpreterError("Invalid object type: " + object.getClass());
         }
@@ -335,7 +348,9 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
 
     @Override
     public Void visitVariableDeclaration(VariableDeclaration value) {
-        env.declareVariable(value.Name().lexeme(), interpretExpression(value.initializer()), value.isReassignable());
+        Object result = interpretExpression(value.initializer());
+        env.declareVariable(value.Name().lexeme(), result, value.isReassignable());
+        if(value.export()) currentModule.exports.declareVariable(value.Name().lexeme(), result, false);
         return null;
     }
 
@@ -343,6 +358,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
     public Void visitFunctionDeclaration(FunctionDeclaration value) {
         MyLangFunction function = new MyLangFunction(value.Name().lexeme(), value.parameters(), value.varargsName(), env, value.body());
         env.declareVariable(value.Name().lexeme(), function, false);
+        if(value.export()) currentModule.exports.declareVariable(value.Name().lexeme(), function, false);
         return null;
     }
 
@@ -479,14 +495,13 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
         var fields = compileFields(value.fieldsAndMethods());
         Map<String, MyLangCallable> methods = compileMethods(value.fieldsAndMethods());
         env.closeScope();
-        env.declareVariable(value.Name().lexeme(),
-            new MyLangClass(value.Name().lexeme(),
-                            methods,
-                            fields,
-                            constructor,
-                            env),
-            false);
-
+        var result = new MyLangClass(value.Name().lexeme(),
+                                     methods,
+                                     fields,
+                                     constructor,
+                                    env);
+        env.declareVariable(value.Name().lexeme(), result, false);
+        if(value.export()) currentModule.exports.declareVariable(value.Name().lexeme(), result, false);
         return null;
     }
 
@@ -548,6 +563,37 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
             return list;
         } else {
             return List.of();
+        }
+    }
+
+    @Override
+    public Void visitModuleDeclaration(ModuleDeclaration value) {
+        if(currentModule.name != null) {
+            throw new InterpreterError("["+value.Name().line()+"]: Module already declared: "+currentModule.name);
+        } else {
+            currentModule.name = value.Name();
+            env.declareVariable(value.Name().lexeme(), currentModule, false);
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitImportDeclaration(ImportDeclaration value) {
+        var path = workingDirectory != null ? workingDirectory.resolve(value.Name().lexeme()+".myl")
+                                            : Paths.get(value.Name().lexeme()+".myl");
+        try {
+            var code = Files.readString(path);
+            var program = MyLangParser.parseProgram(code);
+            if(program.isEmpty()) {
+                throw new InterpreterError("Error while parsing module '"+value.Name().lexeme()+"'");
+            }
+            var module = program.get();
+            var interpreter = new MyLangInterpreter();
+            interpreter.interpretProgram(module, workingDirectory, false);
+            env.declareVariable(value.Name().lexeme(), interpreter.currentModule, false);
+            return null;
+        } catch(IOException e) {
+            throw new InterpreterError("Cannot import '"+value.Name().lexeme()+"': "+e.getMessage());
         }
     }
     

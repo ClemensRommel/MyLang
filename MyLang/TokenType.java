@@ -19,7 +19,7 @@ public enum TokenType {
     EOF, ERROR;
 
     public boolean startsDeclaration() {
-        return this == VAR || this == VAL || this == FUN || this == CLASS;
+        return this == VAR || this == VAL || this == FUN || this == CLASS|| this == MODULE || this == IMPORT || this == EXPORT;
     }
 
     public boolean isIdentifier() {

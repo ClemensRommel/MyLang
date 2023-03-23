@@ -88,13 +88,18 @@ public class MyLangParser {
 
     public static Optional<MyLangProgram> parseProgram(String source) {
         var parser = new MyLangParser(source);
-        List<DeclarationOrStatement> program = new ArrayList<>();
+        List<Declaration> program = new ArrayList<>();
+        if(parser.match(TokenType.MODULE)){
+            program.add(parser.moduleDeclaration());
+        } 
+        
         try {
             while(!parser.atEnd()) {
-                program.add(parser.parseDeclarationOrStatement());
+                program.add(parser.parseDeclaration());
             }
             return Optional.of(new MyLangProgram(program));
         } catch(ParseError error) {
+            error.printStackTrace();
             return Optional.empty();
         }
     }
@@ -105,6 +110,7 @@ public class MyLangParser {
             consume(TokenType.EOF);
             return Optional.of(value);
         } catch(ParseError e) {
+            e.printStackTrace();
             return Optional.empty();
         }
     }
@@ -125,6 +131,12 @@ public class MyLangParser {
                 return expression;
             }
         }
+    }
+
+    private ModuleDeclaration moduleDeclaration() {
+        var name = consume(TokenType.TYPE_IDENTIFIER);
+        consume(TokenType.SEMICOLON);
+        return new ModuleDeclaration(name);
     }
 
     private DeclarationOrStatement parseDeclarationOrStatement() {
@@ -176,27 +188,35 @@ public class MyLangParser {
     }
 
     private Declaration parseDeclaration() {
+        boolean export = match(TokenType.EXPORT);
         var declarationType = next();
         return switch(declarationType.type()) {
-            case VAR -> finalizeVariableDeclaration(true);
-            case VAL -> finalizeVariableDeclaration(false);
-            case FUN -> finalizeFunctionDeclaration();
-            case CLASS -> finalizeClassDeclaration();
+            case VAR -> finalizeVariableDeclaration(true, export);
+            case VAL -> finalizeVariableDeclaration(false, export);
+            case FUN -> finalizeFunctionDeclaration(export);
+            case CLASS -> finalizeClassDeclaration(export);
+            case IMPORT -> finalizeImportDeclaration();
             default -> throw new ParseError("Unknown declaration type: " + declarationType.type(), declarationType.line());
         };
     }
 
-    private Declaration finalizeVariableDeclaration(boolean isReassignable) {
+    private Declaration finalizeImportDeclaration() {
+        var name = consume(TokenType.TYPE_IDENTIFIER);
+        consume(TokenType.SEMICOLON);
+        return new ImportDeclaration(name);
+    }
+
+    private Declaration finalizeVariableDeclaration(boolean isReassignable, boolean export) {
         var name = consume(TokenType.VALUE_IDENTIFIER);
         consume(TokenType.ASSIGN);
         var initializer = parseExpression();
         consume(TokenType.SEMICOLON);
-        return new VariableDeclaration(name, initializer, isReassignable);
+        return new VariableDeclaration(name, initializer, isReassignable, export);
     }
-    private Declaration finalizeFunctionDeclaration() {
+    private Declaration finalizeFunctionDeclaration(boolean export) {
         var name = consume(TokenType.VALUE_IDENTIFIER);
         var expression = finalizeFunctionExpressionWithName(name.lexeme(), 1);
-        return new FunctionDeclaration(name, expression.parameters(),expression.varargsName(), expression.body());
+        return new FunctionDeclaration(name, expression.parameters(),expression.varargsName(), expression.body(), export);
     }
     private FunctionExpression finalizeFunctionExpressionWithName(String name, int counter) {
         consume(TokenType.LPAREN);
@@ -215,7 +235,7 @@ public class MyLangParser {
         return new FunctionExpression(name, parameters, varargsName, body);
     }
 
-    private Declaration finalizeClassDeclaration() {
+    private Declaration finalizeClassDeclaration(boolean export) {
         var name = consume(TokenType.TYPE_IDENTIFIER);
         consume(TokenType.ASSIGN);
         consume(TokenType.LBRACE);
@@ -233,12 +253,12 @@ public class MyLangParser {
             }
         }
         consume(TokenType.SEMICOLON);
-        return new ClassDeclaration(name, members, constructor);
+        return new ClassDeclaration(name, members, constructor, export);
     }
 
     private List<Token> parseParameters() {
         List<Token> parameters = new ArrayList<>();
-        if(!match(TokenType.RPAREN)) {
+        if(peek().type() != TokenType.RPAREN) {
             do {
                 parameters.add(consume(TokenType.VALUE_IDENTIFIER));
             } while(match(TokenType.COMMA));
@@ -399,11 +419,27 @@ public class MyLangParser {
             return new Identifier(previous());
         } else if(match(TokenType.NEW)) {
             var className = consume(TokenType.TYPE_IDENTIFIER);
+            Expression classAccess = new Identifier(className);
+            while(match(TokenType.DOT)) {
+                var subName = consume(TokenType.TYPE_IDENTIFIER);
+                classAccess = new PropertyExpression(classAccess, subName);
+            }
             consume(TokenType.LPAREN);
             var parameters = parseCommaSeparated(TokenType.RPAREN);
-            return new FunctionCall(new Identifier(className), parameters);
+            return new FunctionCall(classAccess, parameters);
         } else if(match(TokenType.VALUE_THIS)) {
             return new ThisExpression(previous());
+        } else if(match(TokenType.TYPE_IDENTIFIER)) {
+            var name = previous();
+            Expression resulting = new Identifier(name);
+            while(true) {
+                consume(TokenType.DOT);
+                if(match(TokenType.TYPE_IDENTIFIER)) {
+                    resulting = new PropertyExpression(resulting, previous());
+                } else if(match(TokenType.VALUE_IDENTIFIER)) {
+                    return new PropertyExpression(resulting, previous());
+                }
+            }
         } else {
             return literal();
         }

@@ -1,0 +1,11 @@
+module ModuleTest2;
+
+import ModuleTest1;
+
+fun f(x) := 3x-2;
+
+fun main() := {
+    val f1 := ModuleTest1.f(3);
+    val f2 := f(3);
+    print(f1, " ", f2);
+};

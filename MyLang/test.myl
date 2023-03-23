@@ -1,10 +1,15 @@
-class A := {
-    val x := 3;
-    var counter := 0;
-    init(a) := {
-        this.counter := a;
+fun fib(n) := {
+    val fibs := [1, 1];
+    for i in [2..n] do {
+        fibs.push(fibs.peekLast() + fibs.head.peekLast());
     };
+    fibs.pop()
 };
 
-val a := new A(3);
-print(a.counter);
+var x := "test";
+
+fun main() := {
+    print(3);
+    print(fib(7));
+    print("Done");
+};

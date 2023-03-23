@@ -111,21 +111,31 @@ public static interface DeclarationVisitor<T> {
 public T visitVariableDeclaration(VariableDeclaration value);
 public T visitFunctionDeclaration(FunctionDeclaration value);
 public T visitClassDeclaration(ClassDeclaration value);
+public T visitModuleDeclaration(ModuleDeclaration value);
+public T visitImportDeclaration(ImportDeclaration value);
 }
 public static sealed interface Declaration extends MyLangAST,  DeclarationOrStatement,  ConstructorOrDeclaration {
     public <T> T accept(DeclarationVisitor<T> visitor);
 }
-public static record VariableDeclaration(Token Name, Expression initializer, boolean isReassignable) implements Declaration {
+public static record VariableDeclaration(Token Name, Expression initializer, boolean isReassignable, boolean export) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitVariableDeclaration(this);
 }}
-public static record FunctionDeclaration(Token Name, List<Token> parameters, Token varargsName, Expression body) implements Declaration {
+public static record FunctionDeclaration(Token Name, List<Token> parameters, Token varargsName, Expression body, boolean export) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitFunctionDeclaration(this);
 }}
-public static record ClassDeclaration(Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor) implements Declaration {
+public static record ClassDeclaration(Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor, boolean export) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitClassDeclaration(this);
+}}
+public static record ModuleDeclaration(Token Name) implements Declaration {
+public <T> T accept(DeclarationVisitor<T> visitor) {
+    return visitor.visitModuleDeclaration(this);
+}}
+public static record ImportDeclaration(Token Name) implements Declaration {
+public <T> T accept(DeclarationVisitor<T> visitor) {
+    return visitor.visitImportDeclaration(this);
 }}
 public static interface StatementVisitor<T> {
 public T visitExpressionStatement(ExpressionStatement value);

@@ -20,9 +20,11 @@ Expression < MyLangAST = NumericLiteral: double value
                        | ThisExpression: Token keyword;
 
 Declaration < MyLangAST, DeclarationOrStatement, ConstructorOrDeclaration =
-        VariableDeclaration: Token Name, Expression initializer, boolean isReassignable
-    |   FunctionDeclaration: Token Name, List<Token> parameters, Token varargsName, Expression body
-    |   ClassDeclaration:    Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor;
+        VariableDeclaration: Token Name, Expression initializer, boolean isReassignable, boolean export
+    |   FunctionDeclaration: Token Name, List<Token> parameters, Token varargsName, Expression body, boolean export
+    |   ClassDeclaration:    Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor, boolean export
+    |   ModuleDeclaration:   Token Name
+    |   ImportDeclaration:   Token Name;
 Statement < MyLangAST, DeclarationOrStatement =
         ExpressionStatement: Expression expression
     |   SetStatement: Token name, Expression expression
