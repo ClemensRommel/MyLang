@@ -527,7 +527,7 @@ public class MyLangParser {
                 } while(match(TokenType.LPAREN));
                 return result;
             }
-            return new NumericLiteral(Double.parseDouble(previous().lexeme()));
+            return left;
         } else if(match(TokenType.STRING_LITERAL)) {
             return new StringLiteral(previous().lexeme());
         } else if(match(TokenType.TRUE)) {

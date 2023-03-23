@@ -205,6 +205,10 @@ public final class MyLangScanner {
             case "val" -> new Token(TokenType.VAL, "val", line);
             case "fun" -> new Token(TokenType.FUN, "fun", line);
             case "class" -> new Token(TokenType.CLASS, "class", line);
+            case "module" -> new Token(TokenType.MODULE, "module", line);
+            case "import" -> new Token(TokenType.IMPORT, "import", line);
+            case "export" -> new Token(TokenType.EXPORT, "export", line);
+            case "local" -> new Token(TokenType.LOCAL, "local", line);
             default -> new Token(TokenType.VALUE_IDENTIFIER, identifier, line);
         };
     }
