@@ -512,6 +512,21 @@ public class MyLangParser {
 
     private Expression literal() {
         if(match(TokenType.NUMBER_LITERAL)) {
+            Token literal = previous();
+            Expression left = new NumericLiteral(Double.parseDouble(literal.lexeme()));
+            if(peek().type() == TokenType.VALUE_IDENTIFIER) {
+                Expression multiplied = propertyOrCall();
+                return new BinaryOperation(new Token(TokenType.STAR, literal.lexeme(),literal.line()), left, multiplied);
+            } else if(match(TokenType.LPAREN)) {
+                Expression result = left;
+                do {
+                    Token op = previous();
+                    Expression multiplied = parseExpression();
+                    consume(TokenType.RPAREN);
+                    result = new BinaryOperation(new Token(TokenType.STAR, op.lexeme(), op.line()), result, multiplied);
+                } while(match(TokenType.LPAREN));
+                return result;
+            }
             return new NumericLiteral(Double.parseDouble(previous().lexeme()));
         } else if(match(TokenType.STRING_LITERAL)) {
             return new StringLiteral(previous().lexeme());
