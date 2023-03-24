@@ -13,6 +13,8 @@ public class MyLangParser {
     private int current = 0;
     private int length;
 
+    private boolean defaultVisibility = false;
+
     public MyLangParser(String source) {
         tokens = MyLangScanner.tokenize(source);
         length = tokens.size();
@@ -117,7 +119,7 @@ public class MyLangParser {
 
     // parses expressions, statements and declarations
     private MyLangAST parseAny() {
-        if(peek().type().startsDeclaration() && peekNext().type().isIdentifier()) {
+        if(peek().type().isVisibilityDeclaration() || (peek().type().startsDeclaration() && peekNext().type().isIdentifier())) {
             return parseDeclaration();
         } else {
             var expression = parseExpression();
@@ -137,22 +139,6 @@ public class MyLangParser {
         var name = consume(TokenType.TYPE_IDENTIFIER);
         consume(TokenType.SEMICOLON);
         return new ModuleDeclaration(name);
-    }
-
-    private DeclarationOrStatement parseDeclarationOrStatement() {
-        if(peek().type().startsDeclaration() && peekNext().type().isIdentifier()) {
-            return parseDeclaration();
-        } else {
-            var expression = parseExpression();
-            if(match(TokenType.ASSIGN)) {
-                var rightHandSide = parseExpression();
-                consume(TokenType.SEMICOLON);
-                return makeAssigment(expression, rightHandSide);
-            } else {
-                consume(TokenType.SEMICOLON);
-                return new ExpressionStatement(expression);
-            }
-        }
     }
 
     private ConstructorOrDeclaration parseDeclarationOrConstructor(String typeName) {
@@ -188,7 +174,16 @@ public class MyLangParser {
     }
 
     private Declaration parseDeclaration() {
-        boolean export = match(TokenType.EXPORT);
+        boolean export = defaultVisibility;
+        if(peek().type().isVisibilityDeclaration()) {
+            if((match(TokenType.EXPORT))) {
+                export = true;
+            } else if(match(TokenType.LOCAL)) {
+                export = false;
+            } else {
+                throw new ParseError("Unknown visibility declaration: " + peek().type(), peek().line());
+            }
+        }
         var declarationType = next();
         return switch(declarationType.type()) {
             case VAR -> finalizeVariableDeclaration(true, export);

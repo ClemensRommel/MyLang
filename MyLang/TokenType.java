@@ -22,6 +22,10 @@ public enum TokenType {
         return this == VAR || this == VAL || this == FUN || this == CLASS|| this == MODULE || this == IMPORT || this == EXPORT;
     }
 
+    public boolean isVisibilityDeclaration() {
+        return this == EXPORT || this == LOCAL;
+    }
+
     public boolean isIdentifier() {
         return this == VALUE_IDENTIFIER || this == TYPE_IDENTIFIER;
     }

@@ -73,15 +73,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
             main.call(this, new ArrayList<>());
         }
     }
-
-    private void interpretDeclarationOrStatement(DeclarationOrStatement stmtOrDecl) {
-        if(stmtOrDecl instanceof Declaration decl) {
-            interpretDeclaration(decl);
-        } else if(stmtOrDecl instanceof Statement stmt) {
-            interpretStatement(stmt);
-        }
-    }
-
+    
     public void interpretStatement(Statement statement) {
         statement.accept(this);
     }
@@ -316,7 +308,11 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
                 throw new InterpreterError("Range has no property "+ value.name().lexeme());
             }
         } else if(object instanceof MyLangModule m) {
-            return m.exports.getVariable(value.name().lexeme());
+            if(m.exports.contains(value.name().lexeme())) {
+                return m.names.getVariable(value.name().lexeme());
+            } else {
+                throw new InterpreterError("Module '"+m.name.lexeme()+"' does not export '"+value.name().lexeme()+"'");
+            }
         } else {
             throw new InterpreterError("Invalid object type: " + object.getClass());
         }
@@ -350,7 +346,12 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
     public Void visitVariableDeclaration(VariableDeclaration value) {
         Object result = interpretExpression(value.initializer());
         env.declareVariable(value.Name().lexeme(), result, value.isReassignable());
-        if(value.export()) currentModule.exports.declareVariable(value.Name().lexeme(), result, false);
+        if(value.export()) {
+            if(currentModule.names != env) {
+                throw new InterpreterError("Cannot export local variable ('"+value.Name().lexeme()+"')");
+            }
+            currentModule.exports.add(value.Name().lexeme());
+        }
         return null;
     }
 
@@ -358,7 +359,12 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
     public Void visitFunctionDeclaration(FunctionDeclaration value) {
         MyLangFunction function = new MyLangFunction(value.Name().lexeme(), value.parameters(), value.varargsName(), env, value.body());
         env.declareVariable(value.Name().lexeme(), function, false);
-        if(value.export()) currentModule.exports.declareVariable(value.Name().lexeme(), function, false);
+        if(value.export()) {
+            if(currentModule.names != env) {
+                throw new InterpreterError("Cannot export local variable ('"+value.Name().lexeme()+"')");
+            }
+            currentModule.exports.add(value.Name().lexeme());
+        }
         return null;
     }
 
@@ -501,7 +507,12 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
                                      constructor,
                                     env);
         env.declareVariable(value.Name().lexeme(), result, false);
-        if(value.export()) currentModule.exports.declareVariable(value.Name().lexeme(), result, false);
+        if(value.export()) {
+            if(currentModule.names != env) {
+                throw new InterpreterError("Cannot export local variable ('"+value.Name().lexeme()+"')");
+            }
+            currentModule.exports.add(value.Name().lexeme());
+        }
         return null;
     }
 
