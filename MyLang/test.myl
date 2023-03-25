@@ -10,6 +10,6 @@ var x := "test";
 
 fun main() := {
     print(3);
-    print(fib(7));
+    print(fib(40));
     print("Done");
 };

@@ -23,6 +23,7 @@ public T visitForYieldExpression(ForYieldExpression value);
 public T visitForDoExpression(ForDoExpression value);
 public T visitRangeExpression(RangeExpression value);
 public T visitThisExpression(ThisExpression value);
+public T visitNameSpaceExpression(NameSpaceExpression value);
 }
 public static sealed interface Expression extends MyLangAST {
     public <T> T accept(ExpressionVisitor<T> visitor);
@@ -107,6 +108,10 @@ public static record ThisExpression(Token keyword) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitThisExpression(this);
 }}
+public static record NameSpaceExpression(MyLangPath nameSpace, Token name) implements Expression {
+public <T> T accept(ExpressionVisitor<T> visitor) {
+    return visitor.visitNameSpaceExpression(this);
+}}
 public static interface DeclarationVisitor<T> {
 public T visitVariableDeclaration(VariableDeclaration value);
 public T visitFunctionDeclaration(FunctionDeclaration value);
@@ -129,11 +134,11 @@ public static record ClassDeclaration(Token Name, List<Declaration> fieldsAndMet
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitClassDeclaration(this);
 }}
-public static record ModuleDeclaration(Token Name) implements Declaration {
+public static record ModuleDeclaration(MyLangPath Name) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitModuleDeclaration(this);
 }}
-public static record ImportDeclaration(Token Name) implements Declaration {
+public static record ImportDeclaration(MyLangPath Name) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitImportDeclaration(this);
 }}

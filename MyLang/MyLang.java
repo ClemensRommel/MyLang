@@ -60,7 +60,11 @@ public class MyLang {
         var parentDirectory = Paths.get(filename).getParent();
         var program = MyLangParser.parseProgram(content);
         if(program.isPresent()) {
-            interpreter.interpretProgram(program.get(), parentDirectory, true);
+            try{
+                interpreter.interpretProgram(program.get(), parentDirectory, true);
+            } catch(InterpreterError e) {
+                e.printStackTrace();
+            }
         }
     }
 

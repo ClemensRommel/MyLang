@@ -1,0 +1,3 @@
+module ModuleTestDir.ModuleTest3;
+
+export fun z(x) := 3*x + 4*x;

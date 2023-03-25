@@ -1,3 +1,6 @@
 module ModuleTest1;
 
 export fun f(x) := 3x + 2;
+
+// local optional, ist standard
+local fun g(y) := 2y * 3;

@@ -47,7 +47,7 @@ def get_interfaces_in(string: str) -> list[Interface]:
     interfaces: list[Interface] = []
     declarations = string.split(";")
     for declaration in declarations:
-        if declaration != "":
+        if declaration != "" and declaration != "\n":
             interface = Interface()
             parts = declaration.split("=")
             declarationParts = parts[0].strip().split("<")

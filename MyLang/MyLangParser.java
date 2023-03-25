@@ -136,7 +136,7 @@ public class MyLangParser {
     }
 
     private ModuleDeclaration moduleDeclaration() {
-        var name = consume(TokenType.TYPE_IDENTIFIER);
+        var name = parsePath();
         consume(TokenType.SEMICOLON);
         return new ModuleDeclaration(name);
     }
@@ -196,7 +196,7 @@ public class MyLangParser {
     }
 
     private Declaration finalizeImportDeclaration() {
-        var name = consume(TokenType.TYPE_IDENTIFIER);
+        var name = parsePath();
         consume(TokenType.SEMICOLON);
         return new ImportDeclaration(name);
     }
@@ -277,6 +277,16 @@ public class MyLangParser {
 
     private Expression parseExpression() {
         return booleanCombination();
+    }
+
+    private MyLangPath parsePath() {
+        List<Token> names = new ArrayList<>();
+        names.add(consume(TokenType.TYPE_IDENTIFIER));
+        while (peekNext().type() == TokenType.TYPE_IDENTIFIER) {
+            consume(TokenType.DOT);
+            names.add(consume(TokenType.TYPE_IDENTIFIER));
+        }    
+        return new MyLangPath(names);
     }
 
     private Expression booleanCombination() {
@@ -424,17 +434,11 @@ public class MyLangParser {
             return new FunctionCall(classAccess, parameters);
         } else if(match(TokenType.VALUE_THIS)) {
             return new ThisExpression(previous());
-        } else if(match(TokenType.TYPE_IDENTIFIER)) {
-            var name = previous();
-            Expression resulting = new Identifier(name);
-            while(true) {
-                consume(TokenType.DOT);
-                if(match(TokenType.TYPE_IDENTIFIER)) {
-                    resulting = new PropertyExpression(resulting, previous());
-                } else if(match(TokenType.VALUE_IDENTIFIER)) {
-                    return new PropertyExpression(resulting, previous());
-                }
-            }
+        } else if(peek().type() == TokenType.TYPE_IDENTIFIER) {
+            var path = parsePath();
+            consume(TokenType.DOT);
+            var name = consume(TokenType.VALUE_IDENTIFIER);
+            return new NameSpaceExpression(path, name);
         } else {
             return literal();
         }

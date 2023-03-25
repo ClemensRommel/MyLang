@@ -178,7 +178,13 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
                 }
             }
             case MINUS -> (double) left - (double) right;
-            case STAR -> (double) left * (double) right;
+            case STAR -> {
+                if(left instanceof Double l1 && right instanceof Double l2) {
+                    yield l1 * l2;
+                } else {
+                    throw new InterpreterError("Unsupported operands for *: "+left+", "+right);
+                }
+             }
             case SLASH -> (double) left / (double) right;
             case PERCENT -> (double) left % (double) right;
             case EXPO -> Math.pow((double) left, (double) right);
@@ -311,7 +317,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
             if(m.exports.contains(value.name().lexeme())) {
                 return m.names.getVariable(value.name().lexeme());
             } else {
-                throw new InterpreterError("Module '"+m.name.lexeme()+"' does not export '"+value.name().lexeme()+"'");
+                throw new InterpreterError("Module '"+m.name.toString()+"' does not export '"+value.name().lexeme()+"'");
             }
         } else {
             throw new InterpreterError("Invalid object type: " + object.getClass());
@@ -580,32 +586,45 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
     @Override
     public Void visitModuleDeclaration(ModuleDeclaration value) {
         if(currentModule.name != null) {
-            throw new InterpreterError("["+value.Name().line()+"]: Module already declared: "+currentModule.name);
+            throw new InterpreterError("["+value.Name().names().get(0).line()+"]: Module already declared: "+currentModule.name);
         } else {
             currentModule.name = value.Name();
-            env.declareVariable(value.Name().lexeme(), currentModule, false);
+            env.declareVariable(currentModule.name.toString(), currentModule, false);
         }
         return null;
     }
 
     @Override
     public Void visitImportDeclaration(ImportDeclaration value) {
-        var path = workingDirectory != null ? workingDirectory.resolve(value.Name().lexeme()+".myl")
-                                            : Paths.get(value.Name().lexeme()+".myl");
+        var path = workingDirectory != null ? workingDirectory.resolve(value.Name().toString()+".myl")
+                                            : Paths.get(value.Name().toString()+".myl");
         try {
             var code = Files.readString(path);
             var program = MyLangParser.parseProgram(code);
             if(program.isEmpty()) {
-                throw new InterpreterError("Error while parsing module '"+value.Name().lexeme()+"'");
+                throw new InterpreterError("Error while parsing module '"+value.Name().toString()+"'");
             }
             var module = program.get();
             var interpreter = new MyLangInterpreter();
             interpreter.interpretProgram(module, workingDirectory, false);
-            env.declareVariable(value.Name().lexeme(), interpreter.currentModule, false);
+            env.declareVariable(value.Name().toString(), interpreter.currentModule, false);
             return null;
         } catch(IOException e) {
-            throw new InterpreterError("Cannot import '"+value.Name().lexeme()+"': "+e.getMessage());
+            throw new InterpreterError("Cannot import '"+value.Name().toString()+"': "+e.getMessage());
         }
     }
     
+    @Override
+    public Object visitNameSpaceExpression(NameSpaceExpression value) {
+        var nameSpace = lookup(value.nameSpace());
+        if(!nameSpace.exports.contains(value.name().lexeme())) {
+            throw new InterpreterError("Module '"+nameSpace.name+"' does not export '"+value.name().lexeme()+"'");
+        } else {
+            return nameSpace.names.getVariable(value.name().lexeme());
+        }
+    }
+
+    private MyLangModule lookup(MyLangPath path) {
+        return (MyLangModule) env.getVariable(path.toString());
+    }
 }

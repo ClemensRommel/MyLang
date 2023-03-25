@@ -17,14 +17,15 @@ Expression < MyLangAST = NumericLiteral: double value
                        | ForYieldExpression: Token variable, Expression collection, Expression guard, Parameter body
                        | ForDoExpression: Token variable, Expression collection, Expression guard, Statement body
                        | RangeExpression: Expression start, Expression end, Expression step
-                       | ThisExpression: Token keyword;
+                       | ThisExpression: Token keyword
+                       | NameSpaceExpression: MyLangPath nameSpace, Token name;
 
 Declaration < MyLangAST, DeclarationOrStatement, ConstructorOrDeclaration =
         VariableDeclaration: Token Name, Expression initializer, boolean isReassignable, boolean export
     |   FunctionDeclaration: Token Name, List<Token> parameters, Token varargsName, Expression body, boolean export
     |   ClassDeclaration:    Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor, boolean export
-    |   ModuleDeclaration:   Token Name
-    |   ImportDeclaration:   Token Name;
+    |   ModuleDeclaration:   MyLangPath Name
+    |   ImportDeclaration:   MyLangPath Name;
 Statement < MyLangAST, DeclarationOrStatement =
         ExpressionStatement: Expression expression
     |   SetStatement: Token name, Expression expression

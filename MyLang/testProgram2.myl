@@ -10,4 +10,6 @@ fun fibbonacciN(n) := {
 };
 
 /* druckt /* die fibbonacci */ zahlen */
-print(fibbonacciN(46));
+fun main() := {
+    print(fibbonacciN(46));
+};
