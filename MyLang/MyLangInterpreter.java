@@ -627,4 +627,11 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>, Declaration
     private MyLangModule lookup(MyLangPath path) {
         return (MyLangModule) env.getVariable(path.toString());
     }
+    @Override
+    public Void visitEmptyStatement(EmptyStatement value) {
+        return null;
+    }
+    @Override public Void visitEmptyDeclaration(EmptyDeclaration value) {
+    return null;
+    }
 }

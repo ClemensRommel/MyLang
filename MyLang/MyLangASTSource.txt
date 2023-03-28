@@ -25,12 +25,14 @@ Declaration < MyLangAST, DeclarationOrStatement, ConstructorOrDeclaration =
     |   FunctionDeclaration: Token Name, List<Token> parameters, Token varargsName, Expression body, boolean export
     |   ClassDeclaration:    Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor, boolean export
     |   ModuleDeclaration:   MyLangPath Name
-    |   ImportDeclaration:   MyLangPath Name;
+    |   ImportDeclaration:   MyLangPath Name
+    |   EmptyDeclaration:    Token semicolon;
 Statement < MyLangAST, DeclarationOrStatement =
         ExpressionStatement: Expression expression
     |   SetStatement: Token name, Expression expression
     |   SetIndexStatement: Expression list, Expression index, Expression expression
-    |   SetPropertyStatement: Expression target, Token name, Expression expression;
+    |   SetPropertyStatement: Expression target, Token name, Expression expression
+    |   EmptyStatement: Token semicolon;
 
 Constructor < MyLangAST, ConstructorOrDeclaration = 
         ClassConstructor: Token keyword, List<Token> parameters,Token varargsName, Expression body;

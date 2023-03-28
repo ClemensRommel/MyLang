@@ -1,7 +1,7 @@
-fun fibbonacciN(n) := {
+fun fibbonacciN(n) {
     var last := 1;
     var lastBefore := 1;
-    for i in [1..n - 2] do {
+    for i in [2..n] do {
         val lastBefore2 := lastBefore;
         lastBefore := last;
         last := last + lastBefore2;
@@ -10,6 +10,6 @@ fun fibbonacciN(n) := {
 };
 
 /* druckt /* die fibbonacci */ zahlen */
-fun main() := {
-    print(fibbonacciN(46));
+fun main() {
+    print(fibbonacciN(40));
 };

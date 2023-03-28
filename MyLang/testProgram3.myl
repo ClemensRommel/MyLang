@@ -1,0 +1,11 @@
+fun istRechtwinkling(a, b, c) := a^2 + b^2 = c^2;
+fun main() {
+    var weitermachen := true;
+    while weitermachen do {
+        val a := input("a:");
+        val b := input("b:");
+        val c := input("c:");
+        print(if istRechtwinkling(number(a), number(b), number(c)) then "rechtwinklig" else "nicht rechtwinklig");
+        weitermachen := input("Weitermachen?") = "ja";
+    };
+}

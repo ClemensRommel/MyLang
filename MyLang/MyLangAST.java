@@ -118,6 +118,7 @@ public T visitFunctionDeclaration(FunctionDeclaration value);
 public T visitClassDeclaration(ClassDeclaration value);
 public T visitModuleDeclaration(ModuleDeclaration value);
 public T visitImportDeclaration(ImportDeclaration value);
+public T visitEmptyDeclaration(EmptyDeclaration value);
 }
 public static sealed interface Declaration extends MyLangAST,  DeclarationOrStatement,  ConstructorOrDeclaration {
     public <T> T accept(DeclarationVisitor<T> visitor);
@@ -142,11 +143,16 @@ public static record ImportDeclaration(MyLangPath Name) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitImportDeclaration(this);
 }}
+public static record EmptyDeclaration(Token semicolon) implements Declaration {
+public <T> T accept(DeclarationVisitor<T> visitor) {
+    return visitor.visitEmptyDeclaration(this);
+}}
 public static interface StatementVisitor<T> {
 public T visitExpressionStatement(ExpressionStatement value);
 public T visitSetStatement(SetStatement value);
 public T visitSetIndexStatement(SetIndexStatement value);
 public T visitSetPropertyStatement(SetPropertyStatement value);
+public T visitEmptyStatement(EmptyStatement value);
 }
 public static sealed interface Statement extends MyLangAST,  DeclarationOrStatement {
     public <T> T accept(StatementVisitor<T> visitor);
@@ -166,6 +172,10 @@ public <T> T accept(StatementVisitor<T> visitor) {
 public static record SetPropertyStatement(Expression target, Token name, Expression expression) implements Statement {
 public <T> T accept(StatementVisitor<T> visitor) {
     return visitor.visitSetPropertyStatement(this);
+}}
+public static record EmptyStatement(Token semicolon) implements Statement {
+public <T> T accept(StatementVisitor<T> visitor) {
+    return visitor.visitEmptyStatement(this);
 }}
 public static interface ConstructorVisitor<T> {
 public T visitClassConstructor(ClassConstructor value);

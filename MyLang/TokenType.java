@@ -19,7 +19,7 @@ public enum TokenType {
     EOF, ERROR;
 
     public boolean startsDeclaration() {
-        return this == VAR || this == VAL || this == FUN || this == CLASS|| this == MODULE || this == IMPORT || this == EXPORT;
+        return this == VAR || this == VAL || this == FUN || this == CLASS|| this == MODULE || this == IMPORT || this == EXPORT || this == SEMICOLON;
     }
 
     public boolean isVisibilityDeclaration() {

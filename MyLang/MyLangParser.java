@@ -121,6 +121,8 @@ public class MyLangParser {
     private MyLangAST parseAny() {
         if(peek().type().isVisibilityDeclaration() || (peek().type().startsDeclaration() && peekNext().type().isIdentifier())) {
             return parseDeclaration();
+        } else if(match(TokenType.SEMICOLON)) {
+            return new EmptyDeclaration(previous());
         } else {
             var expression = parseExpression();
             if(match(TokenType.SEMICOLON)) {
@@ -191,6 +193,7 @@ public class MyLangParser {
             case FUN -> finalizeFunctionDeclaration(export);
             case CLASS -> finalizeClassDeclaration(export);
             case IMPORT -> finalizeImportDeclaration();
+            case SEMICOLON -> new EmptyDeclaration(declarationType);
             default -> throw new ParseError("Unknown declaration type: " + declarationType.type(), declarationType.line());
         };
     }
@@ -224,9 +227,14 @@ public class MyLangParser {
         if(peek().type() == TokenType.LPAREN) {
             return new FunctionExpression(name+"$"+counter, parameters, varargsName, finalizeFunctionExpressionWithName(name, counter+1));
         }
-        consume(TokenType.ASSIGN);
-        var body = parseExpression();
-        consume(TokenType.SEMICOLON);
+        Expression body;
+        if(match(TokenType.LBRACE)) {
+            body = finishBlockExpression();
+        } else {
+            consume(TokenType.ASSIGN);
+            body = parseExpression();
+            consume(TokenType.SEMICOLON);
+        }
         return new FunctionExpression(name, parameters, varargsName, body);
     }
 
@@ -445,6 +453,7 @@ public class MyLangParser {
     }
 
     private Statement parseStatementOrExpression() {
+        if(match(TokenType.SEMICOLON)) return new EmptyStatement(previous());
         var left = parseExpression();
         Statement resulting;
         if((match(TokenType.ASSIGN))) {
@@ -513,8 +522,12 @@ public class MyLangParser {
         if(peek().type() == TokenType.LPAREN) {
             body = finishFunctionExpression();
         } else {
-            consume(TokenType.ASSIGN);
-            body = parseExpression();
+            if(match(TokenType.LBRACE)) {
+                body = finishBlockExpression();
+            } else {
+                consume(TokenType.ASSIGN);
+                body = parseExpression();
+            }
         }
         return new FunctionExpression("Anonymous Function", parameters,varargsName, body);
     }

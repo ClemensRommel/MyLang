@@ -1,4 +1,4 @@
-fun fib(n) := {
+fun fib(n) {
     val fibs := [1, 1];
     for i in [2..n] do {
         fibs.push(fibs.peekLast() + fibs.head.peekLast());
@@ -6,9 +6,7 @@ fun fib(n) := {
     fibs.pop()
 };
 
-var x := "test";
-
-fun main() := {
+fun main() {
     print(3);
     print(fib(40));
     print("Done");
