@@ -239,6 +239,13 @@ public class Typechecker implements
         return types;
     }
     FunctionTypeRep constructorTypeOf(ClassDeclaration c) {
+        if(c.constructor() == null) { // Standard Constructor
+            return new FunctionTypeRep(
+                    List.of(),
+                    null,
+                    new TypeIdentifierRep(c.Name(), env),
+                    env);
+        }
         return new FunctionTypeRep(
                 c.constructor().parameters().types().stream().map(tcomp::compileType).toList(),
                 tcomp.compileType(c.constructor().parameters().varargsType()),
@@ -282,7 +289,9 @@ public class Typechecker implements
         for(Declaration declaration: value.fieldsAndMethods()) {
             checkDeclaration(declaration);
         }
-        checkConstructor(value.constructor());
+        if(value.constructor() != null)  {
+            checkConstructor(value.constructor());
+        }
 
         closeScope();
 
@@ -686,7 +695,8 @@ public class Typechecker implements
         } else if(leftType instanceof MyLangAST.Module m) {
             var type = m.enviroment().getTypeOfValue(p.name().lexeme());
             if(type instanceof UnknownType || (!m.enviroment().valueExported(p.name().lexeme()))) {
-                error("["+p.name().line()+"] Module does not export '"+p.name().lexeme()+"'");
+                error("["+p.name().line()+"] Module "+m.name()+" does not export '"+p.name().lexeme()+"'");
+                System.out.println(m);
             } else {
                 hasType(type);
             }

@@ -1,6 +1,7 @@
 module ModuleTest2;
 
 import ModuleTest1;
+import ModuleTestDir.ModuleTest3;
 
 fun addAll(xs..: Number): Number := {
     var counter: Number := 0;
@@ -10,7 +11,7 @@ fun addAll(xs..: Number): Number := {
 
 fun main() {
     print(ModuleTest1.addWith(addAll));
-    print(ModuleTest1.Koordinate(3, 4).toString());
+    print(ModuleTest1.addWith(ModuleTestDir.ModuleTest3.smth));
 }
 
 

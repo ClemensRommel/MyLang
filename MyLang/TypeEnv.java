@@ -36,6 +36,8 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
     public void declareModule(MyLangAST.Module module, MyLangPath path) {
         var currentValues = values;
         var currentTypes = types;
+        Set<String> currentExportedValues = new HashSet<>();
+        Set<String> currentExportedTypes = new HashSet<>();
         for(int i = 0; i < path.names().size()-1; i++) {
             var name = path.names().get(i);
             if(currentValues.containsKey(name.lexeme())) {
@@ -45,13 +47,19 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
                 var newModule = new MyLangAST.Module(name.lexeme(), new TypeEnv());
                 currentValues.put(name.lexeme(), newModule);
                 currentTypes.put(name.lexeme(), newModule);
+                currentExportedTypes.add(name.lexeme());
+                currentExportedValues.add(name.lexeme());
                 currentValues = newModule.enviroment().values;
                 currentTypes = newModule.enviroment().types;
+                currentExportedValues = newModule.enviroment().exportedValues;
+                currentExportedTypes = newModule.enviroment().exportedTypes;
             }
         }
         var finalName = path.names().get(path.names().size()-1).lexeme();
         currentValues.put(finalName, module);
         currentTypes.put(finalName, module);
+        currentExportedValues.add(finalName);
+        currentExportedTypes.add(finalName);
     }
     public boolean valueExists(String name) {
         return values.containsKey(name) || (outer != null && outer.valueExists(name));
@@ -155,4 +163,12 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
             return Typechecker.unknown;
         }
     }
+    @Override
+    public String toString() {
+        return values.keySet().toString() + 
+            ", "+types.keySet().toString()+
+            " exported: "+exportedValues.toString() + ", "+ exportedTypes.toString()+
+            (outer != null ? " | "+outer.toString() : "");
+    }
 }
+

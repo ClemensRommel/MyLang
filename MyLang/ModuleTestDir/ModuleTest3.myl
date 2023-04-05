@@ -1,3 +1,5 @@
 module ModuleTestDir.ModuleTest3;
 
 export fun z(x: Number): Number := 3*x + 4*x;
+
+export fun smth(x: Number, y: Number): Number := 2x*3y;
