@@ -1,4 +1,6 @@
-fun istRechtwinkling(a, b, c) := a^2 + b^2 = c^2;
+fun istRechtwinkling(a, b, c) :=
+    a^2 + b^2 = c^2;
+
 fun main() {
     var weitermachen := true;
     while weitermachen do {

@@ -88,22 +88,35 @@ public class MyLangParser {
         return parser.parse();
     }
 
-    public static Optional<MyLangProgram> parseProgram(String source) {
+    public static Optional<MyLangFile> parseFile(String source) {
         var parser = new MyLangParser(source);
-        List<Declaration> program = new ArrayList<>();
-        if(parser.match(TokenType.MODULE)){
-            program.add(parser.moduleDeclaration());
-        } 
         
         try {
+            List<Declaration> program = new ArrayList<>();
+            if(parser.match(TokenType.MODULE)){
+                program.add(parser.moduleDeclaration());
+            }
+            List<Import> imports = parser.parseImports();
+            //System.out.println(imports);
             while(!parser.atEnd()) {
                 program.add(parser.parseDeclaration());
             }
-            return Optional.of(new MyLangProgram(program));
+            var file = new MyLangFile(program, imports);
+            return Optional.of(file);
         } catch(ParseError error) {
             error.printStackTrace();
             return Optional.empty();
         }
+    }
+
+    private List<Import> parseImports() {
+        List<Import> imports = new ArrayList<>();
+
+        while(match(TokenType.IMPORT)) {
+            imports.add(finalizeImportDeclaration());
+        }
+        
+        return imports;
     }
 
     public Optional<MyLangAST> parse() {
@@ -119,7 +132,8 @@ public class MyLangParser {
 
     // parses expressions, statements and declarations
     private MyLangAST parseAny() {
-        if(peek().type().isVisibilityDeclaration() || (peek().type().startsDeclaration() && peekNext().type().isIdentifier())) {
+        if(peek().type().isVisibilityDeclaration() || 
+                (peek().type().startsDeclaration() && peekNext().type().isIdentifier())) {
             return parseDeclaration();
         } else if(match(TokenType.SEMICOLON)) {
             return new EmptyDeclaration(previous());
@@ -156,7 +170,8 @@ public class MyLangParser {
         if(declarationType.type() == TokenType.INIT) {
             return finalizeClassConstructor(typeName);
         } else {
-            throw new ParseError("Invalid constructor declaration start: "+declarationType.type(), declarationType.line());
+            throw new ParseError("Invalid constructor declaration start: "+declarationType.type(), 
+                    declarationType.line());
         }
     }
 
@@ -164,15 +179,70 @@ public class MyLangParser {
         var keyword = previous();
         consume(TokenType.LPAREN);
         var parameters = parseParameters();
-        Token varargsParameter = null;
-        if(match(TokenType.DOTS)) {
-            varargsParameter = parameters.remove(parameters.size() - 1);
-        }
         consume(TokenType.RPAREN);
         consume(TokenType.ASSIGN);
         var body = parseExpression();
         consume(TokenType.SEMICOLON);
-        return new ClassConstructor(keyword, parameters, varargsParameter, body);
+        return new ClassConstructor(keyword, parameters, body);
+    }
+
+    private Type parseType() {
+        Type left = primaryType();
+        while(true) {
+            if(match(TokenType.DOT)) {
+                var accessed = consume(TokenType.IDENTIFIER);
+                left = new Access(left, accessed);
+            } else if(match(TokenType.LBRACKET)) {
+                consume(TokenType.RBRACKET);
+                left = new ListOf(left);
+            } else {
+                break;
+            }
+        }
+        return left;
+    }
+
+    private Type primaryType() {
+        if(match(TokenType.IDENTIFIER)) {
+            return new TypeIdentifier(previous());
+        } else if(match(TokenType.NUMBER)) {
+            return new NumberType();
+        } else if(match(TokenType.BOOLEAN)) {
+            return new BooleanType();
+        } else if(match(TokenType.LPAREN)) {
+            var inner = parseType();
+            consume(TokenType.RPAREN);
+            return inner;
+        } else if(match(TokenType.STRING)) {
+            return new StringType();
+        } else if(match(TokenType.VOID)) {
+            return new VoidType();
+        } else {
+            consume(TokenType.TYPE_FUN);
+            consume(TokenType.LPAREN);
+            List<Type> parameters = new ArrayList<>();
+            Type varargsType = null;
+            if(!match(TokenType.RPAREN)) {
+                do {
+                    var nextType = parseType();
+                    if(match(TokenType.DOTS)) {
+                        varargsType = nextType;
+                        break;
+                    } else {
+                        parameters.add(nextType);
+                    }
+                } while(match(TokenType.COMMA));
+                consume(TokenType.RPAREN);
+            }
+            consume(TokenType.COLON);
+            var returnType = parseType();
+            return new FunctionType(
+                    parameters,
+                    varargsType,
+                    returnType
+                    );
+        }
+
     }
 
     private Declaration parseDeclaration() {
@@ -183,7 +253,8 @@ public class MyLangParser {
             } else if(match(TokenType.LOCAL)) {
                 export = false;
             } else {
-                throw new ParseError("Unknown visibility declaration: " + peek().type(), peek().line());
+                throw new ParseError("Unknown visibility declaration: " + peek().type(), 
+                        peek().line());
             }
         }
         var declarationType = next();
@@ -192,40 +263,71 @@ public class MyLangParser {
             case VAL -> finalizeVariableDeclaration(false, export);
             case FUN -> finalizeFunctionDeclaration(export);
             case CLASS -> finalizeClassDeclaration(export);
-            case IMPORT -> finalizeImportDeclaration();
+            case TYPE -> finalizeTypeDefDeclaration(export);
             case SEMICOLON -> new EmptyDeclaration(declarationType);
-            default -> throw new ParseError("Unknown declaration type: " + declarationType.type(), declarationType.line());
+            default -> throw new ParseError("Unknown declaration type: " + declarationType.type(), 
+                    declarationType.line());
         };
     }
 
-    private Declaration finalizeImportDeclaration() {
+    private Declaration finalizeTypeDefDeclaration(boolean export) {
+        var name = consume(TokenType.IDENTIFIER);
+        consume(TokenType.ASSIGN);
+        var def = parseType();
+        consume(TokenType.SEMICOLON);
+        return new TypeDefDeclaration(name, def, export);
+    }
+
+    private Import finalizeImportDeclaration() {
         var name = parsePath();
         consume(TokenType.SEMICOLON);
         return new ImportDeclaration(name);
     }
 
     private Declaration finalizeVariableDeclaration(boolean isReassignable, boolean export) {
-        var name = consume(TokenType.VALUE_IDENTIFIER);
+        var name = consume(TokenType.IDENTIFIER);
+        consume(TokenType.COLON);
+        var type = parseType();
         consume(TokenType.ASSIGN);
         var initializer = parseExpression();
         consume(TokenType.SEMICOLON);
-        return new VariableDeclaration(name, initializer, isReassignable, export);
+        return new VariableDeclaration(
+                name, 
+                type, 
+                initializer, 
+                isReassignable, 
+                export);
     }
     private Declaration finalizeFunctionDeclaration(boolean export) {
-        var name = consume(TokenType.VALUE_IDENTIFIER);
+        var name = consume(TokenType.IDENTIFIER);
         var expression = finalizeFunctionExpressionWithName(name.lexeme(), 1);
-        return new FunctionDeclaration(name, expression.parameters(),expression.varargsName(), expression.body(), export);
+        return new FunctionDeclaration(
+                name, 
+                expression.parameters(), 
+                expression.body(), 
+                expression.retType(), 
+                export);
     }
     private FunctionExpression finalizeFunctionExpressionWithName(String name, int counter) {
         consume(TokenType.LPAREN);
         var parameters = parseParameters();
-        Token varargsName = null;
-        if(match(TokenType.DOTS)) {
-            varargsName = parameters.remove(parameters.size() - 1);
-        }
         consume(TokenType.RPAREN); 
         if(peek().type() == TokenType.LPAREN) {
-            return new FunctionExpression(name+"$"+counter, parameters, varargsName, finalizeFunctionExpressionWithName(name, counter+1));
+            var next = finalizeFunctionExpressionWithName(name, counter+1);
+            return new FunctionExpression(
+                    name+"$"+counter, 
+                    parameters, 
+                    next, 
+                    new FunctionType(
+                        next.parameters().types(), 
+                        next.parameters().varargsType(), 
+                        next.retType()));
+        }
+        Type resultType;
+        if(match(TokenType.COLON)) {
+            resultType = parseType();
+        } else {
+            resultType = new VoidType();
         }
         Expression body;
         if(match(TokenType.LBRACE)) {
@@ -235,11 +337,15 @@ public class MyLangParser {
             body = parseExpression();
             consume(TokenType.SEMICOLON);
         }
-        return new FunctionExpression(name, parameters, varargsName, body);
+        return new FunctionExpression(
+                name, 
+                parameters, 
+                body, 
+                resultType);
     }
 
     private Declaration finalizeClassDeclaration(boolean export) {
-        var name = consume(TokenType.TYPE_IDENTIFIER);
+        var name = consume(TokenType.IDENTIFIER);
         consume(TokenType.ASSIGN);
         consume(TokenType.LBRACE);
         List<Declaration> members = new ArrayList<>();
@@ -252,22 +358,41 @@ public class MyLangParser {
             } else if(declaration instanceof Declaration d) {
                 members.add(d);
             } else {
-                throw new ParseError("Invalid Constructor type for Class Declaration: " + declaration.getClass(), line);
+                throw new ParseError("Invalid Constructor type for Class Declaration: " + declaration.getClass(), 
+                        line);
             }
         }
         consume(TokenType.SEMICOLON);
-        return new ClassDeclaration(name, members, constructor, export);
+        return new ClassDeclaration(
+                name, 
+                members, 
+                constructor, 
+                export);
     }
 
-    private List<Token> parseParameters() {
+    private ParameterInformation parseParameters() {
         List<Token> parameters = new ArrayList<>();
+        List<Type> types = new ArrayList<>();
+        Token varargsName = null; Type varargsType = null;
         if(peek().type() != TokenType.RPAREN) {
             do {
-                parameters.add(consume(TokenType.VALUE_IDENTIFIER));
+                parameters.add(consume(TokenType.IDENTIFIER));
+                if(match(TokenType.DOTS)) {
+                    varargsName = parameters.remove(parameters.size() - 1);
+                    consume(TokenType.COLON);
+                    varargsType = parseType();
+                    break;
+                }
+                consume(TokenType.COLON);
+                types.add(parseType());
             } while(match(TokenType.COMMA));
         }
     
-        return parameters;
+        return new ParameterInformation(
+                parameters, 
+                types, 
+                varargsName, 
+                varargsType);
     }
 
 
@@ -275,9 +400,15 @@ public class MyLangParser {
         if(leftHandSide instanceof Identifier ident) {
             return new SetStatement(ident.value(), rightHandSide);
         } else if(leftHandSide instanceof IndexExpression index) {
-            return new SetIndexStatement(index.list(), index.index(), rightHandSide);
+            return new SetIndexStatement(
+                    index.list(), 
+                    index.index(), 
+                    rightHandSide);
         } else if(leftHandSide instanceof PropertyExpression property) {
-            return new SetPropertyStatement(property.object(), property.name(), rightHandSide);
+            return new SetPropertyStatement(
+                    property.object(), 
+                    property.name(), 
+                    rightHandSide);
         } else {
             throw new ParseError("Expected Identifier as Assigment target", -1);
         }
@@ -289,10 +420,10 @@ public class MyLangParser {
 
     private MyLangPath parsePath() {
         List<Token> names = new ArrayList<>();
-        names.add(consume(TokenType.TYPE_IDENTIFIER));
-        while (peekNext().type() == TokenType.TYPE_IDENTIFIER) {
+        names.add(consume(TokenType.IDENTIFIER));
+        while (peekNext().type() == TokenType.IDENTIFIER) {
             consume(TokenType.DOT);
-            names.add(consume(TokenType.TYPE_IDENTIFIER));
+            names.add(consume(TokenType.IDENTIFIER));
         }    
         return new MyLangPath(names);
     }
@@ -363,7 +494,7 @@ public class MyLangParser {
         while(match(TokenType.LPAREN) || match(TokenType.LBRACKET) || match(TokenType.DOT)) {
             var operator = previous();
             if(operator.type() == TokenType.DOT) {
-                var property = consume(TokenType.VALUE_IDENTIFIER);
+                var property = consume(TokenType.IDENTIFIER);
                 left = new PropertyExpression(left, property);
             } else if(operator.type() == TokenType.LPAREN) {
                 var parameters = parseCommaSeparated(TokenType.RPAREN);
@@ -402,7 +533,7 @@ public class MyLangParser {
                 return new WhileYieldExpression(condition, body);
             }
         } else if(match(TokenType.FOR)) {
-            var variableName = consume(TokenType.VALUE_IDENTIFIER);
+            var variableName = consume(TokenType.IDENTIFIER);
             consume(TokenType.IN);
             var collection = parseExpression();
             Expression guard = new BooleanLiteral(true);
@@ -428,13 +559,13 @@ public class MyLangParser {
     }
 
     private Expression someIdentifierOrNew() {
-        if(match(TokenType.VALUE_IDENTIFIER)) {
+        if(match(TokenType.IDENTIFIER)) {
             return new Identifier(previous());
         } else if(match(TokenType.NEW)) {
-            var className = consume(TokenType.TYPE_IDENTIFIER);
+            var className = consume(TokenType.IDENTIFIER);
             Expression classAccess = new Identifier(className);
             while(match(TokenType.DOT)) {
-                var subName = consume(TokenType.TYPE_IDENTIFIER);
+                var subName = consume(TokenType.IDENTIFIER);
                 classAccess = new PropertyExpression(classAccess, subName);
             }
             consume(TokenType.LPAREN);
@@ -442,11 +573,6 @@ public class MyLangParser {
             return new FunctionCall(classAccess, parameters);
         } else if(match(TokenType.VALUE_THIS)) {
             return new ThisExpression(previous());
-        } else if(peek().type() == TokenType.TYPE_IDENTIFIER) {
-            var path = parsePath();
-            consume(TokenType.DOT);
-            var name = consume(TokenType.VALUE_IDENTIFIER);
-            return new NameSpaceExpression(path, name);
         } else {
             return literal();
         }
@@ -513,11 +639,9 @@ public class MyLangParser {
     private Expression finishFunctionExpression() {
         consume(TokenType.LPAREN);
         var parameters = parseParameters();
-        Token varargsName = null;
-        if(match(TokenType.DOTS)) {
-            varargsName = parameters.remove(parameters.size() - 1);
-        }
         consume(TokenType.RPAREN);
+        consume(TokenType.COLON);
+        var returnType = parseType();
         Expression body;
         if(peek().type() == TokenType.LPAREN) {
             body = finishFunctionExpression();
@@ -529,7 +653,7 @@ public class MyLangParser {
                 body = parseExpression();
             }
         }
-        return new FunctionExpression("Anonymous Function", parameters,varargsName, body);
+        return new FunctionExpression("Anonymous Function", parameters, body, returnType);
     }
 
     private Expression finishBlockExpression() {
@@ -562,7 +686,7 @@ public class MyLangParser {
         if(match(TokenType.NUMBER_LITERAL)) {
             Token literal = previous();
             Expression left = new NumericLiteral(Double.parseDouble(literal.lexeme()));
-            if(peek().type() == TokenType.VALUE_IDENTIFIER) {
+            if(peek().type() == TokenType.IDENTIFIER) {
                 Expression multiplied = propertyOrCall();
                 return new BinaryOperation(new Token(TokenType.STAR, literal.lexeme(),literal.line()), left, multiplied);
             } else if(match(TokenType.LPAREN)) {
@@ -589,3 +713,7 @@ public class MyLangParser {
         }
     }
 }
+
+
+
+

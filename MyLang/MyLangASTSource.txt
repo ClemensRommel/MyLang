@@ -6,7 +6,7 @@ Expression < MyLangAST = NumericLiteral: double value
                        | BinaryOperation: Token operator, Expression left, Expression right
                        | UnaryOperation: Token operator, Expression operand
                        | FunctionCall: Expression callee, List<Parameter> arguments
-                       | FunctionExpression: String optionalName, List<Token> parameters, Token varargsName, Expression body
+                       | FunctionExpression: String optionalName, ParameterInformation parameters, Expression body, Type retType
                        | IfExpression: Expression condition, Expression thenBranch, Expression elseBranch
                        | ListExpression: List<Parameter> elements
                        | IndexExpression: Expression list, Expression index
@@ -17,16 +17,17 @@ Expression < MyLangAST = NumericLiteral: double value
                        | ForYieldExpression: Token variable, Expression collection, Expression guard, Parameter body
                        | ForDoExpression: Token variable, Expression collection, Expression guard, Statement body
                        | RangeExpression: Expression start, Expression end, Expression step
-                       | ThisExpression: Token keyword
-                       | NameSpaceExpression: MyLangPath nameSpace, Token name;
+                       | ThisExpression: Token keyword;
 
 Declaration < MyLangAST, DeclarationOrStatement, ConstructorOrDeclaration =
-        VariableDeclaration: Token Name, Expression initializer, boolean isReassignable, boolean export
-    |   FunctionDeclaration: Token Name, List<Token> parameters, Token varargsName, Expression body, boolean export
+        VariableDeclaration: Token Name, Type type, Expression initializer, boolean isReassignable, boolean export
+    |   FunctionDeclaration: Token Name, ParameterInformation parameters, Expression body, Type retType, boolean export
     |   ClassDeclaration:    Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor, boolean export
+    |   TypeDefDeclaration:  Token Name, Type definition, boolean export
     |   ModuleDeclaration:   MyLangPath Name
-    |   ImportDeclaration:   MyLangPath Name
     |   EmptyDeclaration:    Token semicolon;
+
+Import < MyLangAST = ImportDeclaration: MyLangPath Name;
 Statement < MyLangAST, DeclarationOrStatement =
         ExpressionStatement: Expression expression
     |   SetStatement: Token name, Expression expression
@@ -35,7 +36,7 @@ Statement < MyLangAST, DeclarationOrStatement =
     |   EmptyStatement: Token semicolon;
 
 Constructor < MyLangAST, ConstructorOrDeclaration = 
-        ClassConstructor: Token keyword, List<Token> parameters,Token varargsName, Expression body;
+        ClassConstructor: Token keyword, ParameterInformation parameters, Expression body;
 
 Parameter < MyLangAST = 
         ExpressionParameter: Expression expr
@@ -44,3 +45,23 @@ Parameter < MyLangAST =
 
 ConstructorOrDeclaration < MyLangAST;
 DeclarationOrStatement < MyLangAST;
+
+Type < MyLangAST = 
+        TypeIdentifier: Token name
+    |   FunctionType: List<Type> parameters, Type varargsType, Type returnType
+    |   ListOf: Type elements
+    |   Access: Type accessed, Token name
+    |   VoidType: 
+    |   NumberType: 
+    |   BooleanType: 
+    |   StringType: ;
+
+TypeRep < MyLangAST =
+        TypeIdentifierRep: Token name, TypeEnv env
+    |   FunctionTypeRep: List<TypeRep> parameters, TypeRep varargsType, TypeRep returnType, TypeEnv env
+    |   ClassType: Token name, Map<String, TypeRep> accessors, Map<String, Boolean> readability, FunctionTypeRep constructor, TypeEnv env
+    |   ListOfRep: TypeRep elements
+    |   Builtin: BuiltinType type
+    |   AccessRep: TypeRep accessed, Token name
+    |   UnknownType: 
+    |   Module: String name, TypeEnv enviroment;

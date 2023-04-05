@@ -10,10 +10,17 @@ public enum TokenType {
     AND, OR, XOR,
 
 
-    VALUE_IDENTIFIER, TYPE_IDENTIFIER,
+    IDENTIFIER,
 
+    // Value kexwords
     VAR, VAL, VALUE_THIS, NEW, FUN, IF, THEN, ELSE, WHILE, FOR, IN, DO, YIELD,
-    INIT, CLASS, MODULE, IMPORT, EXPORT, LOCAL,
+    INIT, 
+
+    // Namespacing Keywords
+    MODULE, IMPORT, EXPORT, LOCAL,
+
+    // Type Keywords
+    CLASS, TYPE_FUN, NUMBER, BOOLEAN, STRING, VOID, TYPE, 
 
 
     EOF, ERROR;
@@ -27,7 +34,7 @@ public enum TokenType {
     }
 
     public boolean isIdentifier() {
-        return this == VALUE_IDENTIFIER || this == TYPE_IDENTIFIER;
+        return this == IDENTIFIER;
     }
 
     public boolean shortCircuits() {

@@ -2,16 +2,23 @@ package MyLang;
 
 import java.util.ArrayList;
 import java.util.List;
+import static MyLang.MyLangAST.*;
 
 public abstract class MyLangBuiltinFunction implements MyLangCallable {
     public final String name;
+    public final TypeRep type;
 
-    protected MyLangBuiltinFunction(String name) {
-        this.name = name;
+    protected MyLangBuiltinFunction(String name, TypeRep t) {
+        this.name = name; type = t;
     }
 
 
-    public static final MyLangBuiltinFunction print = new MyLangBuiltinFunction("print") {
+    public static final MyLangBuiltinFunction print = new MyLangBuiltinFunction(
+            "print", 
+            new FunctionTypeRep(
+                List.of(), 
+                Typechecker.voidType, 
+                Typechecker.voidType, new TypeEnv())) {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args) {
             for (Object object : args) {
@@ -22,7 +29,13 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         }
     };
 
-    public static final MyLangBuiltinFunction input = new MyLangBuiltinFunction("input") {
+    public static final MyLangBuiltinFunction input = new MyLangBuiltinFunction(
+            "input",
+            new FunctionTypeRep(
+                List.of(Typechecker.voidType), 
+                null, 
+                Typechecker.stringType,
+            new TypeEnv())) {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args) {
             if(args.size() != 1) {
@@ -33,7 +46,13 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         }
     };
     
-    public static final MyLangBuiltinFunction number = new MyLangBuiltinFunction("number") {
+    public static final MyLangBuiltinFunction number = new MyLangBuiltinFunction(
+            "number",
+            new FunctionTypeRep(
+                List.of(Typechecker.stringType), 
+                null, 
+                Typechecker.numberType,
+                new TypeEnv())) {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args) {
             if(args.size() != 1) {
@@ -46,7 +65,13 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
             }
         }
     };
-    public static final MyLangBuiltinFunction listPush = new MyLangBuiltinFunction("push") {
+    public static final MyLangBuiltinFunction listPush = new MyLangBuiltinFunction(
+            "push",
+            new FunctionTypeRep(
+                List.of(Typechecker.voidType),
+                null, 
+                Typechecker.voidType,
+                new TypeEnv())) {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args) {
             if(args.size() != 2) {
@@ -61,7 +86,9 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         }  
     };
 
-    public static final MyLangBuiltinFunction listPop = new MyLangBuiltinFunction("pop") {
+    public static final MyLangBuiltinFunction listPop = new MyLangBuiltinFunction(
+            "pop",
+            new FunctionTypeRep(List.of(), null, Typechecker.voidType, new TypeEnv())) {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args) {
             if(args.size() != 1) {
@@ -78,7 +105,12 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         }
     };
 
-    public static final MyLangBuiltinFunction listDequeue = new MyLangBuiltinFunction("dequeue") {
+    public static final MyLangBuiltinFunction listDequeue = new MyLangBuiltinFunction(
+        "dequeue",
+        new FunctionTypeRep(
+            List.of(), 
+            null, 
+            Typechecker.voidType, new TypeEnv())) {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args) {
             if(args.size() != 1) {
@@ -95,7 +127,12 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         }
     };
 
-    public static final MyLangBuiltinFunction listPeek = new MyLangBuiltinFunction("peek") {
+    public static final MyLangBuiltinFunction listPeek = new MyLangBuiltinFunction(
+            "peek",
+            new FunctionTypeRep(
+                List.of(), 
+                null, 
+                Typechecker.voidType, new TypeEnv())) {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args) {
             if(args.size() != 1) {
@@ -112,7 +149,9 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         }
     };
 
-    public static final MyLangBuiltinFunction listPeekLast = new MyLangBuiltinFunction("peekLast") {
+    public static final MyLangBuiltinFunction listPeekLast = new MyLangBuiltinFunction(
+            "peekLast",
+            new FunctionTypeRep(List.of(), null, Typechecker.voidType, new TypeEnv())) {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args) {
             if(args.size() != 1) {
@@ -129,7 +168,13 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         }
     };
 
-    public static final MyLangBuiltinFunction listPrepend = new MyLangBuiltinFunction("prepend") {
+    public static final MyLangBuiltinFunction listPrepend = new MyLangBuiltinFunction(
+        "prepend",
+        new FunctionTypeRep(
+            List.of(Typechecker.voidType),
+            null,
+            Typechecker.voidType,
+            new TypeEnv())) {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args) {
             if(args.size() != 2) {
@@ -144,7 +189,13 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         }
     };
 
-    public static final MyLangBuiltinFunction listAppend = new MyLangBuiltinFunction("append") {
+    public static final MyLangBuiltinFunction listAppend = new MyLangBuiltinFunction(
+            "append",
+            new FunctionTypeRep(
+                List.of(Typechecker.voidType),
+                null,
+                Typechecker.voidType,
+                new TypeEnv())) {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args) {
             if(args.size() != 2) {
@@ -159,25 +210,9 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         }  
     };
 
-    public static final MyLangBuiltinFunction RangeAsList = new MyLangBuiltinFunction("asList") {
-        @Override
-        public Object call(MyLangInterpreter interpreter, List<Object> args) {
-            if(args.size() != 1) {
-                throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'");
-            }
-            if(args.get(0) instanceof MyLangRange r) {
-                List<Object> list = new ArrayList<>();
-                for(double i = r.start(); i < r.end(); i += r.step()) {
-                    list.add(i);
-                }
-                return list;
-            } else {
-                throw new InterpreterError("Invalid this target for range asList");
-            }
-        }
-    };
-
-    public static final MyLangBuiltinFunction random = new MyLangBuiltinFunction("random") {
+    public static final MyLangBuiltinFunction random = new MyLangBuiltinFunction(
+            "random",
+            new FunctionTypeRep(List.of(), null, Typechecker.numberType, new TypeEnv())) {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args) {
             if(args.size() != 0) {
@@ -187,7 +222,12 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         }
     };
 
-    public static final MyLangBuiltinFunction clock = new MyLangBuiltinFunction("clock") {
+    public static final MyLangBuiltinFunction clock = new MyLangBuiltinFunction(
+        "clock",
+        new FunctionTypeRep(
+            List.of(),
+            null,
+            Typechecker.numberType, new TypeEnv())) {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args) {
             if(args.size() != 0) {

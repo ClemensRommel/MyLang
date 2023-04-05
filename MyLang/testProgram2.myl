@@ -1,8 +1,8 @@
-fun fibbonacciN(n) {
-    var last := 1;
-    var lastBefore := 1;
+fun fibbonacciN(n: Number): Number {
+    var last: Number := 1;
+    var lastBefore: Number := 1;
     for i in [2..n] do {
-        val lastBefore2 := lastBefore;
+        val lastBefore2: Number := lastBefore;
         lastBefore := last;
         last := last + lastBefore2;
     };

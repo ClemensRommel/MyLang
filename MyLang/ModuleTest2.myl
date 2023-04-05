@@ -1,13 +1,16 @@
 module ModuleTest2;
 
 import ModuleTest1;
-import ModuleTestDir.ModuleTest3;
 
-fun f(x) := 3x-2;
-
-fun main() := {
-    val f1 := ModuleTest1.f(3);
-    val f2 := f(3);
-    print(f1, " ", f2);
-    print(ModuleTestDir.ModuleTest3.z(1));
+fun addAll(xs..: Number): Number := {
+    var counter: Number := 0;
+    for i in xs do counter := counter + i;
+    counter
 };
+
+fun main() {
+    print(ModuleTest1.addWith(addAll));
+    print(ModuleTest1.Koordinate(3, 4).toString());
+}
+
+

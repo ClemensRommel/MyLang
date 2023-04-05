@@ -4,10 +4,17 @@ import java.util.Map;
 import java.util.List;
 import MyLang.MyLangAST.*;
 
-public record MyLangClass(String name, Map<String, MyLangCallable> methods, List<VariableDeclaration> fields, MyLangCallable constructor, MyLangEnviroment env) implements MyLangCallable {
+public record MyLangClass(
+        String name, 
+        Map<String, MyLangCallable> methods, 
+        List<VariableDeclaration> fields, 
+        MyLangCallable constructor, 
+        MyLangEnviroment env) implements MyLangCallable {
+
     public String getName() {
         return name;
     }
+
     public Object call(MyLangInterpreter interpreter, List<Object> args) {
         MyLangEnviroment previousEnv = interpreter.env;
         interpreter.env = env.openScope();

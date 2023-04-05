@@ -1,13 +1,20 @@
-fun fib(n) {
-    val fibs := [1, 1];
+fun fib(n: Number): Number {
+    val fibs: Number[] := [1, 1];
     for i in [2..n] do {
-        fibs.push(fibs.peekLast() + fibs.head.peekLast());
+        fibs.push(fibs.peekLast() + fibs.firsts.peekLast());
     };
     fibs.pop()
+}
+
+fun f(x: Number): Number := 3x + {
+    val a: Number := 2 * x;
+    a * a
 };
+
+fun doWith(A: Number, F: Fun(Number): Void): Void := F(A);
 
 fun main() {
     print(3);
-    print(fib(40));
+    doWith(40, fun(n: Number): Void := print(fib(n)));
     print("Done");
-};
+}

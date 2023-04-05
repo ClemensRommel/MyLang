@@ -3,7 +3,13 @@ package MyLang;
 import java.util.List;
 import MyLang.MyLangAST.Expression;
 
-public record MyLangFunction(String name, List<Token> parameters, Token varargsName, MyLangEnviroment env, Expression body) implements MyLangCallable {
+public record MyLangFunction(
+        String name, 
+        List<Token> parameters, 
+        Token varargsName, 
+        MyLangEnviroment env, 
+        Expression body) implements MyLangCallable {
+
     public String getName() {
         return name;
     }
@@ -14,7 +20,9 @@ public record MyLangFunction(String name, List<Token> parameters, Token varargsN
         interpreter.env = env.openScope();
 
         if(!checkSize(args)) {
-            throw new InterpreterError("Wrong number of arguments: expected "+parameters.size()+", got "+args.size()+" ("+args+")");
+            throw new InterpreterError(
+                    "Wrong number of arguments: expected "+parameters.size()+
+                    ", got "+args.size()+" ("+args+")");
         }
         for(int i = 0; i < parameters.size(); i++) {
             interpreter.env.declareVariable(parameters.get(i).lexeme(), args.get(i), false);

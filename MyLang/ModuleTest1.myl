@@ -1,6 +1,20 @@
 module ModuleTest1;
 
-export fun f(x) := 3x + 2;
+export type Adder := Fun(Number, Number): Number;
 
-// local optional, ist standard
-local fun g(y) := 2y * 3;
+export fun addWith(f: Adder): Number := f(3, 4);
+
+
+export class Koordinate := {
+    var x: Number := 0;
+    var y: Number := 0;
+
+    fun toString(): String := "("+this.x+","+this.y+")";
+
+    init(x: Number, y: Number) := {
+        this.x := x;
+        this.y := y;
+    };
+};
+
+export val origin: Koordinate := new Koordinate(0, 0);

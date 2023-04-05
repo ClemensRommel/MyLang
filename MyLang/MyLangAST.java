@@ -23,7 +23,6 @@ public T visitForYieldExpression(ForYieldExpression value);
 public T visitForDoExpression(ForDoExpression value);
 public T visitRangeExpression(RangeExpression value);
 public T visitThisExpression(ThisExpression value);
-public T visitNameSpaceExpression(NameSpaceExpression value);
 }
 public static sealed interface Expression extends MyLangAST {
     public <T> T accept(ExpressionVisitor<T> visitor);
@@ -60,7 +59,7 @@ public static record FunctionCall(Expression callee, List<Parameter> arguments) 
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitFunctionCall(this);
 }}
-public static record FunctionExpression(String optionalName, List<Token> parameters, Token varargsName, Expression body) implements Expression {
+public static record FunctionExpression(String optionalName, ParameterInformation parameters, Expression body, Type retType) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitFunctionExpression(this);
 }}
@@ -108,26 +107,22 @@ public static record ThisExpression(Token keyword) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitThisExpression(this);
 }}
-public static record NameSpaceExpression(MyLangPath nameSpace, Token name) implements Expression {
-public <T> T accept(ExpressionVisitor<T> visitor) {
-    return visitor.visitNameSpaceExpression(this);
-}}
 public static interface DeclarationVisitor<T> {
 public T visitVariableDeclaration(VariableDeclaration value);
 public T visitFunctionDeclaration(FunctionDeclaration value);
 public T visitClassDeclaration(ClassDeclaration value);
+public T visitTypeDefDeclaration(TypeDefDeclaration value);
 public T visitModuleDeclaration(ModuleDeclaration value);
-public T visitImportDeclaration(ImportDeclaration value);
 public T visitEmptyDeclaration(EmptyDeclaration value);
 }
 public static sealed interface Declaration extends MyLangAST,  DeclarationOrStatement,  ConstructorOrDeclaration {
     public <T> T accept(DeclarationVisitor<T> visitor);
 }
-public static record VariableDeclaration(Token Name, Expression initializer, boolean isReassignable, boolean export) implements Declaration {
+public static record VariableDeclaration(Token Name, Type type, Expression initializer, boolean isReassignable, boolean export) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitVariableDeclaration(this);
 }}
-public static record FunctionDeclaration(Token Name, List<Token> parameters, Token varargsName, Expression body, boolean export) implements Declaration {
+public static record FunctionDeclaration(Token Name, ParameterInformation parameters, Expression body, Type retType, boolean export) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitFunctionDeclaration(this);
 }}
@@ -135,17 +130,27 @@ public static record ClassDeclaration(Token Name, List<Declaration> fieldsAndMet
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitClassDeclaration(this);
 }}
+public static record TypeDefDeclaration(Token Name, Type definition, boolean export) implements Declaration {
+public <T> T accept(DeclarationVisitor<T> visitor) {
+    return visitor.visitTypeDefDeclaration(this);
+}}
 public static record ModuleDeclaration(MyLangPath Name) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitModuleDeclaration(this);
 }}
-public static record ImportDeclaration(MyLangPath Name) implements Declaration {
-public <T> T accept(DeclarationVisitor<T> visitor) {
-    return visitor.visitImportDeclaration(this);
-}}
 public static record EmptyDeclaration(Token semicolon) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitEmptyDeclaration(this);
+}}
+public static interface ImportVisitor<T> {
+public T visitImportDeclaration(ImportDeclaration value);
+}
+public static sealed interface Import extends MyLangAST {
+    public <T> T accept(ImportVisitor<T> visitor);
+}
+public static record ImportDeclaration(MyLangPath Name) implements Import {
+public <T> T accept(ImportVisitor<T> visitor) {
+    return visitor.visitImportDeclaration(this);
 }}
 public static interface StatementVisitor<T> {
 public T visitExpressionStatement(ExpressionStatement value);
@@ -183,7 +188,7 @@ public T visitClassConstructor(ClassConstructor value);
 public static sealed interface Constructor extends MyLangAST,  ConstructorOrDeclaration {
     public <T> T accept(ConstructorVisitor<T> visitor);
 }
-public static record ClassConstructor(Token keyword, List<Token> parameters,Token varargsName, Expression body) implements Constructor {
+public static record ClassConstructor(Token keyword, ParameterInformation parameters, Expression body) implements Constructor {
 public <T> T accept(ConstructorVisitor<T> visitor) {
     return visitor.visitClassConstructor(this);
 }}
@@ -211,4 +216,95 @@ public static sealed interface ConstructorOrDeclaration extends MyLangAST {
 }
 public static sealed interface DeclarationOrStatement extends MyLangAST {
 }
+public static interface TypeVisitor<T> {
+public T visitTypeIdentifier(TypeIdentifier value);
+public T visitFunctionType(FunctionType value);
+public T visitListOf(ListOf value);
+public T visitAccess(Access value);
+public T visitVoidType(VoidType value);
+public T visitNumberType(NumberType value);
+public T visitBooleanType(BooleanType value);
+public T visitStringType(StringType value);
+}
+public static sealed interface Type extends MyLangAST {
+    public <T> T accept(TypeVisitor<T> visitor);
+}
+public static record TypeIdentifier(Token name) implements Type {
+public <T> T accept(TypeVisitor<T> visitor) {
+    return visitor.visitTypeIdentifier(this);
+}}
+public static record FunctionType(List<Type> parameters, Type varargsType, Type returnType) implements Type {
+public <T> T accept(TypeVisitor<T> visitor) {
+    return visitor.visitFunctionType(this);
+}}
+public static record ListOf(Type elements) implements Type {
+public <T> T accept(TypeVisitor<T> visitor) {
+    return visitor.visitListOf(this);
+}}
+public static record Access(Type accessed, Token name) implements Type {
+public <T> T accept(TypeVisitor<T> visitor) {
+    return visitor.visitAccess(this);
+}}
+public static record VoidType() implements Type {
+public <T> T accept(TypeVisitor<T> visitor) {
+    return visitor.visitVoidType(this);
+}}
+public static record NumberType() implements Type {
+public <T> T accept(TypeVisitor<T> visitor) {
+    return visitor.visitNumberType(this);
+}}
+public static record BooleanType() implements Type {
+public <T> T accept(TypeVisitor<T> visitor) {
+    return visitor.visitBooleanType(this);
+}}
+public static record StringType() implements Type {
+public <T> T accept(TypeVisitor<T> visitor) {
+    return visitor.visitStringType(this);
+}}
+public static interface TypeRepVisitor<T> {
+public T visitTypeIdentifierRep(TypeIdentifierRep value);
+public T visitFunctionTypeRep(FunctionTypeRep value);
+public T visitClassType(ClassType value);
+public T visitListOfRep(ListOfRep value);
+public T visitBuiltin(Builtin value);
+public T visitAccessRep(AccessRep value);
+public T visitUnknownType(UnknownType value);
+public T visitModule(Module value);
+}
+public static sealed interface TypeRep extends MyLangAST {
+    public <T> T accept(TypeRepVisitor<T> visitor);
+}
+public static record TypeIdentifierRep(Token name, TypeEnv env) implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitTypeIdentifierRep(this);
+}}
+public static record FunctionTypeRep(List<TypeRep> parameters, TypeRep varargsType, TypeRep returnType, TypeEnv env) implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitFunctionTypeRep(this);
+}}
+public static record ClassType(Token name, Map<String, TypeRep> accessors, Map<String, Boolean> readability, FunctionTypeRep constructor, TypeEnv env) implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitClassType(this);
+}
+public String toString() {return name.lexeme();}}
+public static record ListOfRep(TypeRep elements) implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitListOfRep(this);
+}}
+public static record Builtin(BuiltinType type) implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitBuiltin(this);
+}}
+public static record AccessRep(TypeRep accessed, Token name) implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitAccessRep(this);
+}}
+public static record UnknownType() implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitUnknownType(this);
+}}
+public static record Module(String name, TypeEnv enviroment) implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitModule(this);
+}}
 }

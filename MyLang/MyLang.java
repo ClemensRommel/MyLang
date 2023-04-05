@@ -52,20 +52,12 @@ public class MyLang {
     }
 
     public void runFile(String filename) throws IOException {
-        String content = Files.readString(Paths.get(filename));
         // var tokens = MyLangScanner.tokenize(content);
         /* for (var token: tokens) {
             System.out.println(token);
         } */
-        var parentDirectory = Paths.get(filename).getParent();
-        var program = MyLangParser.parseProgram(content);
-        if(program.isPresent()) {
-            try{
-                interpreter.interpretProgram(program.get(), parentDirectory, true);
-            } catch(InterpreterError e) {
-                e.printStackTrace();
-            }
-        }
+        MyLangRunner runner = new MyLangRunner(filename);
+        runner.run();
     }
 
     public static void main(String[] args) throws IOException {

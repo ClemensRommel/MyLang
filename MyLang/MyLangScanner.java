@@ -113,6 +113,7 @@ public final class MyLangScanner {
             }
             case '/' -> new Token(TokenType.SLASH,"/", line);
             case '%' -> new Token(TokenType.PERCENT,"%", line);
+            case '^' -> new Token(TokenType.EXPO, "^", line);
             case '!' -> {
                 if(match('=')) {
                     yield new Token(TokenType.NOT_EQUAL, "!=", line);
@@ -209,12 +210,20 @@ public final class MyLangScanner {
             case "import" -> new Token(TokenType.IMPORT, "import", line);
             case "export" -> new Token(TokenType.EXPORT, "export", line);
             case "local" -> new Token(TokenType.LOCAL, "local", line);
-            default -> new Token(TokenType.VALUE_IDENTIFIER, identifier, line);
+            case "type" -> new Token(TokenType.TYPE, "type", line);
+            default -> new Token(TokenType.IDENTIFIER, identifier, line);
         };
     }
 
     private Token uppercaseIdentifier(String identifier) {
-        return new Token(TokenType.TYPE_IDENTIFIER, identifier, line);
+        return switch(identifier) {
+            case "Fun" -> new Token(TokenType.TYPE_FUN, "Fun", line);
+            case "Number" -> new Token(TokenType.NUMBER, "Number", line);
+            case "Bool" -> new Token(TokenType.BOOLEAN, "Bool", line);
+            case "String" -> new Token(TokenType.STRING, "String", line);
+            case "Void" -> new Token(TokenType.VOID, "Void", line);
+            default -> new Token(TokenType.IDENTIFIER, identifier, line);
+        };
     }
 
     private Token stringLiteral() {
@@ -263,15 +272,6 @@ public final class MyLangScanner {
         }
         current++;
         return true;
-    }
-
-    private void emitIfNext(char c, TokenType t, int lengthAlready) {
-        if(match(c)) {
-            output.add(new Token(t, source.substring(current - lengthAlready - 1, current + 1), line));
-        } else {
-            next();
-            output.add(new Token(TokenType.ERROR, source.substring(current - lengthAlready - 1, current + 1), line));
-        }
     }
 }
 
