@@ -60,7 +60,7 @@ public class TypeInferrer
             }
             case MINUS, STAR, SLASH, PERCENT, EXPO -> Typechecker.numberType;
             case LESS, LESS_EQUAL, EQUAL, GREATER_EQUAL, GREATER, IN -> Typechecker.booleanType;
-            default -> Typechecker.unknown;
+            default -> {System.out.println("Invalid binary Operator"); yield Typechecker.unknown();}
         };
     }
     @Override
@@ -68,7 +68,7 @@ public class TypeInferrer
         return switch(u.operator().type()) {
             case BANG -> Typechecker.booleanType;
             case PLUS, MINUS -> Typechecker.numberType;
-            default -> Typechecker.unknown;
+            default -> {System.out.println("Invalid unary Operator");yield Typechecker.unknown();}
         };
     }
 
@@ -78,7 +78,7 @@ public class TypeInferrer
         if(funType instanceof FunctionTypeRep t) {
             return t.returnType();
         } else {
-            return Typechecker.unknown;
+            return Typechecker.unknown();
         }
     }
 
@@ -100,7 +100,7 @@ public class TypeInferrer
     public TypeRep visitListExpression(ListExpression l) {
         if(l.elements().size() == 0) {
             tc.error("Cannot infer type of empty list");
-            return new ListOfRep(Typechecker.unknown);
+            return new ListOfRep(Typechecker.unknown());
         }
         return new ListOfRep(tc.inferElemTypeOfParameter(l.elements().get(0), true));
     }
@@ -110,7 +110,7 @@ public class TypeInferrer
         if(listType instanceof ListOfRep l) {
             return l.elements();
         } else {
-            return Typechecker.unknown;
+            return Typechecker.unknown();
         }
     }
 
@@ -121,7 +121,7 @@ public class TypeInferrer
             if(t.accessors().containsKey(p.name().lexeme())) {
                 return t.accessors().get(p.name().lexeme());
             } else {
-                return Typechecker.unknown;
+                return Typechecker.unknown();
             }
         } else if(classType instanceof ListOfRep l) {
             //System.out.println("Inferring type of list method "+p.name().lexeme());
@@ -130,10 +130,10 @@ public class TypeInferrer
             if(m.enviroment().valueExported(p.name().lexeme()) && m.enviroment().valueExists(p.name().lexeme())) {
                 return m.enviroment().getTypeOfValue(p.name().lexeme());
             } else {
-                return Typechecker.unknown;
+                return Typechecker.unknown();
             }
         } else {
-            return Typechecker.unknown;
+            return Typechecker.unknown();
         }
     }
 
@@ -182,7 +182,12 @@ public class TypeInferrer
 
     @Override
     public TypeRep visitThisExpression(ThisExpression t) {
-        if(!tc.exists("this")) {return Typechecker.unknown;} 
+        if(!tc.exists("this")) return Typechecker.unknown();
         return tc.getTypeOf(t.keyword(), true);
+    }
+
+    @Override
+    public TypeRep visitReturnExpression(ReturnExpression r) {
+        return tc.neverType;
     }
 }

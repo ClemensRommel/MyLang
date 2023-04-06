@@ -31,9 +31,12 @@ public record MyLangFunction(
             var varargs = args.subList(parameters.size(), args.size());
             interpreter.env.declareVariable(varargsName.lexeme(), varargs, false);
         }
-
-        var result = interpreter.interpretExpression(body);
-
+        Object result;
+        try {
+            result = interpreter.interpretExpression(body);
+        } catch(ReturnException r) {
+            result = r.returnValue;
+        }
         interpreter.env = previousEnv;
 
         return result;

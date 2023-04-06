@@ -91,7 +91,8 @@ public class MyLangRunner {
     }
 
     public void run() throws IOException {
-        if(gatherAllImports())
+        if(gatherAllImports()) {
             interpreter.interpretFile(this, mainModule, true);
+        }
     }
 }

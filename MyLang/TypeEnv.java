@@ -89,7 +89,7 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
         } else if(outer != null) {
             return outer.getTypeByName(name);
         } else {
-            return Typechecker.unknown;
+            return Typechecker.unknown();
         }
     }
 
@@ -147,6 +147,9 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
     @Override
     public TypeRep visitTypeIdentifierRep(TypeIdentifierRep ti) {
         var fromEnv = ti.env();
+        if(!fromEnv.typeExists(ti.name().lexeme())) {
+            tc.error("["+ti.name().line()+"] Unknown Type '"+ti.name().lexeme()+"'");
+        }
         return fromEnv.getTypeByName(ti.name().lexeme());
     }
     @Override
@@ -155,12 +158,12 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
         if(from instanceof MyLangAST.Module m) {
             if(!m.enviroment().typeExported(a.name().lexeme())) {
                 tc.error("Module does not export type '"+a.name().lexeme()+"'");
-                return Typechecker.unknown;
+                return Typechecker.unknown();
             }
             return normalize(m.enviroment().getTypeByName(a.name().lexeme()), tc);
         } else {
             tc.error("Cannot access type from non-Module-Type '"+from+"'");
-            return Typechecker.unknown;
+            return Typechecker.unknown();
         }
     }
     @Override
@@ -169,6 +172,10 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
             ", "+types.keySet().toString()+
             " exported: "+exportedValues.toString() + ", "+ exportedTypes.toString()+
             (outer != null ? " | "+outer.toString() : "");
+    }
+    @Override
+    public TypeRep visitNeverType(NeverType n) {
+        return n;
     }
 }
 

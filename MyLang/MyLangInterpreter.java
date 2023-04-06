@@ -23,6 +23,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
 
     private Path workingDirectory = null;
 
+    boolean inConstructor = false;
+
     private Map<String, MyLangCallable> listMethods = Map.ofEntries(
         Map.entry("push", MyLangBuiltinFunction.listPush),
         Map.entry("pop", MyLangBuiltinFunction.listPop),
@@ -391,9 +393,10 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     @Override
     public Void visitSetPropertyStatement(SetPropertyStatement value) {
         var object = interpretExpression(value.target());
+        boolean overrideImmutable = inConstructor && (value.target() instanceof ThisExpression);
         var newValue = interpretExpression(value.expression());
         if(object instanceof MyLangObject theObject) {
-            theObject.setField(value.name().lexeme(), newValue);
+            theObject.setField(value.name().lexeme(), newValue, overrideImmutable);
             return null;
         } else if(object instanceof List theList) {
             if(value.name().lexeme().equals("first")) {
@@ -613,4 +616,16 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     public Void visitTypeDefDeclaration(TypeDefDeclaration t) {
         return null;
     }
+
+    @Override
+    public Void visitReturnExpression(ReturnExpression r) {
+        throw new ReturnException(interpretExpression(r.returnValue()));
+    }
+    @Override
+    public Void visitIfStatement(IfStatement i) {
+        if(truthy(interpretExpression(i.condition()))) {
+            interpretStatement(i.body());
+        }
+        return null;
+    } 
 }

@@ -26,7 +26,10 @@ public record MyLangClass(
             instance.fields.put(decl.Name().lexeme(), interpreter.interpretExpression(decl.initializer()));
         }
         if(constructor != null) {
+            boolean prevInConstructor = interpreter.inConstructor;
+            interpreter.inConstructor = true;
             constructor.bind(instance).call(interpreter, args);
+            interpreter.inConstructor = prevInConstructor;
         } else {
             if(args.size() != 0) {
                 throw new InterpreterError("Invalid number of arguments to implicit constructor of class "+name+": "+args.size());

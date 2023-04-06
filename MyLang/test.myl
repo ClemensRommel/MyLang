@@ -17,4 +17,29 @@ fun main() {
     print(3);
     doWith(40, fun(n: Number): Void := print(fib(n)));
     print("Done");
+
+    val list: Number[] := [1, 2, 3, 4];
+    list.append([5, 6, 7, 8]);
+    print(list);
+
+    print(test(false));
+
+    val k: Koordinate := Koordinate(3, 4);
+    print(k.toString());
 }
+
+fun test(b: Bool): Number {
+    if(b) do return 5;
+    return 3;
+    2
+};
+
+class Koordinate := {
+    val x: Number;
+    val y: Number;
+    init(x: Number, y: Number) := {
+        this.x := x;
+        this.y := y;
+    };
+    fun toString(): String := "("+this.x+", "+this.y+")";
+};

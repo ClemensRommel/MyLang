@@ -113,4 +113,9 @@ implements TypeRepVisitor<Void> {
         f.returnType().accept(this);
         return null;
     }
+    @Override
+    public Void visitNeverType(NeverType n) {
+        builder.append("!");
+        return null;
+    }
 }

@@ -12,6 +12,7 @@ public class MyLangParser {
     private List<Token> tokens;
     private int current = 0;
     private int length;
+    private boolean inClass = false;
 
     private boolean defaultVisibility = false;
 
@@ -138,6 +139,17 @@ public class MyLangParser {
         } else if(match(TokenType.SEMICOLON)) {
             return new EmptyDeclaration(previous());
         } else {
+            var start = current;
+            if(match(TokenType.IF)) {
+                var condition = parseExpression();
+                if(match(TokenType.DO)) {
+                    var body = parseStatementOrExpression();
+                    consume(TokenType.SEMICOLON);
+                    return new IfStatement(condition, body);
+                } else { // Backtrack and instead parse a expression
+                    current = start;
+                }
+            }
             var expression = parseExpression();
             if(match(TokenType.SEMICOLON)) {
                 return new ExpressionStatement(expression);
@@ -288,9 +300,14 @@ public class MyLangParser {
         var name = consume(TokenType.IDENTIFIER);
         consume(TokenType.COLON);
         var type = parseType();
-        consume(TokenType.ASSIGN);
-        var initializer = parseExpression();
-        consume(TokenType.SEMICOLON);
+        Expression initializer;
+        if(inClass && match(TokenType.SEMICOLON)) {
+            initializer = new NullLiteral(previous());
+        } else {
+            consume(TokenType.ASSIGN);
+            initializer = parseExpression();
+            consume(TokenType.SEMICOLON);
+        }
         return new VariableDeclaration(
                 name, 
                 type, 
@@ -350,10 +367,15 @@ public class MyLangParser {
         consume(TokenType.LBRACE);
         List<Declaration> members = new ArrayList<>();
         ClassConstructor constructor = null;
+        boolean prevInClass = inClass;
+        inClass = true;
         while(!match(TokenType.RBRACE)) {
             int line = peek().line();
             ConstructorOrDeclaration declaration = parseDeclarationOrConstructor(name.lexeme());
             if(declaration instanceof ClassConstructor c) {
+                if(constructor != null) {
+                    throw new ParseError("Already had an Constructor for class "+name.lexeme(), previous().line());
+                }
                 constructor = c;
             } else if(declaration instanceof Declaration d) {
                 members.add(d);
@@ -362,6 +384,7 @@ public class MyLangParser {
                         line);
             }
         }
+        inClass = prevInClass;
         consume(TokenType.SEMICOLON);
         return new ClassDeclaration(
                 name, 
@@ -554,6 +577,8 @@ public class MyLangParser {
             return finishListExpression();
         } else if(match(TokenType.FUN)) {
             return finishFunctionExpression();
+        } else if(match(TokenType.RETURN)) {
+            return new ReturnExpression(parseExpression());
         }
         return someIdentifierOrNew();
     }
@@ -580,6 +605,16 @@ public class MyLangParser {
 
     private Statement parseStatementOrExpression() {
         if(match(TokenType.SEMICOLON)) return new EmptyStatement(previous());
+        var start = current;
+        if(match(TokenType.IF)) {
+            var condition = parseExpression();
+            if(match(TokenType.DO)) {
+                var body = parseStatementOrExpression();
+                return new IfStatement(condition, body);
+            } else {
+                current = start;
+            }
+        }
         var left = parseExpression();
         Statement resulting;
         if((match(TokenType.ASSIGN))) {

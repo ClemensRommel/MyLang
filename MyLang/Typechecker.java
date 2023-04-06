@@ -17,14 +17,18 @@ public class Typechecker implements
     TypeEnv env = new TypeEnv();
     PrettyPrinter p = new PrettyPrinter();
     SubtypeChecker s = new SubtypeChecker();
-    private TypeInferrer ti = new TypeInferrer(this);
+    TypeInferrer ti = new TypeInferrer(this);
     TypeCompiler tcomp = new TypeCompiler(this);
 
     private TypeRep checkTarget = null;
+    TypeRep currentReturnType = null;
 
     MyLangRunner runner;
 
     private String currentFileName = null;
+
+    private boolean inConstructor = false;
+    private boolean inClass = false;
 
     public Typechecker(MyLangRunner runner) {
         this.runner = runner;
@@ -111,11 +115,11 @@ public class Typechecker implements
                 return l.elements();
             } else {
                 if(!inferMode) error("Expected list, got a '"+showType(collectionType)+"'");
-                return unknown;
+                return unknown();
             }
         } else {
             error("Could not infer type of Parameter "+p);
-            return unknown;
+            return unknown();
         }
     }
 
@@ -133,6 +137,8 @@ public class Typechecker implements
 
     private void checkConstructor(ClassConstructor c) {
         openScope();
+        boolean prevInConstructor = inConstructor;
+        inConstructor = true;
         for(int i = 0; i < c.parameters().names().size(); i++) {
             declareType(
                     c.parameters().names().get(i).lexeme(), 
@@ -145,7 +151,11 @@ public class Typechecker implements
                     tcomp.compileType(c.parameters().varargsType()), 
                     false);
         }
+        var previousReturnType = currentReturnType;
+        currentReturnType = voidType;
         checkType(voidType, c.body());
+        currentReturnType = previousReturnType;
+        inConstructor = prevInConstructor;
         closeScope();
     }
 
@@ -260,6 +270,9 @@ public class Typechecker implements
 
     @Override
     public Void visitVariableDeclaration(VariableDeclaration value) {
+        if(inClass && value.initializer() instanceof NullLiteral) {
+            return null;
+        }
         checkType(tcomp.compileType(value.type()), value.initializer());
         return null;
     }
@@ -276,7 +289,11 @@ public class Typechecker implements
                     new ListOfRep(tcomp.compileType(value.parameters().varargsType())), 
                     false);
         }
-        checkType(tcomp.compileType(value.retType()), value.body());
+        var retType = tcomp.compileType(value.retType());
+        var previousReturnType = currentReturnType;
+        currentReturnType = retType;
+        checkType(retType, value.body());
+        currentReturnType = previousReturnType;
         closeScope();
         return null;
     }
@@ -285,6 +302,8 @@ public class Typechecker implements
     public Void visitClassDeclaration(ClassDeclaration value) {
         var classType = env.getTypeByName(value.Name().lexeme());
         openScope();
+        boolean prevInClass = inClass;
+        inClass = true;
         declareType("this", classType, false);
         for(Declaration declaration: value.fieldsAndMethods()) {
             checkDeclaration(declaration);
@@ -292,6 +311,8 @@ public class Typechecker implements
         if(value.constructor() != null)  {
             checkConstructor(value.constructor());
         }
+
+        inClass = prevInClass;
 
         closeScope();
 
@@ -325,7 +346,7 @@ public class Typechecker implements
         }
         to = env.normalize(to, this);
         from = env.normalize(from, this);
-        if(to.equals(unknown) || from.equals(unknown)) {
+        if(to.equals(unknown()) || from.equals(unknown())) {
             hadError = true;
             return true;
         }
@@ -375,7 +396,7 @@ public class Typechecker implements
         error("["+name.line()+"] Unknown variable '"+name.lexeme()+"'");
     }
 
-    static TypeRep unknown = new UnknownType();
+    static TypeRep unknown() {return new UnknownType();}
 
     TypeRep getTypeOf(Token name) {
         return getTypeOf(name, false);
@@ -465,7 +486,7 @@ public class Typechecker implements
             hasType(booleanType);
         } else if(o.operator().type() == TokenType.PLUS || o.operator().type() == TokenType.MINUS) {
             checkType(numberType, o.operand());
-            hasType(booleanType);
+            hasType(numberType);
         }
 
         return null;
@@ -551,7 +572,10 @@ public class Typechecker implements
         }
 
         var returnType = tcomp.compileType(f.retType());
+        var previousReturnType = currentReturnType;
+        currentReturnType = returnType;
         checkType(returnType, f.body());
+        currentReturnType = previousReturnType;
         closeScope();
         FunctionTypeRep type = new FunctionTypeRep(
                 parameterTypes,
@@ -644,7 +668,7 @@ public class Typechecker implements
     }
     TypeRep appendType(ListOfRep l) {
         return new FunctionTypeRep(
-                List.of(l.elements()),
+                List.of(l),
                 null,
                 voidType,
                 env);
@@ -666,8 +690,7 @@ public class Typechecker implements
                 case "rest" -> l;
                 case "firsts" -> l;
                 default -> {
-                    //System.out.println("Unknown list method "+name);
-                    yield unknown;
+                    yield unknown();
                 }
             };
     }
@@ -681,7 +704,7 @@ public class Typechecker implements
             } else {
                 var accessorType = c.accessors().get(p.name().lexeme());
                 if(accessorType instanceof UnknownType) {
-                    error("["+p.name().line()+"] Unknown Property Type of property '"+p.name().lexeme()+"'");
+                    error("["+p.name().line()+"] Unknown Property Type of property '"+p.name().lexeme()+"'");
                 }
                 hasType(accessorType);
             }
@@ -696,7 +719,6 @@ public class Typechecker implements
             var type = m.enviroment().getTypeOfValue(p.name().lexeme());
             if(type instanceof UnknownType || (!m.enviroment().valueExported(p.name().lexeme()))) {
                 error("["+p.name().line()+"] Module "+m.name()+" does not export '"+p.name().lexeme()+"'");
-                System.out.println(m);
             } else {
                 hasType(type);
             }
@@ -852,7 +874,7 @@ public class Typechecker implements
             var propertyType = t.accessors().get(p.name().lexeme());
             checkType(propertyType, p.expression());
             var isReassignable = t.readability().get(p.name().lexeme());
-            if(!isReassignable) {
+            if(!isReassignable && !(p.target() instanceof ThisExpression && inConstructor)) {
                 error("["+p.name().line()+"] Cannot reassign property '"+p.name().lexeme()+"' because it's immutable");
             }
         } else {
@@ -864,6 +886,25 @@ public class Typechecker implements
     @Override
     public Void visitTypeDefDeclaration(TypeDefDeclaration t) {
         env.normalize(env.getTypeByName(t.Name().lexeme()), this);
+        return null;
+    }
+
+    TypeRep neverType = new NeverType();
+
+    @Override
+    public Void visitReturnExpression(ReturnExpression r) {
+        if(currentReturnType == null) {
+            error("Cannot return outside of Function");
+            return null;
+        }
+        checkType(currentReturnType, r.returnValue());
+
+        return null;
+    }
+    @Override
+    public Void visitIfStatement(IfStatement i) {
+        checkType(booleanType, i.condition());
+        checkStatement(i.body());
         return null;
     }
 }

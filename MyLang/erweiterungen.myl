@@ -1,0 +1,357 @@
+/* ======== Mögliche Erweiterungen ======= */
+
+// 1. Enums
+
+// 2. Generics
+
+// 3. Interfaces/Traits
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ====== Enums ====== */
+
+
+// weniger wie java, mehr wie rust
+
+// enum wie es auch in java möglich wäre
+enum Wochentag := {
+    Montag, Mittwoch, Dienstag, Donnerstag, Freitag, Samstag, Sonntag;
+};
+
+// was durch "enhanced enums" möglich ist
+
+enum DateiErgebnis := {
+    Erfolg(String), Fehler(IOFehler);
+};
+
+fun öffneDatei(name: String): DateiErgebnis := ...;
+
+// Enums sind nicht eine Menge von Konstanten, sondern mehrere Konstruktoren, die einen Wert des Enums erzeugen
+
+// Diese werden durch Pattern-matching in ihre Einzelteile zerlegt, ähnlich wie in Rust
+
+match öffne("test.txt") {
+    case Erfolg(inhalt) := {
+        print(inhalt);
+    };
+    case Fehler(e) := {
+        print("Konnte datei nicht öffnen: ", e);
+    };
+}
+
+// match ist ein Ausdruck wie z.B. auch if:
+
+fun leseZahlAusDatei(dateiName: String): Number := match öffne(dateiName) {
+    case Erfolg(inhalt) := number(inhalt);
+    case Fehler(_) := -1; // _ ist immer erfolgreich, und ignoriert den wert
+};
+
+// man kann auch mit konstanten matchen, diese matchen nur, wenn der Wert, auf dem gematcht wird gleich ist
+
+fun facultät(n: Number): Number := match n {
+    case 1 := 1;
+    case n := n * facultät(n-1);
+}
+
+// auch weitere konstrukte sind denkbar, wieder wie in rust:
+
+// if let/if val: then wird ausgeführt, wenn das pattern erfolgreich war, else wenn nicht
+
+if val Erfolg(inhalt) := öffne("test.txt") then {
+    print(inhalt);
+} else {
+    print("Konnte datei nicht öffnen");
+}
+
+// let else (bzw val else): wenn das pattern erfolgreich ist, werden die variablen des patterns deklariert, ansonsten wird 
+// der else teil ausgeführt, der aber immer return verwenden muss :
+
+val Erfolg(inhalt) := öffne("test.txt") else {
+    print("Konnte datei nicht öffnen");
+    return Fehler();
+};
+// Alternativ wäre es Möglich, extra typen für die einzelnen varianten zu erzeugen und zu erfordern dass else den typen des
+// patterns hat, um Standard-werte zu ermöglichen
+val Erfolg(inhalt) := öffne("test.txt") else Erfolg("");
+
+// while let(while val): while-schleife, die solange ausgeführt wird, wie das pattern erfolgreich ist
+
+fun solangeErfolg(ergebnisse: DateiErgebnis[]): String[] := {
+    val index: Number := 0;
+    while val Erfolg(inhalt) := ergebnisse[index] yield {
+        index := index + 1;
+        inhalt
+    }
+};
+
+// For-Schleifen sind auch erweitert:
+
+for Erfolg(inhalt) in ergebnisse do {
+    print(inhalt);
+};
+
+// Pattern-matching lässt sich auch leicht auf tupel erweitern:
+
+fun paar(x: Number, y: Number): (Number, Number) := (x, y);
+
+val (x, y): (Number, Number) := paar(3, 4);
+// x ist 3, y ist 4
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ==== Generics ==== */
+
+
+// Generics ermöglichen einen, funktionen oder Datenstrukturen unabhängig von den Elementen zu schreiben:
+
+// z.B. ein generischer Datentyp, der ein 5 elemente gleichen Typs repräsentiert:
+
+class ListeAus5[A] := {
+    val element1: A; val element2: A; val element3: A; val element4: A; val element5: A;
+    init(e1: A, e2: A, e3: A, e4: A, e5: A) := {
+        this.element1 := e1; this.element2 := e2; this.element3 := e3; this.element4 := e4; this.element5 := e5;
+    };
+};
+
+
+// eine generische Funktion, die eine Liste umkehrt:
+
+fun reverse[A](liste: A[]): A[] := {
+    val neueListe: A[] := [];
+    for element in liste do {
+        neueListe.prepend(element);
+    };
+    neueListe
+};
+
+// problem beim funktionen aufrufen:
+
+val x := f[a](); // ist uneindeutig: könnte ein typparameter sein, aber auch ein listen-index;
+
+// lösung:
+// konstruktoren mit new können die "schöne" syntax verwenden:
+val set: Set[Number] := new HashSet[Number]();
+// Funktionen verwenden einen punkt:
+val x := f.[a]();
+// ähnlich der lösungen in anderen sprachen wie java, rust ...
+
+// besonders interessant ist die interaktion mit enums:
+
+// als ersatz für null kann man einen Optional-Typ definieren:
+
+enum Optional[A] := {
+    Nothing,
+    Something(A);
+};
+
+// und funktionen schreiben, die methoden aufrufen, die optional zurückgeben, und bei Nothing direkt Nothing zurückgeben
+
+fun etwas(x: Number): Optional[Number] := {
+    val Something(x1) := funktion1(x) else {
+        return Nothing;
+    };
+    val Something(x2) := funktion2(x1) else {
+        return Nothing;
+    };
+    funktion3(x2)
+};
+
+// es wäre denkbar, (wie in rust), einen eigenen Operator dafür zu definieren:
+
+fun etwas2(x: Number): Optional[Number] := {
+    val x1 := funktion1(x)?;
+    val x2 := funktion2(x1)?;
+    funktion3(x2)
+};
+
+// auch das DateiErgebnis kann generisch repräsentiert werden:
+
+enum Ergebnis[F, E] := {
+    Fehler(F);
+    Erfolg(E),
+};
+// möglich wäre es, ? auch dafür zu verwenden
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ==== Interfaces/Traits ==== */
+
+
+// problem: java-ähnliche interfaces sind eher limitiert, da: Man kann nur bei der deklaration des types
+// interfaces implementieren, und bei einem Generischen Typ entweder für alle Parameter oder gar nicht.
+// Lösung: Rust-Traits/Haskell-Typeclasses:
+
+// Interfaces werden ähnlich wie bei java deklariert:
+inferface ToString := {
+    fun toString(this: This): String;
+}
+
+// Sie werden aber anders implementiert:
+// in Rust sind es impl-Blöcke, in Haskell instance-deklarationen, hier:
+// Syntax kann sich noch ändern:
+
+implement Number as ToString := {
+    fun toString(this: This): String := ""+this;
+}
+
+// Funktionen, die methoden sind, müssen das explizit schreiben
+
+// Es ist auch möglich, für fremde Datentypen zu deklarieren
+
+// Interfaces unterstützen Vererbung:
+
+interface Parse < ToString := {
+    fun parse(source: String): This;
+}
+
+// This-typ: This in einem Interface ist der Typ der das Interface implementiert,
+// z.b.
+implement Number as Parse := {
+    fun parse(source: String): Number := number(source);
+}
+val x: Number := parse("3"); // x = 3;
+
+// Der Vorteil ist, dass dieser Typ direkt geschrieben werden kann. 
+// Rekursive Parameter wie in java werden dabei verhindert:
+/*
+interface Comparable<A> {
+    int compareTo(A);
+}
+<A extends Comparable<A>> List<A> sort(List<A>);
+
+// verglichen zu:
+
+enum Reihenfolge := {
+    Größer, Gleich, Kleiner;
+};
+
+interface Comparable := {
+    fun compare(this: This, other: This): Reihenfolge;  
+};
+*/
+
+// Interessant wird es allerdings in verbindung mit Generics:
+// zum beispiel kann man bei einer Liste ToString nur implementieren, wenn die elemente ToString implementieren:
+
+implement[A < ToString] A[] as ToString := {
+    fun ToString(this: A[]): String := {
+        var output: String := "[";
+        for element in this.firsts do {
+            output := output + element.toString() + ", ";
+        };
+        output := output + this.last.toString()+"]";
+        output
+    };
+}
+
+// Außerdem kann eine generische Funktion anfordern, das ein Typ-Parameter ein Interface implementiert
+// z.b. könnte eine sort-Funktion so aussehen:
+
+fun sort[A < Comparable](list: A[]): A[] := ...;
+
+// Anforderungen könnten auch in where-Definitionen hinzugefügt werden:
+
+fun sort[A](list: A[]): A[] where A < Comparable := ...;
+
+fun sort[A](list: A[]): A[] where A < Comparable {
+    ...
+    return neueListe;
+}
+
+// Alternative Syntax-möglichkeiten, die mir noch eingefallen wären
+implement ToString for Number := {
+...
+};
+
+fun sort[A <: Comparable](list: A[]): A[] := ...;
+
+
+

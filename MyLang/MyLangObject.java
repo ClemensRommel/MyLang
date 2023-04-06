@@ -19,10 +19,14 @@ public class MyLangObject {
     }
 
     public void setField(String name, Object value) {
+        setField(name, value, false);
+    }
+
+    public void setField(String name, Object value, boolean overrideImmutable) {
         if(klass.methods().containsKey(name)) {
             throw new InterpreterError("Cannot reassign methods of objects");
         } else if(fields.containsKey(name)) {
-            if(readability.get(name)) {
+            if(readability.get(name) || overrideImmutable) {
                 fields.put(name, value);
             } else {
                 throw new InterpreterError("Error: cannot write to field that is not reassignable: "+name +" (class is "+ klass.name()+")");

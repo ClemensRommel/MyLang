@@ -22,6 +22,7 @@ public T visitWhileDoExpression(WhileDoExpression value);
 public T visitForYieldExpression(ForYieldExpression value);
 public T visitForDoExpression(ForDoExpression value);
 public T visitRangeExpression(RangeExpression value);
+public T visitReturnExpression(ReturnExpression value);
 public T visitThisExpression(ThisExpression value);
 }
 public static sealed interface Expression extends MyLangAST {
@@ -103,6 +104,10 @@ public static record RangeExpression(Expression start, Expression end, Expressio
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitRangeExpression(this);
 }}
+public static record ReturnExpression(Expression returnValue) implements Expression {
+public <T> T accept(ExpressionVisitor<T> visitor) {
+    return visitor.visitReturnExpression(this);
+}}
 public static record ThisExpression(Token keyword) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitThisExpression(this);
@@ -154,6 +159,7 @@ public <T> T accept(ImportVisitor<T> visitor) {
 }}
 public static interface StatementVisitor<T> {
 public T visitExpressionStatement(ExpressionStatement value);
+public T visitIfStatement(IfStatement value);
 public T visitSetStatement(SetStatement value);
 public T visitSetIndexStatement(SetIndexStatement value);
 public T visitSetPropertyStatement(SetPropertyStatement value);
@@ -165,6 +171,10 @@ public static sealed interface Statement extends MyLangAST,  DeclarationOrStatem
 public static record ExpressionStatement(Expression expression) implements Statement {
 public <T> T accept(StatementVisitor<T> visitor) {
     return visitor.visitExpressionStatement(this);
+}}
+public static record IfStatement(Expression condition, Statement body) implements Statement {
+public <T> T accept(StatementVisitor<T> visitor) {
+    return visitor.visitIfStatement(this);
 }}
 public static record SetStatement(Token name, Expression expression) implements Statement {
 public <T> T accept(StatementVisitor<T> visitor) {
@@ -269,6 +279,7 @@ public T visitListOfRep(ListOfRep value);
 public T visitBuiltin(Builtin value);
 public T visitAccessRep(AccessRep value);
 public T visitUnknownType(UnknownType value);
+public T visitNeverType(NeverType value);
 public T visitModule(Module value);
 }
 public static sealed interface TypeRep extends MyLangAST {
@@ -285,8 +296,7 @@ public <T> T accept(TypeRepVisitor<T> visitor) {
 public static record ClassType(Token name, Map<String, TypeRep> accessors, Map<String, Boolean> readability, FunctionTypeRep constructor, TypeEnv env) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitClassType(this);
-}
-public String toString() {return name.lexeme();}}
+}}
 public static record ListOfRep(TypeRep elements) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitListOfRep(this);
@@ -302,6 +312,10 @@ public <T> T accept(TypeRepVisitor<T> visitor) {
 public static record UnknownType() implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitUnknownType(this);
+}}
+public static record NeverType() implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitNeverType(this);
 }}
 public static record Module(String name, TypeEnv enviroment) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
