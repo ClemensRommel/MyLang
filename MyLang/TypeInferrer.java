@@ -186,8 +186,4 @@ public class TypeInferrer
         return tc.getTypeOf(t.keyword(), true);
     }
 
-    @Override
-    public TypeRep visitReturnExpression(ReturnExpression r) {
-        return tc.neverType;
-    }
 }

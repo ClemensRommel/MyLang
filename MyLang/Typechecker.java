@@ -889,10 +889,14 @@ public class Typechecker implements
         return null;
     }
 
-    TypeRep neverType = new NeverType();
-
     @Override
-    public Void visitReturnExpression(ReturnExpression r) {
+    public Void visitIfStatement(IfStatement i) {
+        checkType(booleanType, i.condition());
+        checkStatement(i.body());
+        return null;
+    }
+    @Override
+    public Void visitReturnStatement(ReturnStatement r) {
         if(currentReturnType == null) {
             error("Cannot return outside of Function");
             return null;
@@ -901,10 +905,5 @@ public class Typechecker implements
 
         return null;
     }
-    @Override
-    public Void visitIfStatement(IfStatement i) {
-        checkType(booleanType, i.condition());
-        checkStatement(i.body());
-        return null;
-    }
+
 }

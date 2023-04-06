@@ -617,10 +617,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         return null;
     }
 
-    @Override
-    public Void visitReturnExpression(ReturnExpression r) {
-        throw new ReturnException(interpretExpression(r.returnValue()));
-    }
+
     @Override
     public Void visitIfStatement(IfStatement i) {
         if(truthy(interpretExpression(i.condition()))) {
@@ -628,4 +625,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         }
         return null;
     } 
+    @Override
+    public Void visitReturnStatement(ReturnStatement r) {
+        throw new ReturnException(interpretExpression(r.returnValue()));
+    }
 }

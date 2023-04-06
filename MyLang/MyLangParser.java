@@ -149,6 +149,10 @@ public class MyLangParser {
                 } else { // Backtrack and instead parse a expression
                     current = start;
                 }
+            } else if(match(TokenType.RETURN)) {
+                var body = parseExpression();
+                consume(TokenType.SEMICOLON);
+                return new ReturnStatement(body);
             }
             var expression = parseExpression();
             if(match(TokenType.SEMICOLON)) {
@@ -577,9 +581,7 @@ public class MyLangParser {
             return finishListExpression();
         } else if(match(TokenType.FUN)) {
             return finishFunctionExpression();
-        } else if(match(TokenType.RETURN)) {
-            return new ReturnExpression(parseExpression());
-        }
+        }        
         return someIdentifierOrNew();
     }
 
@@ -614,6 +616,9 @@ public class MyLangParser {
             } else {
                 current = start;
             }
+        } else if(match(TokenType.RETURN)) {
+            var body = parseExpression();
+            return new ReturnStatement(body);
         }
         var left = parseExpression();
         Statement resulting;

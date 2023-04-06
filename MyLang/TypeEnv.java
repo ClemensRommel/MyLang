@@ -173,9 +173,5 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
             " exported: "+exportedValues.toString() + ", "+ exportedTypes.toString()+
             (outer != null ? " | "+outer.toString() : "");
     }
-    @Override
-    public TypeRep visitNeverType(NeverType n) {
-        return n;
-    }
 }
 

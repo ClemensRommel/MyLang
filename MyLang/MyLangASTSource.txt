@@ -17,7 +17,6 @@ Expression < MyLangAST = NumericLiteral: double value
                        | ForYieldExpression: Token variable, Expression collection, Expression guard, Parameter body
                        | ForDoExpression: Token variable, Expression collection, Expression guard, Statement body
                        | RangeExpression: Expression start, Expression end, Expression step
-                       | ReturnExpression: Expression returnValue
                        | ThisExpression: Token keyword;
 
 Declaration < MyLangAST, DeclarationOrStatement, ConstructorOrDeclaration =
@@ -35,6 +34,7 @@ Statement < MyLangAST, DeclarationOrStatement =
     |   SetStatement: Token name, Expression expression
     |   SetIndexStatement: Expression list, Expression index, Expression expression
     |   SetPropertyStatement: Expression target, Token name, Expression expression
+    |   ReturnStatement: Expression returnValue
     |   EmptyStatement: Token semicolon;
 
 Constructor < MyLangAST, ConstructorOrDeclaration = 
@@ -66,5 +66,4 @@ TypeRep < MyLangAST =
     |   Builtin: BuiltinType type
     |   AccessRep: TypeRep accessed, Token name
     |   UnknownType: 
-    |   NeverType: 
     |   Module: String name, TypeEnv enviroment;

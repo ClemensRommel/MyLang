@@ -83,8 +83,4 @@ public class SubtypeChecker implements TypeRepVisitor<Boolean> {
     public Boolean visitUnknownType(UnknownType u) {
         return false;
     }
-    @Override
-    public Boolean visitNeverType(NeverType n) {
-        return true;
-    }
 }
