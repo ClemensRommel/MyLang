@@ -15,7 +15,7 @@ public record MyLangClass(
         return name;
     }
 
-    public Object call(MyLangInterpreter interpreter, List<Object> args) {
+    public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> namedArgs) {
         MyLangEnviroment previousEnv = interpreter.env;
         interpreter.env = env.openScope();
 
@@ -28,10 +28,10 @@ public record MyLangClass(
         if(constructor != null) {
             boolean prevInConstructor = interpreter.inConstructor;
             interpreter.inConstructor = true;
-            constructor.bind(instance).call(interpreter, args);
+            constructor.bind(instance).call(interpreter, args, namedArgs);
             interpreter.inConstructor = prevInConstructor;
         } else {
-            if(args.size() != 0) {
+            if(args.size() != 0 && !namedArgs.isEmpty()) {
                 throw new InterpreterError("Invalid number of arguments to implicit constructor of class "+name+": "+args.size());
             }
         }

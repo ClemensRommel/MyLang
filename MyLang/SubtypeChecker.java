@@ -4,23 +4,23 @@ import static MyLang.MyLangAST.*;
 
 public class SubtypeChecker implements TypeRepVisitor<Boolean> {
 
-    private TypeRep superType = null;
+    private TypeRep target = null;
 
     public boolean isSubtypeOf(TypeRep to, TypeRep from) {
         if(to instanceof UnknownType) {
             return true;
         }
-        superType = to;
+        target = to;
         return from.accept(this);
     }
 
     @Override
     public Boolean visitBuiltin(Builtin b) {
-        return b.equals(superType);
+        return b.equals(target);
     }
     @Override
     public Boolean visitListOfRep(ListOfRep l) {
-        if(superType instanceof ListOfRep l2) {
+        if(target instanceof ListOfRep l2) {
             return isSubtypeOf(l2.elements(), l.elements());
         } else {
             return false;
@@ -28,23 +28,23 @@ public class SubtypeChecker implements TypeRepVisitor<Boolean> {
     }
     @Override
     public Boolean visitAccessRep(AccessRep a) {
-        return a.equals(superType);
+        return a.equals(target);
     }
     @Override
     public Boolean visitModule(MyLangAST.Module m) {
-        return m.equals(superType);
+        return m.equals(target);
     }
     @Override
     public Boolean visitClassType(ClassType c) {
-        return c.equals(superType);
+        return c.equals(target);
     }
     @Override
     public Boolean visitTypeIdentifierRep(TypeIdentifierRep t) {
-        return t.equals(superType);
+        return t.equals(target);
     }
     @Override
     public Boolean visitFunctionTypeRep(FunctionTypeRep f) {
-        if(superType instanceof FunctionTypeRep f2) { // function parameter requires to many arguments
+        if(target instanceof FunctionTypeRep f2) { // function parameter requires to many arguments
             if(f2.parameters().size() < f.parameters().size()) {
                 return false;
             }
@@ -70,10 +70,47 @@ public class SubtypeChecker implements TypeRepVisitor<Boolean> {
                             return true;
                         }
             }
+            
+            // Optional params
+            if(f.optionalParameters().size() < f2.optionalParameters().size()) {
+                return false;
+            }
+            boolean optionalsAreOk = true;
+            for(int i = 0; i < f2.optionalParameters().size(); i++) {
+                optionalsAreOk &= isSubtypeOf(f.optionalParameters().get(i), f2.optionalParameters().get(i));
+            }
+            if(!optionalsAreOk) {
+                return false;
+            }
+
             if(f2.varargsType() != null) {// there is varargs required
                 return isSubtypeOf(f.varargsType(), f2.varargsType());
             }
-            return isSubtypeOf(f2.returnType(), f.returnType());
+
+            // Check named params
+            boolean namedAreGiven = f.named() // All required params are given
+                .entrySet()
+                .stream()
+                .allMatch((var entry) -> {
+                   return (f2.named().containsKey(entry.getKey()) && 
+                    isSubtypeOf(entry.getValue(), f2.named().get(entry.getKey())));
+                });
+            boolean allOptionalNamedAreGiven = f2.optionalNamed().entrySet().stream() // All optional params can be used
+                .allMatch(entry -> {
+                    return (f.optionalNamed().containsKey(entry.getKey())
+                     && isSubtypeOf(f.optionalNamed().get(entry.getKey()), entry.getValue()));
+            });
+            boolean allNamedAreUsed = f2.named() // all required params can be used
+                .entrySet()
+                .stream()
+                .allMatch(entry -> {
+                    return (
+                            f.named().containsKey(entry.getKey()) && 
+                            isSubtypeOf(f.named().get(entry.getKey()), entry.getValue()))
+                        ||  (f.optionalNamed().containsKey(entry.getKey()) &&
+                            isSubtypeOf(f.optionalNamed().get(entry.getKey()), entry.getValue()));
+            });
+            return namedAreGiven && allOptionalNamedAreGiven && allNamedAreUsed && isSubtypeOf(f2.returnType(), f.returnType());
 
         } else {
             return false;

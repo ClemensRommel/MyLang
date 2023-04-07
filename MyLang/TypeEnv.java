@@ -1,6 +1,7 @@
 package MyLang;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static MyLang.MyLangAST.*;
 
@@ -132,10 +133,23 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
     @Override
     public TypeRep visitFunctionTypeRep(FunctionTypeRep f) {
         return new FunctionTypeRep(f.parameters().stream().map(t -> normalize(t, tc)).toList(),
+                                   f.optionalParameters().stream().map(t -> normalize(t, tc)).toList(),
+                                   normalizeNamed(f.named()),
+                                   normalizeNamed(f.optionalNamed()),
                                    normalize(f.varargsType(), tc),
                                    normalize(f.returnType(), tc),
                                    f.env());
     }
+
+    private Map<String, TypeRep> normalizeNamed(Map<String, TypeRep> named) {
+        return named.entrySet().stream()
+            .collect(Collectors.toMap(
+                Map.Entry::getKey,
+                value -> normalize(value.getValue(), tc)
+                )
+            );
+    }
+
     @Override
     public TypeRep visitClassType(ClassType c) {
         return c;

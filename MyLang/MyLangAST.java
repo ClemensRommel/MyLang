@@ -55,7 +55,7 @@ public static record UnaryOperation(Token operator, Expression operand) implemen
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitUnaryOperation(this);
 }}
-public static record FunctionCall(Expression callee, List<Parameter> arguments) implements Expression {
+public static record FunctionCall(Expression callee, List<Parameter> arguments, Map<String, Expression> named) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitFunctionCall(this);
 }}
@@ -205,6 +205,7 @@ public <T> T accept(ConstructorVisitor<T> visitor) {
 public static interface ParameterVisitor<T> {
 public T visitExpressionParameter(ExpressionParameter value);
 public T visitSpreadParameter(SpreadParameter value);
+public T visitNamedParameter(NamedParameter value);
 public T visitConditionalParameter(ConditionalParameter value);
 }
 public static sealed interface Parameter extends MyLangAST {
@@ -217,6 +218,10 @@ public <T> T accept(ParameterVisitor<T> visitor) {
 public static record SpreadParameter(Expression collection) implements Parameter {
 public <T> T accept(ParameterVisitor<T> visitor) {
     return visitor.visitSpreadParameter(this);
+}}
+public static record NamedParameter(Token name, Expression parameter) implements Parameter {
+public <T> T accept(ParameterVisitor<T> visitor) {
+    return visitor.visitNamedParameter(this);
 }}
 public static record ConditionalParameter(Expression body, Expression guard) implements Parameter {
 public <T> T accept(ParameterVisitor<T> visitor) {
@@ -243,7 +248,12 @@ public static record TypeIdentifier(Token name) implements Type {
 public <T> T accept(TypeVisitor<T> visitor) {
     return visitor.visitTypeIdentifier(this);
 }}
-public static record FunctionType(List<Type> parameters, Type varargsType, Type returnType) implements Type {
+public static record FunctionType(List<Type> parameters, 
+            List<Type> optionalParameters, 
+            Map<String, Type> named, 
+            Map<String, Type> optionalNamed,
+            Type varargsType, 
+            Type returnType) implements Type {
 public <T> T accept(TypeVisitor<T> visitor) {
     return visitor.visitFunctionType(this);
 }}
@@ -288,11 +298,21 @@ public static record TypeIdentifierRep(Token name, TypeEnv env) implements TypeR
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitTypeIdentifierRep(this);
 }}
-public static record FunctionTypeRep(List<TypeRep> parameters, TypeRep varargsType, TypeRep returnType, TypeEnv env) implements TypeRep {
+public static record FunctionTypeRep(List<TypeRep> parameters, 
+            List<TypeRep> optionalParameters, 
+            Map<String, TypeRep> named, 
+            Map<String, TypeRep> optionalNamed,
+            TypeRep varargsType, 
+            TypeRep returnType, 
+            TypeEnv env) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitFunctionTypeRep(this);
 }}
-public static record ClassType(Token name, Map<String, TypeRep> accessors, Map<String, Boolean> readability, FunctionTypeRep constructor, TypeEnv env) implements TypeRep {
+public static record ClassType(Token name, 
+            Map<String, TypeRep> accessors, 
+            Map<String, Boolean> readability, 
+            FunctionTypeRep constructor, 
+            TypeEnv env) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitClassType(this);
 }}

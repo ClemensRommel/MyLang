@@ -31,6 +31,10 @@ public class MyLangEnviroment {
             throw new InterpreterError("Variable '"+name+"' already declared");
         }
     }
+
+    public boolean localVariableDeclared(String name) {
+        return variables.containsKey(name);
+    }
     
     public Object getVariable(String name) {
         if(variables.containsKey(name)) {

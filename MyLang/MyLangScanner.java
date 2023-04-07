@@ -87,6 +87,7 @@ public final class MyLangScanner {
                     yield new Token(TokenType.COLON, ":", line);
                 }
             }
+            case '?' -> new Token(TokenType.QUESTION_MARK, "?", line);
             case ';' -> new Token(TokenType.SEMICOLON,";", line);
             case '(' -> new Token(TokenType.LPAREN,"(", line);
             case ')' -> new Token(TokenType.RPAREN,")", line);

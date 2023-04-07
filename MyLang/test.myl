@@ -24,8 +24,10 @@ fun main() {
 
     print(test(false));
 
-    val k: Koordinate := Koordinate(3, 4);
+    val k: Koordinate := Koordinate(y: 2);
     print(k.toString());
+    print(named(x: 3, y: "test i testi"));
+    doWith(25, optional);
 }
 
 fun test(b: Bool): Number {
@@ -33,13 +35,17 @@ fun test(b: Bool): Number {
     return 3;
     2
 };
-
+fun optional(x: Number, [y: Number := 2 * x]) {
+    print(x + y);
+}
 class Koordinate := {
     val x: Number;
     val y: Number;
-    init(x: Number, y: Number) := {
+    init({x: Number := 0, y: Number := 0}) := {
         this.x := x;
         this.y := y;
     };
     fun toString(): String := "("+this.x+", "+this.y+")";
 };
+
+fun named({x: Number, y: String}): String := y + x;

@@ -3,6 +3,7 @@ package MyLang;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static MyLang.MyLangAST.*;
 
@@ -86,6 +87,9 @@ public class TypeInferrer
     public TypeRep visitFunctionExpression(FunctionExpression f) {
         return new FunctionTypeRep(
                 f.parameters().types().stream().map(tc.tcomp::compileType).toList(),
+                f.parameters().optionals().stream().map(OptionalParam::type).map(tc.tcomp::compileType).toList(),
+                tc.tcomp.namedTypesIn(f.parameters().named()),
+                tc.tcomp.optionalNamedTypesIn(f.parameters().optionalNamed()),
                 tc.tcomp.compileType(f.parameters().varargsType()),
                 tc.tcomp.compileType(f.retType()),
                 tc.env);

@@ -3,6 +3,7 @@ package MyLang;
 import static MyLang.MyLangAST.*;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -20,8 +21,6 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
 
     public Scanner inScanner = new Scanner(System.in);
     public Random random = new Random();
-
-    private Path workingDirectory = null;
 
     boolean inConstructor = false;
 
@@ -78,7 +77,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         }
 
         if(isMainFile) {
-            ((MyLangFunction) env.getVariable("main")).call(this, List.of());
+            ((MyLangFunction) env.getVariable("main")).call(this, List.of(), Map.of());
         }
     }
 
@@ -237,7 +236,11 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             for (Parameter argument : value.arguments()) {
                 arguments.addAll(interpretParameter(argument));
             }
-            return theFunction.call(this, arguments);
+            Map<String, Object> namedArgs = new HashMap<>();
+            value.named().forEach((var name, var param) -> {
+                namedArgs.put(name, interpretExpression(param));
+            });
+            return theFunction.call(this, arguments, namedArgs);
         } else {
             throw new InterpreterError("Cannot call non-Function: " + function.getClass());
         }
@@ -249,6 +252,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
                 value.optionalName(), 
                 value.parameters().names(), 
                 value.parameters().varargsName(), 
+                value.parameters().optionals(),
+                value.parameters().optionalNamed(),
                 env, 
                 value.body());
     }
@@ -360,6 +365,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
                 value.Name().lexeme(),
                 value.parameters().names(), 
                 value.parameters().varargsName(), 
+                value.parameters().optionals(),
+                value.parameters().optionalNamed(),
                 env, 
                 value.body());
         env.declareVariable(value.Name().lexeme(), function, false);
@@ -525,6 +532,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
                         declaration.Name().lexeme(),
                         declaration.parameters().names(),
                         declaration.parameters().varargsName(),
+                        declaration.parameters().optionals(),
+                        declaration.parameters().optionalNamed(),
                         env,
                         declaration.body());
             }).collect(Collectors.toMap((MyLangCallable method) -> (method.getName()),
@@ -537,6 +546,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
                 className+"Init", 
                 constructor.parameters().names(),
                 constructor.parameters().varargsName(),
+                constructor.parameters().optionals(),
+                constructor.parameters().optionalNamed(),
                 env, 
                 constructor.body());
     }
@@ -628,5 +639,9 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     @Override
     public Void visitReturnStatement(ReturnStatement r) {
         throw new ReturnException(interpretExpression(r.returnValue()));
+    }
+    @Override
+    public List<Object> visitNamedParameter(NamedParameter n) {
+        throw new InterpreterError("Unexpected named parameter: "+n);
     }
 }

@@ -1,8 +1,11 @@
 package MyLang;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import MyLang.MyLangAST.NumericLiteral;
 
@@ -237,9 +240,18 @@ public class MyLangParser {
             consume(TokenType.TYPE_FUN);
             consume(TokenType.LPAREN);
             List<Type> parameters = new ArrayList<>();
+            Map<String, Type> named = new HashMap<>();
+            List<Type> optionalParams = new ArrayList<>();
+            Map<String, Type> optionalNamed = new HashMap<>();
             Type varargsType = null;
             if(!match(TokenType.RPAREN)) {
                 do {
+                    if(peek().type() == TokenType.LBRACKET) {
+                        break;
+                    }
+                    if(peek().type() == TokenType.LBRACE) { // Named Params
+                        break;
+                    }
                     var nextType = parseType();
                     if(match(TokenType.DOTS)) {
                         varargsType = nextType;
@@ -248,12 +260,40 @@ public class MyLangParser {
                         parameters.add(nextType);
                     }
                 } while(match(TokenType.COMMA));
+                if(match(TokenType.LBRACKET)) {
+                    if(!match(TokenType.RBRACKET)) {
+                        do {
+                            optionalParams.add(parseType());
+                        } while(match(TokenType.COMMA));
+                        consume(TokenType.RBRACKET);
+                        match(TokenType.COMMA);
+                    }
+                }
+                if(match(TokenType.LBRACE)) { // Named Params
+                    if(!match(TokenType.RBRACE)) {
+                        do {
+                            var name = consume(TokenType.IDENTIFIER);
+                            var isOptional = match(TokenType.QUESTION_MARK);
+                            consume(TokenType.COLON);
+                            var type = parseType();
+                            if(isOptional) {
+                                optionalNamed.put(name.lexeme(), type);
+                            } else {
+                                named.put(name.lexeme(), type);
+                            }
+                        } while(match(TokenType.COMMA));
+                        consume(TokenType.RBRACE);
+                    }
+                }
                 consume(TokenType.RPAREN);
             }
             consume(TokenType.COLON);
             var returnType = parseType();
             return new FunctionType(
                     parameters,
+                    optionalParams,
+                    named,
+                    optionalNamed,
                     varargsType,
                     returnType
                     );
@@ -341,6 +381,12 @@ public class MyLangParser {
                     next, 
                     new FunctionType(
                         next.parameters().types(), 
+                        next.parameters().optionals().stream().map(OptionalParam::type).toList(),
+                        next.parameters().named(),
+                        next.parameters().optionalNamed().entrySet().stream()
+                            .collect(Collectors.toMap(
+                                entry -> entry.getKey(), 
+                                entry -> entry.getValue().type())),
                         next.parameters().varargsType(), 
                         next.retType()));
         }
@@ -400,9 +446,15 @@ public class MyLangParser {
     private ParameterInformation parseParameters() {
         List<Token> parameters = new ArrayList<>();
         List<Type> types = new ArrayList<>();
+        Map<String, Type> named = new HashMap<>();
+        List<OptionalParam> optional = new ArrayList<>();
+        Map<String, OptionalParam> optionalNamed = new HashMap<>();
         Token varargsName = null; Type varargsType = null;
         if(peek().type() != TokenType.RPAREN) {
             do {
+                if(peek().type() == TokenType.LBRACE || peek().type() == TokenType.LBRACKET)  {
+                    break; // end positional parameters and parse named parameters
+                }               
                 parameters.add(consume(TokenType.IDENTIFIER));
                 if(match(TokenType.DOTS)) {
                     varargsName = parameters.remove(parameters.size() - 1);
@@ -414,10 +466,43 @@ public class MyLangParser {
                 types.add(parseType());
             } while(match(TokenType.COMMA));
         }
+        if(match(TokenType.LBRACKET)) { // Optional Params
+            if(!match(TokenType.RBRACKET)) {
+                do {
+                    var name = consume(TokenType.IDENTIFIER);
+                    consume(TokenType.COLON);
+                    var type = parseType();
+                    consume(TokenType.ASSIGN);
+                    var defaultValue = parseExpression();
+                    optional.add(new OptionalParam(name.lexeme(), type, defaultValue));
+                } while(match(TokenType.COMMA));
+                consume(TokenType.RBRACKET);
+            }
+            match(TokenType.COMMA); // If there is a comma, we are probably gonna see named params
+        }
+        if(match(TokenType.LBRACE)) { // Named Parameters
+            if(!match(TokenType.RBRACE)) { // If there are any
+                do {
+                    var name = consume(TokenType.IDENTIFIER);
+                    consume(TokenType.COLON);
+                    var type = parseType();
+                    if(match(TokenType.ASSIGN)) {
+                        var defaultValue = parseExpression();
+                        optionalNamed.put(name.lexeme(), new OptionalParam(name.lexeme(), type, defaultValue));
+                    } else {
+                        named.put(name.lexeme(), type);
+                    }
+                } while(match(TokenType.COMMA));
+                consume(TokenType.RBRACE);
+            }
+        }
     
         return new ParameterInformation(
                 parameters, 
-                types, 
+                types,
+                optional,
+                named,
+                optionalNamed,
                 varargsName, 
                 varargsType);
     }
@@ -524,8 +609,7 @@ public class MyLangParser {
                 var property = consume(TokenType.IDENTIFIER);
                 left = new PropertyExpression(left, property);
             } else if(operator.type() == TokenType.LPAREN) {
-                var parameters = parseCommaSeparated(TokenType.RPAREN);
-                left = new FunctionCall(left, parameters);
+                left = finalizeFunctionCall(left);
             } else if(operator.type() == TokenType.LBRACKET) { // Index
                 var index = parseExpression();
                 consume(TokenType.RBRACKET);
@@ -535,6 +619,18 @@ public class MyLangParser {
             }
         }
         return left;
+    }
+
+    private Expression finalizeFunctionCall(Expression left) {
+        var parameters = parseCommaSeparated(TokenType.RPAREN);
+        var positional = parameters.stream()
+            .filter(p -> !(p instanceof NamedParameter))
+            .toList();
+        var named = parameters.stream()
+            .filter(p -> p instanceof NamedParameter)
+            .map(p -> (NamedParameter) p)
+            .collect(Collectors.toMap(p -> p.name().lexeme(), p -> p.parameter()));
+        return new FunctionCall(left, positional, named);
     }
 
     private Expression primary() {
@@ -596,8 +692,7 @@ public class MyLangParser {
                 classAccess = new PropertyExpression(classAccess, subName);
             }
             consume(TokenType.LPAREN);
-            var parameters = parseCommaSeparated(TokenType.RPAREN);
-            return new FunctionCall(classAccess, parameters);
+            return finalizeFunctionCall(classAccess);
         } else if(match(TokenType.VALUE_THIS)) {
             return new ThisExpression(previous());
         } else {
@@ -632,6 +727,12 @@ public class MyLangParser {
     }
 
     private Parameter parseParameter() {
+        if(peek().type() == TokenType.IDENTIFIER && peekNext().type() == TokenType.COLON) {
+            var name = consume(TokenType.IDENTIFIER);
+            consume(TokenType.COLON);
+            var value = parseExpression();
+            return new NamedParameter(name, value);
+        }
         var expr = parseExpression();
         if(match(TokenType.DOTS)) {
             return new SpreadParameter(expr);
@@ -651,7 +752,9 @@ public class MyLangParser {
         if(previous().type() == TokenType.DOTS) {
             if(!match(TokenType.COMMA)) {
                 if(match(TokenType.RBRACKET)) {
-                    return new ListExpression(List.of(first));
+                    var list = List.of(first);
+                    verifyNoNamedParameters(list);
+                    return new ListExpression(list);
                 }
                 var second = parseExpression();
                 Expression step = new NumericLiteral(1);
@@ -663,16 +766,26 @@ public class MyLangParser {
             } else {
                 var next = parseCommaSeparated(TokenType.RBRACKET);
                 next.add(0, first);
+                verifyNoNamedParameters(next);
                 return new ListExpression(next);
             }
         } else {
             if(match(TokenType.RBRACKET)) {
-                return new ListExpression(List.of(first));
+                var list = List.of(first);
+                verifyNoNamedParameters(list);
+                return new ListExpression(list);
             }
             consume(TokenType.COMMA);
             var next = parseCommaSeparated(TokenType.RBRACKET);
             next.add(0, first);
+            verifyNoNamedParameters(next);
             return new ListExpression(next);
+        }
+    }
+
+    private void verifyNoNamedParameters(List<Parameter> parameters) {
+        if(parameters.stream().anyMatch(p -> p instanceof NamedParameter)) {
+            throw new ParseError("Named Parameters are not allowed in lists", previous().line());
         }
     }
 

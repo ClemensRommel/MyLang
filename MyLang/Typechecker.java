@@ -151,6 +151,17 @@ public class Typechecker implements
                     tcomp.compileType(c.parameters().varargsType()), 
                     false);
         }
+        c.parameters().optionals().forEach(optional -> {
+            var type = tcomp.compileType(optional.type());
+            checkType(type, optional.defaultValue());
+            declareType(optional.name(), type, false);
+        });
+        c.parameters().named().forEach((var name, var type) -> {
+            declareType(name, tcomp.compileType(type), false);
+        });
+        c.parameters().optionalNamed().forEach((var name, var type) -> {
+            declareType(name, tcomp.compileType(type.type()), false);
+        });
         var previousReturnType = currentReturnType;
         currentReturnType = voidType;
         checkType(voidType, c.body());
@@ -214,6 +225,9 @@ public class Typechecker implements
     TypeRep functionTypeOf(FunctionDeclaration f) {
         return new FunctionTypeRep(
                 f.parameters().types().stream().map(tcomp::compileType).toList(),
+                f.parameters().optionals().stream().map(OptionalParam::type).map(tcomp::compileType).toList(),
+                tcomp.namedTypesIn(f.parameters().named()),
+                tcomp.optionalNamedTypesIn(f.parameters().optionalNamed()),
                 tcomp.compileType(f.parameters().varargsType()),
                 tcomp.compileType(f.retType()),
                 env);
@@ -252,12 +266,18 @@ public class Typechecker implements
         if(c.constructor() == null) { // Standard Constructor
             return new FunctionTypeRep(
                     List.of(),
+                    List.of(),
+                    Map.of(),
+                    Map.of(),
                     null,
                     new TypeIdentifierRep(c.Name(), env),
                     env);
         }
         return new FunctionTypeRep(
                 c.constructor().parameters().types().stream().map(tcomp::compileType).toList(),
+                c.constructor().parameters().optionals().stream().map(OptionalParam::type).map(tcomp::compileType).toList(),
+                tcomp.namedTypesIn(c.constructor().parameters().named()),
+                tcomp.optionalNamedTypesIn(c.constructor().parameters().optionalNamed()),
                 tcomp.compileType(c.constructor().parameters().varargsType()),
                 new TypeIdentifierRep(c.Name(), env),
                 env
@@ -289,6 +309,17 @@ public class Typechecker implements
                     new ListOfRep(tcomp.compileType(value.parameters().varargsType())), 
                     false);
         }
+        value.parameters().optionals().forEach(optional -> {
+            var type = tcomp.compileType(optional.type());
+            checkType(type, optional.defaultValue());
+            declareType(optional.name(), type, false);
+        });
+        value.parameters().named().forEach((var name, var type) -> {
+            declareType(name, tcomp.compileType(type), false);
+        });
+        value.parameters().optionalNamed().forEach((var name, var type) -> {
+            declareType(name, tcomp.compileType(type.type()), false);
+        });
         var retType = tcomp.compileType(value.retType());
         var previousReturnType = currentReturnType;
         currentReturnType = retType;
@@ -535,6 +566,25 @@ public class Typechecker implements
                 checkParameter(env.normalize(t.varargsType(), this), c.arguments().get(i), true);
             }
         }
+        for(var namedParam: t.named().entrySet()) { // All required arguments are given
+            if(!c.named().containsKey(namedParam.getKey())) {
+                error("Call to Function "+c.callee()+
+                    " does not have required named Parameter '"+namedParam.getKey()+
+                    "' of Type "+ showType(namedParam.getValue()));
+            } else {
+                checkType(namedParam.getValue(), c.named().get(namedParam.getKey()));
+            }
+        }
+        for(var namedParam: c.named().entrySet()) { // All given named params are given
+            if(!t.named().containsKey(namedParam.getKey()) && !t.optionalNamed().containsKey(namedParam.getKey())) {
+                error("Function '"+c.callee()+" does not have named parameter '"+namedParam.getKey()+"'");
+            }
+        }
+        for(var namedParam: t.optionalNamed().entrySet()) { // If any optional named Param is given, it is of right type
+            if(c.named().containsKey(namedParam.getKey())) {
+                checkType(namedParam.getValue(), c.named().get(namedParam.getKey()));
+            }
+        }
 
         hasType(t.returnType());
     }
@@ -564,13 +614,33 @@ public class Typechecker implements
                     parameterTypes.get(i),
                     false);
         }
+        var optionalParamsTypes = f.parameters().optionals().stream()
+            .map(OptionalParam::type)
+            .map(tcomp::compileType)
+            .toList();
+        for(int i = 0; i < optionalParamsTypes.size(); i++) {
+            checkType(optionalParamsTypes.get(i), f.parameters().optionals().get(i).defaultValue());
+            declareType(
+                f.parameters().optionals().get(i).name(),
+                optionalParamsTypes.get(i),
+                false
+            );
+        }
         if(f.parameters().varargsName() != null) {
             declareType(
                     f.parameters().varargsName().lexeme(),
                     new ListOfRep(tcomp.compileType(f.parameters().varargsType())),
                     false);
         }
-
+        var namedTypes = tcomp.namedTypesIn(f.parameters().named());
+        namedTypes.forEach((var name, var type) -> {
+            declareType(name, type, false);
+        });
+        
+        var optionalNamedTypes = tcomp.optionalNamedTypesIn(f.parameters().optionalNamed());
+        optionalNamedTypes.forEach((var name , var type) -> {
+            declareType(name, type, false);
+        });
         var returnType = tcomp.compileType(f.retType());
         var previousReturnType = currentReturnType;
         currentReturnType = returnType;
@@ -579,6 +649,9 @@ public class Typechecker implements
         closeScope();
         FunctionTypeRep type = new FunctionTypeRep(
                 parameterTypes,
+                optionalParamsTypes,
+                namedTypes,
+                optionalNamedTypes,
                 varargsType,
                 returnType,
                 env); 
@@ -626,6 +699,9 @@ public class Typechecker implements
     TypeRep pushType(ListOfRep l) {
         return new FunctionTypeRep(
                 List.of(l.elements()),
+                List.of(),
+                Map.of(),
+                Map.of(),
                 null,
                 voidType,
                 env);
@@ -634,6 +710,9 @@ public class Typechecker implements
     TypeRep popType(ListOfRep l) {
         return new FunctionTypeRep(
             List.of(),
+            List.of(),
+            Map.of(),
+            Map.of(),
             null,
             l.elements(),
             env);
@@ -641,6 +720,9 @@ public class Typechecker implements
     TypeRep dequeueType(ListOfRep l) {
         return new FunctionTypeRep(
                 List.of(),
+                List.of(),
+                Map.of(),
+                Map.of(),
                 null,
                 l.elements(),
                 env);
@@ -648,6 +730,9 @@ public class Typechecker implements
     TypeRep peekType(ListOfRep l) {
         return new FunctionTypeRep(
                 List.of(),
+                List.of(),
+                Map.of(),
+                Map.of(),
                 null,
                 l.elements(),
                 env);
@@ -655,6 +740,9 @@ public class Typechecker implements
     TypeRep peekLastType(ListOfRep l) {
         return new FunctionTypeRep(
                 List.of(),
+                List.of(),
+                Map.of(),
+                Map.of(),
                 null,
                 l.elements(),
                 env);
@@ -662,6 +750,9 @@ public class Typechecker implements
     TypeRep prependType(ListOfRep l) {
         return new FunctionTypeRep(
                 List.of(l.elements()),
+                List.of(),
+                Map.of(),
+                Map.of(),
                 null,
                 voidType,
                 env);
@@ -669,6 +760,9 @@ public class Typechecker implements
     TypeRep appendType(ListOfRep l) {
         return new FunctionTypeRep(
                 List.of(l),
+                List.of(),
+                Map.of(),
+                Map.of(),
                 null,
                 voidType,
                 env);

@@ -5,7 +5,7 @@ Expression < MyLangAST = NumericLiteral: double value
                        | Identifier: Token value
                        | BinaryOperation: Token operator, Expression left, Expression right
                        | UnaryOperation: Token operator, Expression operand
-                       | FunctionCall: Expression callee, List<Parameter> arguments
+                       | FunctionCall: Expression callee, List<Parameter> arguments, Map<String, Expression> named
                        | FunctionExpression: String optionalName, ParameterInformation parameters, Expression body, Type retType
                        | IfExpression: Expression condition, Expression thenBranch, Expression elseBranch
                        | ListExpression: List<Parameter> elements
@@ -43,6 +43,7 @@ Constructor < MyLangAST, ConstructorOrDeclaration =
 Parameter < MyLangAST = 
         ExpressionParameter: Expression expr
     |   SpreadParameter: Expression collection
+    |   NamedParameter: Token name, Expression parameter
     |   ConditionalParameter: Expression body, Expression guard;
 
 ConstructorOrDeclaration < MyLangAST;
@@ -50,7 +51,13 @@ DeclarationOrStatement < MyLangAST;
 
 Type < MyLangAST = 
         TypeIdentifier: Token name
-    |   FunctionType: List<Type> parameters, Type varargsType, Type returnType
+    |   FunctionType: 
+            List<Type> parameters, 
+            List<Type> optionalParameters, 
+            Map<String, Type> named, 
+            Map<String, Type> optionalNamed,
+            Type varargsType, 
+            Type returnType
     |   ListOf: Type elements
     |   Access: Type accessed, Token name
     |   VoidType: 
@@ -60,8 +67,20 @@ Type < MyLangAST =
 
 TypeRep < MyLangAST =
         TypeIdentifierRep: Token name, TypeEnv env
-    |   FunctionTypeRep: List<TypeRep> parameters, TypeRep varargsType, TypeRep returnType, TypeEnv env
-    |   ClassType: Token name, Map<String, TypeRep> accessors, Map<String, Boolean> readability, FunctionTypeRep constructor, TypeEnv env
+    |   FunctionTypeRep: 
+            List<TypeRep> parameters, 
+            List<TypeRep> optionalParameters, 
+            Map<String, TypeRep> named, 
+            Map<String, TypeRep> optionalNamed,
+            TypeRep varargsType, 
+            TypeRep returnType, 
+            TypeEnv env
+    |   ClassType: 
+            Token name, 
+            Map<String, TypeRep> accessors, 
+            Map<String, Boolean> readability, 
+            FunctionTypeRep constructor, 
+            TypeEnv env
     |   ListOfRep: TypeRep elements
     |   Builtin: BuiltinType type
     |   AccessRep: TypeRep accessed, Token name

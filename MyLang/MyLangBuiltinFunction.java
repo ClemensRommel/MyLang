@@ -2,6 +2,7 @@ package MyLang;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import static MyLang.MyLangAST.*;
 
 public abstract class MyLangBuiltinFunction implements MyLangCallable {
@@ -12,15 +13,25 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         this.name = name; type = t;
     }
 
+    protected void noNamedArgs(Map<String, Object> named) {
+        if(!named.isEmpty()) {
+            throw new InterpreterError("Builtin function '"+this.name+"' does not take named arguments");
+        }
+    }
+
 
     public static final MyLangBuiltinFunction print = new MyLangBuiltinFunction(
             "print", 
             new FunctionTypeRep(
                 List.of(), 
+                List.of(),
+                Map.of(),
+                Map.of(),
                 Typechecker.voidType, 
                 Typechecker.voidType, new TypeEnv())) {
         @Override
-        public Object call(MyLangInterpreter interpreter, List<Object> args) {
+        public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
+            noNamedArgs(named);
             for (Object object : args) {
                 System.out.print(interpreter.stringify(object));
             }   
@@ -33,14 +44,18 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
             "input",
             new FunctionTypeRep(
                 List.of(Typechecker.voidType), 
+                List.of(),
+                Map.of(),
+                Map.of(),
                 null, 
                 Typechecker.stringType,
             new TypeEnv())) {
         @Override
-        public Object call(MyLangInterpreter interpreter, List<Object> args) {
+        public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 1) {
                 throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'");
             }
+            noNamedArgs(named);
             System.out.print(interpreter.stringify(args.get(0)));
             return interpreter.inScanner.nextLine();
         }
@@ -50,14 +65,18 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
             "number",
             new FunctionTypeRep(
                 List.of(Typechecker.stringType), 
+                List.of(),
+                Map.of(),
+                Map.of(),
                 null, 
                 Typechecker.numberType,
                 new TypeEnv())) {
         @Override
-        public Object call(MyLangInterpreter interpreter, List<Object> args) {
+        public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 1) {
                 throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'");
             }
+            noNamedArgs(named);
             if(args.get(0) instanceof String s) {
                 return Double.parseDouble(s);
             } else {
@@ -69,14 +88,18 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
             "push",
             new FunctionTypeRep(
                 List.of(Typechecker.voidType),
+                List.of(),
+                Map.of(),
+                Map.of(),
                 null, 
                 Typechecker.voidType,
                 new TypeEnv())) {
         @Override
-        public Object call(MyLangInterpreter interpreter, List<Object> args) {
+        public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 2) {
                 throw new InterpreterError("Expected 2 arguments, got " + args.size() + " calling function '"+name+"'");
             }
+            noNamedArgs(named);
             if(args.get(0) instanceof List l) {
                 l.add(args.get(1));
             } else {
@@ -88,12 +111,13 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
 
     public static final MyLangBuiltinFunction listPop = new MyLangBuiltinFunction(
             "pop",
-            new FunctionTypeRep(List.of(), null, Typechecker.voidType, new TypeEnv())) {
+            new FunctionTypeRep(List.of(),List.of(), Map.of(), Map.of(), null, Typechecker.voidType, new TypeEnv())) {
         @Override
-        public Object call(MyLangInterpreter interpreter, List<Object> args) {
+        public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 1) {
                 throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'");
             }
+            noNamedArgs(named);
             if(args.get(0) instanceof List l) {
                 if(l.isEmpty()) {
                     throw new InterpreterError("Cannot pop from empty List");
@@ -109,13 +133,17 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         "dequeue",
         new FunctionTypeRep(
             List.of(), 
+            List.of(),
+            Map.of(),
+            Map.of(),
             null, 
             Typechecker.voidType, new TypeEnv())) {
         @Override
-        public Object call(MyLangInterpreter interpreter, List<Object> args) {
+        public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 1) {
                 throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'");
             }
+            noNamedArgs(named);
             if(args.get(0) instanceof List l) {
                 if(l.isEmpty()) {
                     throw new InterpreterError("Cannot dequeue from empty List");
@@ -131,13 +159,17 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
             "peek",
             new FunctionTypeRep(
                 List.of(), 
+                List.of(),
+                Map.of(),
+                Map.of(),
                 null, 
                 Typechecker.voidType, new TypeEnv())) {
         @Override
-        public Object call(MyLangInterpreter interpreter, List<Object> args) {
+        public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 1) {
                 throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'");
             }
+            noNamedArgs(named);
             if(args.get(0) instanceof List l) {
                 if(l.isEmpty()) {
                     throw new InterpreterError("Cannot peek from empty List");
@@ -151,12 +183,13 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
 
     public static final MyLangBuiltinFunction listPeekLast = new MyLangBuiltinFunction(
             "peekLast",
-            new FunctionTypeRep(List.of(), null, Typechecker.voidType, new TypeEnv())) {
+            new FunctionTypeRep(List.of(),List.of(), Map.of(), Map.of(), null, Typechecker.voidType, new TypeEnv())) {
         @Override
-        public Object call(MyLangInterpreter interpreter, List<Object> args) {
+        public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 1) {
                 throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'");
             }
+            noNamedArgs(named);
             if(args.get(0) instanceof List l) {
                 if(l.isEmpty()) {
                     throw new InterpreterError("Cannot peekLast from empty List");
@@ -172,14 +205,18 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         "prepend",
         new FunctionTypeRep(
             List.of(Typechecker.voidType),
+            List.of(),
+            Map.of(),
+            Map.of(),
             null,
             Typechecker.voidType,
             new TypeEnv())) {
         @Override
-        public Object call(MyLangInterpreter interpreter, List<Object> args) {
+        public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 2) {
                 throw new InterpreterError("Expected 2 arguments, got " + args.size() + " calling function '"+name+"'");
             }
+            noNamedArgs(named);
             if(args.get(0) instanceof List l) {
                 l.add(0, args.get(1));
             } else {
@@ -193,14 +230,18 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
             "append",
             new FunctionTypeRep(
                 List.of(Typechecker.voidType),
+                List.of(),
+                Map.of(),
+                Map.of(),
                 null,
                 Typechecker.voidType,
                 new TypeEnv())) {
         @Override
-        public Object call(MyLangInterpreter interpreter, List<Object> args) {
+        public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 2) {
                 throw new InterpreterError("Expected 2 arguments, got " + args.size() + " calling function '"+name+"'");
             }
+            noNamedArgs(named);
             if(args.get(0) instanceof List l) {
                 l.addAll((List<?>) args.get(1));
             } else {
@@ -212,12 +253,13 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
 
     public static final MyLangBuiltinFunction random = new MyLangBuiltinFunction(
             "random",
-            new FunctionTypeRep(List.of(), null, Typechecker.numberType, new TypeEnv())) {
+            new FunctionTypeRep(List.of(),List.of(), Map.of(), Map.of(), null, Typechecker.numberType, new TypeEnv())) {
         @Override
-        public Object call(MyLangInterpreter interpreter, List<Object> args) {
+        public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 0) {
                 throw new InterpreterError("Expected 0 arguments, got " + args.size() + " calling function '"+name+"'");
             }
+            noNamedArgs(named);
             return interpreter.random.nextDouble();
         }
     };
@@ -226,13 +268,17 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         "clock",
         new FunctionTypeRep(
             List.of(),
+            List.of(),
+            Map.of(),
+            Map.of(),
             null,
             Typechecker.numberType, new TypeEnv())) {
         @Override
-        public Object call(MyLangInterpreter interpreter, List<Object> args) {
+        public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 0) {
                 throw new InterpreterError("Expected 0 arguments, got " + args.size() + " calling function '"+name+"'");
             }
+            noNamedArgs(named);
             return (double) System.currentTimeMillis();
         }
     };

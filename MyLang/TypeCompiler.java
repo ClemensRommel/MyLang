@@ -2,6 +2,7 @@ package MyLang;
 
 
 import java.util.*;
+import java.util.stream.Collectors;
 import static MyLang.MyLangAST.*;
 
 public record TypeCompiler(Typechecker tc) implements TypeVisitor<TypeRep> {
@@ -33,11 +34,30 @@ public record TypeCompiler(Typechecker tc) implements TypeVisitor<TypeRep> {
     }
     @Override
     public TypeRep visitFunctionType(FunctionType f) {
+        if(f.varargsType() != null & !f.optionalParameters().isEmpty()) {
+            tc.error("Cannot have both varargs and optional Parameters");
+        }
         return new FunctionTypeRep(
                 f.parameters().stream().map(this::compileType).toList(),
+                f.optionalParameters().stream().map(this::compileType).toList(),
+                namedTypesIn(f.named()),
+                namedTypesIn(f.optionalNamed()),
                 compileType(f.varargsType()),
                 compileType(f.returnType()),
                 tc.env);
+    }
+    Map<String, TypeRep> namedTypesIn(Map<String, Type> named) {
+        return named.entrySet().stream()
+            .collect(Collectors.toMap(
+                Map.Entry::getKey, 
+                value -> compileType(value.getValue())));
+    }
+    Map<String, TypeRep> optionalNamedTypesIn(Map<String, OptionalParam> on) {
+        return on.entrySet().stream()
+            .collect(Collectors.toMap(
+                Map.Entry::getKey,
+                value -> compileType(value.getValue().type())
+        ));
     }
     @Override
     public TypeRep visitTypeIdentifier(TypeIdentifier ti) {
