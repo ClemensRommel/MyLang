@@ -97,19 +97,19 @@ public class Typechecker implements
         var resultType = ti.infer(e);
         checkType(resultType, e);
         if(resultType instanceof UnknownType) {
-            error("Could not infer type of expression "+e);
+            error("Could not infer type of expression "+p.prettyPrint(e));
         }
         //System.out.println("inferred type "+showType(resultType)+" of expression "+e);
         return env.normalize(resultType, this);
     }
 
-    TypeRep inferElemTypeOfParameter(Parameter p, boolean inferMode) {
-        if(p instanceof ExpressionParameter e) {
+    TypeRep inferElemTypeOfParameter(Parameter param, boolean inferMode) {
+        if(param instanceof ExpressionParameter e) {
             return inferType(e.expr());
-        } else if(p instanceof ConditionalParameter c) {
+        } else if(param instanceof ConditionalParameter c) {
             checkType(booleanType, c.guard());
             return inferType(c.body());
-        } else if(p instanceof SpreadParameter s) {
+        } else if(param instanceof SpreadParameter s) {
             var collectionType = inferType(s.collection());
             if(collectionType instanceof ListOfRep l) {
                 return l.elements();
@@ -118,7 +118,7 @@ public class Typechecker implements
                 return unknown();
             }
         } else {
-            error("Could not infer type of Parameter "+p);
+            error("Could not infer type of Parameter "+p.prettyPrint(param));
             return unknown();
         }
     }
@@ -524,7 +524,7 @@ public class Typechecker implements
     }
     
     void noFunctionType(TypeRep t, Expression e) {
-        error("Cannot call value of type '"+showType(t)+"' in expression "+e);
+        error("Cannot call value of type '"+showType(t)+"' in expression "+p.prettyPrint(e));
     }
 
     void checkParameter(TypeRep needed, Parameter p, boolean inVarargs) {
@@ -568,7 +568,7 @@ public class Typechecker implements
         }
         for(var namedParam: t.named().entrySet()) { // All required arguments are given
             if(!c.named().containsKey(namedParam.getKey())) {
-                error("Call to Function "+c.callee()+
+                error("Call to Function "+p.prettyPrint(c.callee())+
                     " does not have required named Parameter '"+namedParam.getKey()+
                     "' of Type "+ showType(namedParam.getValue()));
             } else {
@@ -577,7 +577,7 @@ public class Typechecker implements
         }
         for(var namedParam: c.named().entrySet()) { // All given named params are given
             if(!t.named().containsKey(namedParam.getKey()) && !t.optionalNamed().containsKey(namedParam.getKey())) {
-                error("Function '"+c.callee()+" does not have named parameter '"+namedParam.getKey()+"'");
+                error("Function '"+p.prettyPrint(c.callee())+" does not have named parameter '"+namedParam.getKey()+"'");
             }
         }
         for(var namedParam: t.optionalNamed().entrySet()) { // If any optional named Param is given, it is of right type
@@ -794,7 +794,7 @@ public class Typechecker implements
         var leftType = inferType(p.object());
         if(leftType instanceof ClassType c) {
             if(!c.accessors().containsKey(p.name().lexeme())) {
-                error("["+p.name().line()+"] Object has no property '"+p.name().lexeme()+"'");
+                error("["+p.name().line()+"] Object '"+this.p.prettyPrint(p.object())+"' has no property '"+p.name().lexeme()+"'");
             } else {
                 var accessorType = c.accessors().get(p.name().lexeme());
                 if(accessorType instanceof UnknownType) {

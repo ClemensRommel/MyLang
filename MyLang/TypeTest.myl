@@ -1,9 +1,10 @@
 module TypeTest.myl;
 
-val x: Fun(Number, Number): Number := fun(x: Number, y: Number): Number := x * y;
+val x: Fun(Number, String): String := fun(x: Number, y: String): String := x + y;
 
 fun main() {
-    print(x(3, 4));
+    print(x(3, "test"));
+    z(13);
     print(g(fun(x: Number): Number := x * 2, 3));
 }
 

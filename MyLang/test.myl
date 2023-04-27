@@ -1,51 +1,47 @@
-fun fib(n: Number): Number {
-    val fibs: Number[] := [1, 1];
-    for i in [2..n] do {
-        fibs.push(fibs.peekLast() + fibs.firsts.peekLast());
-    };
-    fibs.pop()
-}
-
-fun f(x: Number): Number := 3x + {
-    val a: Number := 2 * x;
-    a * a
-};
-
-fun doWith(A: Number, F: Fun(Number): Void): Void := F(A);
-
 fun main() {
-    print(3);
-    doWith(40, fun(n: Number): Void := print(fib(n)));
-    print("Done");
-
-    val list: Number[] := [1, 2, 3, 4];
-    list.append([5, 6, 7, 8]);
-    print(list);
-
-    print(test(false));
-
-    val k: Koordinate := Koordinate(y: 2);
-    print(k.toString());
-    print(named(x: 3, y: "test i testi"));
-    doWith(25, optional);
+    print(test(4));
+    val a: A := A();
+    print(a.test());
+    print(a.test2());
+    a.x := 5;
+    print(a.test());
+    print(a.test2());
+    print(with(4, test));
 }
 
-fun test(b: Bool): Number {
-    if(b) do return 5;
-    return 3;
-    2
+fun test(x: Number): Number := 2x + 3;
+
+class A := {
+    var x: Number := 3;
+    val y: String := "test";
+
+    fun test(): Number := 2 * this.x;
+    fun test2(): String := this.x + this.y;
 };
-fun optional(x: Number, [y: Number := 2 * x]) {
-    print(x + y);
-}
+
+val ursprung: Koordinate := Koordinate(
+    y: 0, x: 0);
+val liste: Number[] := [1, 2, 3];
+val liste2: Number[] := [2, 3, liste.., 5 if x > 3]
+
+val liste3 : Number[] := if bedingung then x else y;
+
+val x: Number := ursprung.x;
 class Koordinate := {
     val x: Number;
     val y: Number;
-    init({x: Number := 0, y: Number := 0}) := {
-        this.x := x;
-        this.y := y;
-    };
-    fun toString(): String := "("+this.x+", "+this.y+")";
-};
 
-fun named({x: Number, y: String}): String := y + x;
+    init({x: Number, y: Number := 0}) {
+            this.x := x;
+            this.y := y;
+        }
+    }
+
+fun with(x: Number, f: Fun(Number): Number): Number := f(x);
+
+val x: Number := 3;
+
+fun f(x: Fun(Number): Number): Number {
+    return x(2);
+}
+

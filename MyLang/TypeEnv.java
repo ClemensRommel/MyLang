@@ -29,8 +29,10 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
     public TypeRep getTypeOfValue(String name) {
         if(values.containsKey(name)) {
             return values.get(name);
-        } else {
+        } else if(outer != null) {
             return outer.getTypeOfValue(name);
+        } else {
+            return Typechecker.unknown();
         }
     }
 
