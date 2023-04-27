@@ -606,8 +606,16 @@ public class MyLangParser {
         while(match(TokenType.LPAREN) || match(TokenType.LBRACKET) || match(TokenType.DOT)) {
             var operator = previous();
             if(operator.type() == TokenType.DOT) {
+                boolean negated = match(TokenType.BANG);
+                Token negatedOp = previous();
                 var property = consume(TokenType.IDENTIFIER);
                 left = new PropertyExpression(left, property);
+                if(negated) {
+                    if(match(TokenType.LPAREN)) {
+                        left = finalizeFunctionCall(left);
+                    }
+                    left = new UnaryOperation(negatedOp, left);
+                }
             } else if(operator.type() == TokenType.LPAREN) {
                 left = finalizeFunctionCall(left);
             } else if(operator.type() == TokenType.LBRACKET) { // Index

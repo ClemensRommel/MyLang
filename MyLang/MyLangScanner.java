@@ -189,6 +189,7 @@ public final class MyLangScanner {
             case "true" -> new Token(TokenType.TRUE, "true", line);
             case "false" -> new Token(TokenType.FALSE, "false", line);
             case "null" -> new Token(TokenType.NULL, "null", line);
+            case "not" -> new Token(TokenType.BANG, "not", line);
             case "this" -> new Token(TokenType.VALUE_THIS, "this", line);
             case "new" -> new Token(TokenType.NEW, "new", line);
             case "if" -> new Token(TokenType.IF, "if", line);

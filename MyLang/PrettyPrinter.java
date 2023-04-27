@@ -305,6 +305,7 @@ public class PrettyPrinter implements
     @Override
     public Void visitUnaryOperation(UnaryOperation o) {
         builder.append(o.operator().lexeme());
+        if(o.operator().lexeme().equals("not")) builder.append(" ");
         o.operand().accept(this);
 
         return null;
