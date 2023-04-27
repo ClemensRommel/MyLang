@@ -186,7 +186,7 @@ public class MyLangParser {
 
     private Constructor parseConstructor(String typeName) {
         var declarationType = next();
-        if(declarationType.type() == TokenType.INIT) {
+        if(declarationType.type() == TokenType.NEW) {
             return finalizeClassConstructor(typeName);
         } else {
             throw new ParseError("Invalid constructor declaration start: "+declarationType.type(), 

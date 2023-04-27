@@ -202,7 +202,6 @@ public final class MyLangScanner {
             case "and" -> new Token(TokenType.AND, "and", line);
             case "or" -> new Token(TokenType.OR, "or", line);
             case "xor" -> new Token(TokenType.XOR, "xor", line);
-            case "init" -> new Token(TokenType.INIT, "init", line);
             case "var" -> new Token(TokenType.VAR, "var", line);
             case "val" -> new Token(TokenType.VAL, "val", line);
             case "fun" -> new Token(TokenType.FUN, "fun", line);

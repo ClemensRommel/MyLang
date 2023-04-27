@@ -11,7 +11,7 @@ export class Koordinate := {
 
     fun toString(): String := "("+this.x+","+this.y+")";
 
-    init(x: Number, y: Number) := {
+    new(x: Number, y: Number) := {
         this.x := x;
         this.y := y;
     };

@@ -12,6 +12,8 @@ fun addAll(xs..: Number): Number := {
 fun main() {
     print(ModuleTest1.addWith(addAll));
     print(ModuleTest1.addWith(ModuleTestDir.ModuleTest3.smth));
+    val x: ModuleTest1.Koordinate := ModuleTest1.Koordinate(3, 7);
+    print(x.toString());
 }
 
 

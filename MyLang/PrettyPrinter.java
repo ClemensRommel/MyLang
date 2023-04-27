@@ -625,7 +625,7 @@ public class PrettyPrinter implements
 
     @Override
     public Void visitClassConstructor(ClassConstructor c) {
-        builder.append("init(");
+        builder.append("new(");
         prettyPrintParameters(c.parameters());
         builder.append(") := ");
         c.body().accept(this);
