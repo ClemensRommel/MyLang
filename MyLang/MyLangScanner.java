@@ -93,8 +93,8 @@ public final class MyLangScanner {
             case ')' -> new Token(TokenType.RPAREN,")", line);
             case '[' -> new Token(TokenType.LBRACKET,"[", line);
             case ']' -> new Token(TokenType.RBRACKET,"]", line);    
-            case '{' -> new Token(TokenType.LBRACE,"{", line);
-            case '}' -> new Token(TokenType.RBRACE,"}", line);
+            case '{' -> new Token(TokenType.LBRACE, "{", line);
+            case '}' -> new Token(TokenType.RBRACE, "}", line);
             case '.' -> {
                 if(match('.')) {
                     yield new Token(TokenType.DOTS, "..", line);
@@ -186,6 +186,8 @@ public final class MyLangScanner {
 
     private Token lowercaseIdentifier(String identifier) {
         return switch(identifier) {
+            case "where" -> new Token(TokenType.WHERE, "where", line);
+            case "end" -> new Token(TokenType.END, "end", line);
             case "true" -> new Token(TokenType.TRUE, "true", line);
             case "false" -> new Token(TokenType.FALSE, "false", line);
             case "null" -> new Token(TokenType.NULL, "null", line);

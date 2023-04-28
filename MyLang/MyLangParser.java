@@ -146,9 +146,8 @@ public class MyLangParser {
             if(match(TokenType.IF)) {
                 var condition = parseExpression();
                 if(match(TokenType.DO)) {
-                    var body = parseStatementOrExpression();
-                    consume(TokenType.SEMICOLON);
-                    return new IfStatement(condition, body);
+                    var body = finishBlockExpression();
+                    return new IfStatement(condition, new ExpressionStatement(body));
                 } else { // Backtrack and instead parse a expression
                     current = start;
                 }
@@ -199,9 +198,8 @@ public class MyLangParser {
         consume(TokenType.LPAREN);
         var parameters = parseParameters();
         consume(TokenType.RPAREN);
-        consume(TokenType.ASSIGN);
-        var body = parseExpression();
-        consume(TokenType.SEMICOLON);
+        consume(TokenType.DO);
+        var body = finishBlockExpression();
         return new ClassConstructor(keyword, parameters, body);
     }
 
@@ -287,8 +285,10 @@ public class MyLangParser {
                 }
                 consume(TokenType.RPAREN);
             }
-            consume(TokenType.COLON);
-            var returnType = parseType();
+            Type returnType = new VoidType();
+            if(match(TokenType.COLON)) {
+                returnType = parseType();
+            }
             return new FunctionType(
                     parameters,
                     optionalParams,
@@ -397,7 +397,7 @@ public class MyLangParser {
             resultType = new VoidType();
         }
         Expression body;
-        if(match(TokenType.LBRACE)) {
+        if(match(TokenType.DO)) {
             body = finishBlockExpression();
         } else {
             consume(TokenType.ASSIGN);
@@ -413,13 +413,12 @@ public class MyLangParser {
 
     private Declaration finalizeClassDeclaration(boolean export) {
         var name = consume(TokenType.IDENTIFIER);
-        consume(TokenType.ASSIGN);
-        consume(TokenType.LBRACE);
+        consume(TokenType.WHERE);
         List<Declaration> members = new ArrayList<>();
         ClassConstructor constructor = null;
         boolean prevInClass = inClass;
         inClass = true;
-        while(!match(TokenType.RBRACE)) {
+        while(!match(TokenType.END)) {
             int line = peek().line();
             ConstructorOrDeclaration declaration = parseDeclarationOrConstructor(name.lexeme());
             if(declaration instanceof ClassConstructor c) {
@@ -656,12 +655,12 @@ public class MyLangParser {
         } else if(match(TokenType.WHILE)) {
             var condition = parseExpression();
             if(match(TokenType.DO)) {
-                var body = parseStatementOrExpression();
-                return new WhileDoExpression(condition, body);
+                var body = finishBlockExpression();
+                return new WhileDoExpression(condition, new ExpressionStatement(body));
             } else {
                 consume(TokenType.YIELD);
-                var body = parseParameter();
-                return new WhileYieldExpression(condition, body);
+                var body = finishBlockExpression();
+                return new WhileYieldExpression(condition, new ExpressionParameter(body));
             }
         } else if(match(TokenType.FOR)) {
             var variableName = consume(TokenType.IDENTIFIER);
@@ -672,14 +671,14 @@ public class MyLangParser {
                 guard = parseExpression();
             }
             if(match(TokenType.DO)) {
-                var body = parseStatementOrExpression();
-                return new ForDoExpression(variableName, collection, guard, body);
+                var body = finishBlockExpression();
+                return new ForDoExpression(variableName, collection, guard, new ExpressionStatement(body));
             } else {
                 consume(TokenType.YIELD);
-                var body = parseParameter();
-                return new ForYieldExpression(variableName, collection, guard, body);
+                var body = finishBlockExpression();
+                return new ForYieldExpression(variableName, collection, guard, new ExpressionParameter(body));
             }
-        } else if(match(TokenType.LBRACE)) {
+        } else if(match(TokenType.DO)) {
             return finishBlockExpression();
         } else if(match(TokenType.LBRACKET)) {
             return finishListExpression();
@@ -714,8 +713,8 @@ public class MyLangParser {
         if(match(TokenType.IF)) {
             var condition = parseExpression();
             if(match(TokenType.DO)) {
-                var body = parseStatementOrExpression();
-                return new IfStatement(condition, body);
+                var body = finishBlockExpression();
+                return new IfStatement(condition, new ExpressionStatement(body));
             } else {
                 current = start;
             }
@@ -801,13 +800,15 @@ public class MyLangParser {
         consume(TokenType.LPAREN);
         var parameters = parseParameters();
         consume(TokenType.RPAREN);
-        consume(TokenType.COLON);
-        var returnType = parseType();
+        Type returnType = new VoidType();
+        if(match(TokenType.COLON)) {
+            returnType = parseType();
+        }
         Expression body;
         if(peek().type() == TokenType.LPAREN) {
             body = finishFunctionExpression();
         } else {
-            if(match(TokenType.LBRACE)) {
+            if(match(TokenType.DO)) {
                 body = finishBlockExpression();
             } else {
                 consume(TokenType.ASSIGN);
@@ -819,10 +820,10 @@ public class MyLangParser {
 
     private Expression finishBlockExpression() {
         List<DeclarationOrStatement> statements = new ArrayList<>();
-        while(!match(TokenType.RBRACE)) {
+        while(!match(TokenType.END)) {
             var next = parseAny();
             if(next instanceof Expression finalExpression) {
-                consume(TokenType.RBRACE);
+                consume(TokenType.END);
                 return new BlockExpression(statements, finalExpression);
             } else {
                 statements.add((DeclarationOrStatement) next);

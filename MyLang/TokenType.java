@@ -6,6 +6,8 @@ public enum TokenType {
     LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, EQUAL, NOT_EQUAL,
     QUESTION_MARK,
 
+    END, WHERE, DO,
+
     NULL, TRUE, FALSE, STRING_LITERAL, NUMBER_LITERAL,
 
     AND, OR, XOR,
@@ -14,7 +16,7 @@ public enum TokenType {
     IDENTIFIER,
 
     // Value kexwords
-    VAR, VAL, VALUE_THIS, NEW, FUN, IF, THEN, ELSE, WHILE, FOR, IN, DO, YIELD,
+    VAR, VAL, VALUE_THIS, NEW, FUN, IF, THEN, ELSE, WHILE, FOR, IN, YIELD,
     RETURN, 
 
     // Namespacing Keywords

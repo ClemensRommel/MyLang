@@ -4,18 +4,21 @@ export type Adder := Fun(Number, Number): Number;
 
 export fun addWith(f: Adder): Number := f(3, 4);
 
+val test: Fun() := fun() do
+    print("Hallo hier ist test");
+end;
 
-export class Koordinate := {
+export class Koordinate where
     var x: Number := 0;
     var y: Number := 0;
 
     fun toString(): String := "("+this.x+","+this.y+")";
 
-    new(x: Number, y: Number) := {
+    new(x: Number, y: Number) do
         this.x := x;
         this.y := y;
-    };
+    end
     fun isOrigin(): Bool := this.x = 0 and this.y = 0;
-};
+end;
 
 export val origin: Koordinate := new Koordinate(0, 0);
