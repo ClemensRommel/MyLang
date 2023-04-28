@@ -709,7 +709,9 @@ public class MyLangParser {
             return finishListExpression();
         } else if(match(TokenType.FUN)) {
             return finishFunctionExpression();
-        }        
+        } else if(match(TokenType.MATCH)) {
+            return finishMatchExpression();
+        }
         return someIdentifierOrNew();
     }
 
@@ -858,6 +860,27 @@ public class MyLangParser {
         return new BlockExpression(statements, new NullLiteral(previous()));
     }
 
+    private Expression finishMatchExpression() {
+        var matched = parseExpression();
+        consume(TokenType.DO);
+        List<Pattern> pats = new ArrayList<>();
+        List<Expression> branches = new ArrayList<>();
+        while(!match(TokenType.END)) {
+            consume(TokenType.CASE);
+            var pat = parsePattern();
+            consume(TokenType.ASSIGN);
+            var expr = parseExpression();
+            consume(TokenType.SEMICOLON);
+            pats.add(pat);
+            branches.add(expr);
+        }
+        return new MatchExpression(
+            matched,
+            pats,
+            branches
+        );
+    }
+
     private List<Parameter> parseCommaSeparated(TokenType endDelimiter) {
         List<Parameter> parameters = new ArrayList<>();
         if(!match(endDelimiter)) {
@@ -899,6 +922,35 @@ public class MyLangParser {
             throw new ParseError("Expected literal, got "+next().type(), next().line());
         }
     }
+
+    private Pattern parsePattern() {
+        if(match(TokenType.QUESTION_MARK)) {
+            return new Wildcard();
+        } else if(match(TokenType.NUMBER_LITERAL)) {
+            return new NumberPattern(Double.parseDouble(previous().lexeme()));
+        } else if(match(TokenType.STRING_LITERAL)) {
+            return new StringPattern(previous().lexeme());
+        } else if(match(TokenType.TRUE)) {
+            return new BooleanPattern(true);
+        } else if(match(TokenType.FALSE)) {
+            return new BooleanPattern(false);
+        } else if(match(TokenType.IDENTIFIER)) {
+            var name = previous();
+            if(!match(TokenType.LPAREN)) {
+                return new VariableBinding(name);
+            }
+            List<Pattern> subPatterns = new ArrayList<>();
+            if(!match(TokenType.RPAREN)) {
+                do {
+                    subPatterns.add(parsePattern());
+                } while(match(TokenType.COMMA));
+                consume(TokenType.RPAREN);
+            }
+            return new ConstructorPattern(name, subPatterns);
+        }
+        throw new ParseError("Invalid Pattern start: "+peek().type(), peek().line());
+    }
+
 }
 
 

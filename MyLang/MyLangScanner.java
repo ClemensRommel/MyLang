@@ -216,6 +216,8 @@ public final class MyLangScanner {
             case "type" -> new Token(TokenType.TYPE, "type", line);
             case "return" -> new Token(TokenType.RETURN, "return", line);
             case "enum" -> new Token(TokenType.ENUM, "enum", line);
+            case "match" -> new Token(TokenType.MATCH, "match", line);
+            case "case" -> new Token(TokenType.CASE, "case", line);
             default -> new Token(TokenType.IDENTIFIER, identifier, line);
         };
     }

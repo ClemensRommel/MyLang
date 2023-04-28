@@ -14,7 +14,14 @@ fun main() do
     print(f([Variant1(-25 + 2, false, "variant2 test")]));
     print(öffneDatei("test"));
     print(öffneDatei("test2"));
+    print(match öffneDatei("test2") do 
+        case Fehler(fehler) := "Ein Fehler ist aufgetreten";
+        case Inhalt(inhalt) := "Inhalt: "+inhalt;
+    end);
     print(z);
+    for i in [1..10] do 
+        print(fakultaet(i));
+    end;
 end
 
 enum DateiErgebnis where
@@ -23,3 +30,8 @@ enum DateiErgebnis where
 end
 
 fun öffneDatei(pfad: String): DateiErgebnis := if pfad = "test" then Fehler("unbekannte Datei") else Inhalt(pfad);
+
+fun fakultaet(x: Number): Number := match x do 
+    case 0 := 1;
+    case n := n * fakultaet(n-1);
+end;

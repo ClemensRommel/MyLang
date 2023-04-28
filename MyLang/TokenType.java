@@ -17,7 +17,7 @@ public enum TokenType {
 
     // Value kexwords
     VAR, VAL, VALUE_THIS, NEW, FUN, IF, THEN, ELSE, WHILE, FOR, IN, YIELD,
-    RETURN, 
+    RETURN, MATCH, CASE,
 
     // Namespacing Keywords
     MODULE, IMPORT, EXPORT, LOCAL,

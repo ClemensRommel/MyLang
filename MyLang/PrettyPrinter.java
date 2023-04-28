@@ -4,7 +4,7 @@ import static MyLang.MyLangAST.*;
 
 public class PrettyPrinter implements 
     TypeRepVisitor<Void>, TypeVisitor<Void>, 
-    ExpressionVisitor<Void>, ParameterVisitor<Void>, 
+    ExpressionVisitor<Void>, ParameterVisitor<Void>, PatternVisitor<Void>,
     DeclarationVisitor<Void>, ConstructorVisitor<Void>, StatementVisitor<Void> {
     private StringBuilder builder = null;
 
@@ -726,6 +726,66 @@ public class PrettyPrinter implements
     @Override
     public Void visitEnumType(EnumType e) {
         builder.append(e.name().lexeme());
+        return null;
+    }
+
+    @Override
+    public Void visitMatchExpression(MatchExpression m) {
+        builder.append("match ");
+        m.matched().accept(this);
+        builder.append(" do ");
+        for(int i = 0; i < m.cases().size(); i++) {
+            builder.append("case ");
+            m.cases().get(i).accept(this);
+            builder.append(" := ");
+            m.branches().get(i).accept(this);
+            builder.append("; ");
+        }
+        builder.append("end");
+
+        return null;
+    }
+
+    @Override
+    public Void visitWildcard(Wildcard w) {
+        builder.append("?");
+        return null;
+    }
+
+    @Override
+    public Void visitNumberPattern(NumberPattern n) {
+        builder.append(n.value());
+        return null;
+    }
+    @Override
+    public Void visitBooleanPattern(BooleanPattern b) {
+        builder.append(b.value());
+        return null;
+    }
+    @Override
+    public Void visitStringPattern(StringPattern s) {
+        builder.append("\"");
+        builder.append(s.value().replace("\"", "\\\""));
+        builder.append("\"");
+
+        return null;
+    }
+
+    @Override
+    public Void visitVariableBinding(VariableBinding v) {
+        builder.append(v.name());
+        return null;
+    }
+    @Override
+    public Void visitConstructorPattern(ConstructorPattern c) {
+        builder.append(c.constr().lexeme());
+        builder.append("(");
+        boolean needsComma = false;
+        for(var pat: c.subPatterns()) {
+            if(needsComma) builder.append(", ");
+            pat.accept(this);
+        }
+        builder.append(")");
         return null;
     }
  }

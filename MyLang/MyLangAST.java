@@ -23,6 +23,7 @@ public T visitForYieldExpression(ForYieldExpression value);
 public T visitForDoExpression(ForDoExpression value);
 public T visitRangeExpression(RangeExpression value);
 public T visitThisExpression(ThisExpression value);
+public T visitMatchExpression(MatchExpression value);
 }
 public static sealed interface Expression extends MyLangAST {
     public <T> T accept(ExpressionVisitor<T> visitor);
@@ -106,6 +107,10 @@ public <T> T accept(ExpressionVisitor<T> visitor) {
 public static record ThisExpression(Token keyword) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitThisExpression(this);
+}}
+public static record MatchExpression(Expression matched, List<Pattern> cases, List<Expression> branches) implements Expression {
+public <T> T accept(ExpressionVisitor<T> visitor) {
+    return visitor.visitMatchExpression(this);
 }}
 public static interface DeclarationVisitor<T> {
 public T visitVariableDeclaration(VariableDeclaration value);

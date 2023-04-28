@@ -10,7 +10,7 @@ import static MyLang.MyLangAST.*;
 
 
 public class Typechecker implements 
-        DeclarationVisitor<Void>, ExpressionVisitor<Void>, StatementVisitor<Void> {
+        DeclarationVisitor<Void>, ExpressionVisitor<Void>, StatementVisitor<Void>, PatternVisitor<Void> {
     private boolean hadError = false;
     private List<String> errors = new ArrayList<>();
 
@@ -1036,6 +1036,77 @@ public class Typechecker implements
     public Void visitEnumDeclaration(EnumDeclaration e) {
         for(var constructor : e.variants()) { // Check that all Constructors are Well-Formed
             env.normalize(enumConstructorTypeOf(constructor, e.Name()), this); 
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitMatchExpression(MatchExpression m) {
+        var matchedType = inferType(m.matched());
+        var resultType = inferType(m.branches().get(0));
+        for(int i = 0; i < m.cases().size(); i++) {
+            openScope();
+            checkPattern(matchedType, m.cases().get(i));
+            checkType(resultType, m.branches().get(i));
+            closeScope();
+        }
+
+        return null;
+    }
+
+    private void checkPattern(TypeRep t, Pattern p) {
+        var previousTarget = checkTarget;
+        checkTarget = t;
+        p.accept(this);
+        checkTarget = previousTarget;
+    }
+
+    @Override
+    public Void visitWildcard(Wildcard w) {
+        return null;
+    }
+    @Override
+    public Void visitNumberPattern(NumberPattern n) {
+        hasType(numberType);
+        return null;
+    }
+    @Override
+    public Void visitBooleanPattern(BooleanPattern b) {
+        hasType(booleanType);
+        return null;
+    }
+    @Override
+    public Void visitStringPattern(StringPattern s) {
+        hasType(stringType);
+        return null;
+    }
+    @Override
+    public Void visitVariableBinding(VariableBinding v) {
+        declareType(
+            v.name().lexeme(), 
+            checkTarget, 
+            false);
+        return null;
+    }
+    @Override
+    public Void visitConstructorPattern(ConstructorPattern p) {
+        if(checkTarget instanceof EnumType e) {
+            if(!e.variants().containsKey(p.constr().lexeme())) {
+                error("Type '"+checkTarget+"' has no constructor '"+p.constr().lexeme()+"'");
+            } else {
+                var constructorType = (FunctionTypeRep) e.variants().get(p.constr().lexeme());
+                if(constructorType.parameters().size() != p.subPatterns().size()) {
+                    error("Wrong number of arguments in pattern of constructor '"+p.constr().lexeme()+
+                        "': Expected "+constructorType.parameters().size()+", got "+p.subPatterns().size());
+                } else {
+                    for(int i = 0; i < p.subPatterns().size(); i++) {
+                        checkPattern(constructorType.parameters().get(i), p.subPatterns().get(i));
+                    }
+                }
+            }
+        } else {
+            error("Cannot match on Constructor of non-enum type '"+
+                this.p.prettyPrint(checkTarget)+"'");
         }
         return null;
     }

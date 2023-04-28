@@ -17,7 +17,8 @@ Expression < MyLangAST = NumericLiteral: double value
                        | ForYieldExpression: Token variable, Expression collection, Expression guard, Parameter body
                        | ForDoExpression: Token variable, Expression collection, Expression guard, Statement body
                        | RangeExpression: Expression start, Expression end, Expression step
-                       | ThisExpression: Token keyword;
+                       | ThisExpression: Token keyword
+                       | MatchExpression: Expression matched, List<Pattern> cases, List<Expression> branches;
 
 Declaration < MyLangAST, DeclarationOrStatement, ConstructorOrDeclaration =
         VariableDeclaration: Token Name, Type type, Expression initializer, boolean isReassignable, boolean export

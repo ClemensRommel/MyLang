@@ -190,4 +190,11 @@ public class TypeInferrer
         return tc.getTypeOf(t.keyword(), true);
     }
 
+    @Override
+    public TypeRep visitMatchExpression(MatchExpression m) {
+        if(m.branches().size() == 0) {
+            return Typechecker.unknown();
+        }
+        return infer(m.branches().get(0));
+    }
 }

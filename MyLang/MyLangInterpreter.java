@@ -11,7 +11,7 @@ import java.util.Scanner;
 import java.util.stream.Collectors;
 
 public class MyLangInterpreter implements ExpressionVisitor<Object>,
-       DeclarationVisitor<Void>, StatementVisitor<Void>, ParameterVisitor<List<Object>> {
+       DeclarationVisitor<Void>, StatementVisitor<Void>, ParameterVisitor<List<Object>>, PatternVisitor<Boolean> {
 
     public MyLangModule currentModule = new MyLangModule();
 
@@ -21,6 +21,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     public Random random = new Random();
 
     boolean inConstructor = false;
+    Object currentMatcher = null;
 
     private Map<String, MyLangCallable> listMethods = Map.ofEntries(
         Map.entry("push", MyLangBuiltinFunction.listPush),
@@ -652,5 +653,68 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
 
     private void declareEnumConstructor(EnumConstructor e) {
         env.declareVariable(e.name().lexeme(), new EnumVariant(e.name(), e.parameters().size()), false);
+    }
+
+    @Override
+    public Object visitMatchExpression(MatchExpression m) {
+        var matched = interpretExpression(m.matched());
+        for(int i = 0; i < m.cases().size(); i++) {
+            openScope();
+            if(matches(matched, m.cases().get(i))) {
+                var result = interpretExpression(m.branches().get(i));
+                closeScope();
+                return result;
+            }
+            closeScope();
+        }
+
+        throw new InterpreterError("Non exhaustive match while matching "+matched.toString());
+    }
+
+    private boolean matches(Object o, Pattern p) {
+        var previousMatcher = currentMatcher;
+        currentMatcher = o;
+        var result = p.accept(this);
+        currentMatcher = previousMatcher;
+        return result;
+    }
+
+    @Override
+    public Boolean visitWildcard(Wildcard w) {
+        return true;
+    }
+    @Override
+    public Boolean visitVariableBinding(VariableBinding v) {
+        env.declareVariable(v.name().lexeme(), currentMatcher, false);
+        return true;
+    }
+    @Override
+    public Boolean visitStringPattern(StringPattern s) {
+        return s.value().equals(currentMatcher);
+    }
+    @Override
+    public Boolean visitNumberPattern(NumberPattern n) {
+        return currentMatcher.equals(n.value());
+    }
+    @Override
+    public Boolean visitBooleanPattern(BooleanPattern b) {
+        return currentMatcher.equals(b.value());
+    }
+    @Override
+    public Boolean visitConstructorPattern(ConstructorPattern p) {
+        if(currentMatcher instanceof EnumVariantObject o) {
+            if(p.constr().lexeme().equals(o.variant().Name().lexeme())) {
+                for(int i = 0; i < p.subPatterns().size(); i++) {
+                    if(!matches(o.fields().get(i), p.subPatterns().get(i))) {
+                        return false;
+                    }
+                }
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
     }
 }
