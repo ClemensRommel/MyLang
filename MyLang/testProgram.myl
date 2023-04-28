@@ -1,8 +1,25 @@
-fun fib(n) := if n < 2 
-    then n 
-    else fib(n-1) + fib(n-2);
+enum Test where
+    Variant1(Number, Bool, String);
+    Variant2(Test[]);
+    Variant3(Test, Fun(Test): Test);
+end
 
-val before := clock();
-print(fib(40));
-val after := clock();
-print(after - before);
+fun main() do 
+    val x: Test := Variant1(26, true, "variant1 test");
+    val f: Fun(Test[]): Test := Variant2;
+    fun g(x: Test): Test := Variant2([x]);
+    val z: Test := Variant3(x, g);
+    print(new Variant1(13, false, "test"));
+    print(x);
+    print(f([Variant1(-25 + 2, false, "variant2 test")]));
+    print(öffneDatei("test"));
+    print(öffneDatei("test2"));
+    print(z);
+end
+
+enum DateiErgebnis where
+    Inhalt(String);
+    Fehler(String);
+end
+
+fun öffneDatei(pfad: String): DateiErgebnis := if pfad = "test" then Fehler("unbekannte Datei") else Inhalt(pfad);

@@ -52,7 +52,7 @@ end
 // was durch "enhanced enums" möglich ist
 
 enum DateiErgebnis where
-    Erfolg(String), Fehler(IOFehler);
+    Erfolg(String); Fehler(IOFehler);
 end
 
 fun öffneDatei(name: String): DateiErgebnis := ...;

@@ -9,8 +9,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.stream.Collectors;
-import java.nio.file.*;
-import java.io.IOException;
 
 public class MyLangInterpreter implements ExpressionVisitor<Object>,
        DeclarationVisitor<Void>, StatementVisitor<Void>, ParameterVisitor<List<Object>> {
@@ -643,5 +641,16 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     @Override
     public List<Object> visitNamedParameter(NamedParameter n) {
         throw new InterpreterError("Unexpected named parameter: "+n);
+    }
+    @Override
+    public Void visitEnumDeclaration(EnumDeclaration e) {
+        for(var variant: e.variants()) {
+            declareEnumConstructor(variant);
+        }
+        return null;
+    }
+
+    private void declareEnumConstructor(EnumConstructor e) {
+        env.declareVariable(e.name().lexeme(), new EnumVariant(e.name(), e.parameters().size()), false);
     }
 }

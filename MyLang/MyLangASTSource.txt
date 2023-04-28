@@ -23,6 +23,7 @@ Declaration < MyLangAST, DeclarationOrStatement, ConstructorOrDeclaration =
         VariableDeclaration: Token Name, Type type, Expression initializer, boolean isReassignable, boolean export
     |   FunctionDeclaration: Token Name, ParameterInformation parameters, Expression body, Type retType, boolean export
     |   ClassDeclaration:    Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor, boolean export
+    |   EnumDeclaration:     Token Name, List<EnumConstructor> variants, boolean export
     |   TypeDefDeclaration:  Token Name, Type definition, boolean export
     |   ModuleDeclaration:   MyLangPath Name
     |   EmptyDeclaration:    Token semicolon;
@@ -38,13 +39,22 @@ Statement < MyLangAST, DeclarationOrStatement =
     |   EmptyStatement: Token semicolon;
 
 Constructor < MyLangAST, ConstructorOrDeclaration = 
-        ClassConstructor: Token keyword, ParameterInformation parameters, Expression body;
+        ClassConstructor:   Token keyword, ParameterInformation parameters, Expression body
+    |   EnumConstructor:    Token name, List<Type> parameters;
 
 Parameter < MyLangAST = 
         ExpressionParameter: Expression expr
     |   SpreadParameter: Expression collection
     |   NamedParameter: Token name, Expression parameter
     |   ConditionalParameter: Expression body, Expression guard;
+
+Pattern < MyLangAST = 
+        VariableBinding: Token name
+    |   Wildcard: 
+    |   NumberPattern:  double value
+    |   BooleanPattern: boolean value
+    |   StringPattern:  String value
+    |   ConstructorPattern: Token constr, List<Pattern> subPatterns;
 
 ConstructorOrDeclaration < MyLangAST;
 DeclarationOrStatement < MyLangAST;
@@ -81,6 +91,10 @@ TypeRep < MyLangAST =
             Map<String, Boolean> readability, 
             FunctionTypeRep constructor, 
             TypeEnv env
+    |   EnumType:
+            Token name,
+            Map<String, TypeRep> variants,
+            TypeEnv  env
     |   ListOfRep: TypeRep elements
     |   Builtin: BuiltinType type
     |   AccessRep: TypeRep accessed, Token name

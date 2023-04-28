@@ -39,6 +39,10 @@ public class SubtypeChecker implements TypeRepVisitor<Boolean> {
         return c.equals(target);
     }
     @Override
+    public Boolean visitEnumType(EnumType e) {
+        return e.equals(target);
+    }
+    @Override
     public Boolean visitTypeIdentifierRep(TypeIdentifierRep t) {
         return t.equals(target);
     }

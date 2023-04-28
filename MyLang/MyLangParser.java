@@ -319,11 +319,36 @@ public class MyLangParser {
             case VAL -> finalizeVariableDeclaration(false, export);
             case FUN -> finalizeFunctionDeclaration(export);
             case CLASS -> finalizeClassDeclaration(export);
+            case ENUM -> finalizeEnumDeclaration(export);
             case TYPE -> finalizeTypeDefDeclaration(export);
             case SEMICOLON -> new EmptyDeclaration(declarationType);
             default -> throw new ParseError("Unknown declaration type: " + declarationType.type(), 
                     declarationType.line());
         };
+    }
+    private Declaration finalizeEnumDeclaration(boolean export) {
+        var name = consume(TokenType.IDENTIFIER);
+        consume(TokenType.WHERE);
+        List<EnumConstructor> variants = new ArrayList<>();
+        while(!match(TokenType.END)) {
+            variants.add(parseEnumVariant());
+        }
+        var result = new EnumDeclaration(name, variants, export);
+        return result;
+    }
+
+    private EnumConstructor parseEnumVariant() {
+        var name = consume(TokenType.IDENTIFIER);
+        consume(TokenType.LPAREN);
+        List<Type> params = new ArrayList<>();
+        if(!match(TokenType.RPAREN)) {
+            do {
+                params.add(parseType());
+            } while(match(TokenType.COMMA));
+            consume(TokenType.RPAREN);
+        }
+        consume(TokenType.SEMICOLON);
+        return new EnumConstructor(name, params);
     }
 
     private Declaration finalizeTypeDefDeclaration(boolean export) {

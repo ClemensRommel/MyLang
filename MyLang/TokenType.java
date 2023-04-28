@@ -23,13 +23,21 @@ public enum TokenType {
     MODULE, IMPORT, EXPORT, LOCAL,
 
     // Type Keywords
-    CLASS, TYPE_FUN, NUMBER, BOOLEAN, STRING, VOID, TYPE, 
+    CLASS, TYPE_FUN, NUMBER, BOOLEAN, STRING, VOID, TYPE, ENUM,
 
 
     EOF, ERROR;
 
     public boolean startsDeclaration() {
-        return this == VAR || this == VAL || this == FUN || this == CLASS|| this == MODULE || this == IMPORT || this == EXPORT || this == SEMICOLON;
+        return  this == VAR || 
+                this == VAL || 
+                this == FUN || 
+                this == CLASS || 
+                this == MODULE || 
+                this == IMPORT || 
+                this == EXPORT || 
+                this == SEMICOLON ||
+                this == ENUM;
     }
 
     public boolean isVisibilityDeclaration() {

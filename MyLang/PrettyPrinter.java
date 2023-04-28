@@ -441,12 +441,12 @@ public class PrettyPrinter implements
     }
     @Override
     public Void visitBlockExpression(BlockExpression b) {
-        builder.append("{");
+        builder.append("do ");
         for(var stmt: b.statements()) {
             visitStmt(stmt);
         }
         b.returnValue().accept(this);
-        builder.append("}");
+        builder.append("end");
 
         return null;
     }
@@ -473,7 +473,6 @@ public class PrettyPrinter implements
     public Void visitWhileDoExpression(WhileDoExpression w) {
         builder.append("while ");
         w.condition().accept(this);
-        builder.append(" do ");
         w.body().accept(this);
 
         return null;
@@ -614,12 +613,12 @@ public class PrettyPrinter implements
     public Void visitClassDeclaration(ClassDeclaration c) {
         builder.append("class ");
         builder.append(c.Name().lexeme());
-        builder.append(" := {");
+        builder.append(" where ");
         for(var decl: c.fieldsAndMethods()) {
             decl.accept(this);
         }
         c.constructor().accept(this);
-        builder.append("};");
+        builder.append("end");
 
         return null;
     }
@@ -628,7 +627,7 @@ public class PrettyPrinter implements
     public Void visitClassConstructor(ClassConstructor c) {
         builder.append("new(");
         prettyPrintParameters(c.parameters());
-        builder.append(") := ");
+        builder.append(") ");
         c.body().accept(this);
         builder.append(";");
 
@@ -697,6 +696,36 @@ public class PrettyPrinter implements
         s.expression().accept(this);
         builder.append(";");
 
+        return null;
+    }
+    @Override
+    public Void visitEnumDeclaration(EnumDeclaration e) {
+        builder.append("enum ");
+        builder.append(e.Name().lexeme());
+        builder.append(" where ");
+        for(var variant : e.variants()) {
+            variant.accept(this);
+        }
+        builder.append(" end");
+
+        return null;
+    }
+    @Override
+    public Void visitEnumConstructor(EnumConstructor e) {
+        builder.append(e.name().lexeme());
+        builder.append("(");
+        boolean needComma = false;
+        for(var param: e.parameters()) {
+            if(needComma) builder.append(", ");
+            param.accept(this);
+        }
+        builder.append(");");
+
+        return null;
+    }
+    @Override
+    public Void visitEnumType(EnumType e) {
+        builder.append(e.name().lexeme());
         return null;
     }
  }

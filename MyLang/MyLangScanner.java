@@ -215,6 +215,7 @@ public final class MyLangScanner {
             case "local" -> new Token(TokenType.LOCAL, "local", line);
             case "type" -> new Token(TokenType.TYPE, "type", line);
             case "return" -> new Token(TokenType.RETURN, "return", line);
+            case "enum" -> new Token(TokenType.ENUM, "enum", line);
             default -> new Token(TokenType.IDENTIFIER, identifier, line);
         };
     }

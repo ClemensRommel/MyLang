@@ -2,9 +2,9 @@ package MyLang;
 
 import java.util.List;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.stream.Collectors;
 
 import static MyLang.MyLangAST.*;
 
@@ -219,7 +219,39 @@ public class Typechecker implements
             if(t.export()) {
                 env.exportType(t.Name().lexeme());
             }
+        } else if(decl instanceof EnumDeclaration e) {
+            declareNewType(e.Name().lexeme(), enumTypeOf(e));
+            for(var constructor: e.variants()) {
+                declareType(constructor.name().lexeme(),
+                    enumConstructorTypeOf(constructor, e.Name()), false);
+                if(e.export()) {
+                    env.exportValue(constructor.name().lexeme());
+                }
+            }
+            if(e.export()) {
+                env.exportType(e.Name().lexeme());
+            }
         }
+    }
+    TypeRep enumTypeOf(EnumDeclaration e) {
+        return new EnumType(e.Name(), 
+            e.variants().stream().collect(Collectors.toMap(
+                c -> c.name().lexeme(), 
+                c -> enumConstructorTypeOf(c, e.Name())
+                )
+            ),
+            env);
+    }
+    TypeRep enumConstructorTypeOf(EnumConstructor e, Token enumName) {
+        return new FunctionTypeRep(
+            e.parameters().stream().map(tcomp::compileType).toList(),
+            List.of(),
+            Map.of(),
+            Map.of(),
+            null,
+            new TypeIdentifierRep(enumName, env),
+            env
+        );
     }
 
     TypeRep functionTypeOf(FunctionDeclaration f) {
@@ -999,5 +1031,12 @@ public class Typechecker implements
 
         return null;
     }
-
+    
+    @Override
+    public Void visitEnumDeclaration(EnumDeclaration e) {
+        for(var constructor : e.variants()) { // Check that all Constructors are Well-Formed
+            env.normalize(enumConstructorTypeOf(constructor, e.Name()), this); 
+        }
+        return null;
+    }
 }

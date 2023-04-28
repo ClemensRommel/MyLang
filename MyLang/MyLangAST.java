@@ -111,6 +111,7 @@ public static interface DeclarationVisitor<T> {
 public T visitVariableDeclaration(VariableDeclaration value);
 public T visitFunctionDeclaration(FunctionDeclaration value);
 public T visitClassDeclaration(ClassDeclaration value);
+public T visitEnumDeclaration(EnumDeclaration value);
 public T visitTypeDefDeclaration(TypeDefDeclaration value);
 public T visitModuleDeclaration(ModuleDeclaration value);
 public T visitEmptyDeclaration(EmptyDeclaration value);
@@ -129,6 +130,10 @@ public <T> T accept(DeclarationVisitor<T> visitor) {
 public static record ClassDeclaration(Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor, boolean export) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitClassDeclaration(this);
+}}
+public static record EnumDeclaration(Token Name, List<EnumConstructor> variants, boolean export) implements Declaration {
+public <T> T accept(DeclarationVisitor<T> visitor) {
+    return visitor.visitEnumDeclaration(this);
 }}
 public static record TypeDefDeclaration(Token Name, Type definition, boolean export) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
@@ -194,6 +199,7 @@ public <T> T accept(StatementVisitor<T> visitor) {
 }}
 public static interface ConstructorVisitor<T> {
 public T visitClassConstructor(ClassConstructor value);
+public T visitEnumConstructor(EnumConstructor value);
 }
 public static sealed interface Constructor extends MyLangAST,  ConstructorOrDeclaration {
     public <T> T accept(ConstructorVisitor<T> visitor);
@@ -201,6 +207,10 @@ public static sealed interface Constructor extends MyLangAST,  ConstructorOrDecl
 public static record ClassConstructor(Token keyword, ParameterInformation parameters, Expression body) implements Constructor {
 public <T> T accept(ConstructorVisitor<T> visitor) {
     return visitor.visitClassConstructor(this);
+}}
+public static record EnumConstructor(Token name, List<Type> parameters) implements Constructor {
+public <T> T accept(ConstructorVisitor<T> visitor) {
+    return visitor.visitEnumConstructor(this);
 }}
 public static interface ParameterVisitor<T> {
 public T visitExpressionParameter(ExpressionParameter value);
@@ -226,6 +236,41 @@ public <T> T accept(ParameterVisitor<T> visitor) {
 public static record ConditionalParameter(Expression body, Expression guard) implements Parameter {
 public <T> T accept(ParameterVisitor<T> visitor) {
     return visitor.visitConditionalParameter(this);
+}}
+public static interface PatternVisitor<T> {
+public T visitVariableBinding(VariableBinding value);
+public T visitWildcard(Wildcard value);
+public T visitNumberPattern(NumberPattern value);
+public T visitBooleanPattern(BooleanPattern value);
+public T visitStringPattern(StringPattern value);
+public T visitConstructorPattern(ConstructorPattern value);
+}
+public static sealed interface Pattern extends MyLangAST {
+    public <T> T accept(PatternVisitor<T> visitor);
+}
+public static record VariableBinding(Token name) implements Pattern {
+public <T> T accept(PatternVisitor<T> visitor) {
+    return visitor.visitVariableBinding(this);
+}}
+public static record Wildcard() implements Pattern {
+public <T> T accept(PatternVisitor<T> visitor) {
+    return visitor.visitWildcard(this);
+}}
+public static record NumberPattern(double value) implements Pattern {
+public <T> T accept(PatternVisitor<T> visitor) {
+    return visitor.visitNumberPattern(this);
+}}
+public static record BooleanPattern(boolean value) implements Pattern {
+public <T> T accept(PatternVisitor<T> visitor) {
+    return visitor.visitBooleanPattern(this);
+}}
+public static record StringPattern(String value) implements Pattern {
+public <T> T accept(PatternVisitor<T> visitor) {
+    return visitor.visitStringPattern(this);
+}}
+public static record ConstructorPattern(Token constr, List<Pattern> subPatterns) implements Pattern {
+public <T> T accept(PatternVisitor<T> visitor) {
+    return visitor.visitConstructorPattern(this);
 }}
 public static sealed interface ConstructorOrDeclaration extends MyLangAST {
 }
@@ -285,6 +330,7 @@ public static interface TypeRepVisitor<T> {
 public T visitTypeIdentifierRep(TypeIdentifierRep value);
 public T visitFunctionTypeRep(FunctionTypeRep value);
 public T visitClassType(ClassType value);
+public T visitEnumType(EnumType value);
 public T visitListOfRep(ListOfRep value);
 public T visitBuiltin(Builtin value);
 public T visitAccessRep(AccessRep value);
@@ -315,6 +361,12 @@ public static record ClassType(Token name,
             TypeEnv env) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitClassType(this);
+}}
+public static record EnumType(Token name,
+            Map<String, TypeRep> variants,
+            TypeEnv  env) implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitEnumType(this);
 }}
 public static record ListOfRep(TypeRep elements) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
