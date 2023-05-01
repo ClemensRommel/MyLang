@@ -33,7 +33,7 @@ public class MyLangEnviroment {
     }
 
     public boolean localVariableDeclared(String name) {
-        return variables.containsKey(name);
+        return variables.containsKey(name) || (outer != null && outer.localVariableDeclared(name));
     }
     
     public Object getVariable(String name) {

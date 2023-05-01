@@ -5,12 +5,19 @@ import static MyLang.MyLangAST.*;
 public class PrettyPrinter implements 
     TypeRepVisitor<Void>, TypeVisitor<Void>, 
     ExpressionVisitor<Void>, ParameterVisitor<Void>, PatternVisitor<Void>,
-    DeclarationVisitor<Void>, ConstructorVisitor<Void>, StatementVisitor<Void> {
+    DeclarationVisitor<Void>, ConstructorVisitor<Void>, StatementVisitor<Void>, SetterVisitor<Void> {
     private StringBuilder builder = null;
 
     public String prettyPrint(TypeRep t) {
         builder = new StringBuilder();
         t.accept(this);
+        var result = builder.toString();
+        builder = null;
+        return result;
+    }
+    public String prettyPrint(Setter s) {
+        builder = new StringBuilder();
+        s.accept(this);
         var result = builder.toString();
         builder = null;
         return result;
@@ -403,6 +410,19 @@ public class PrettyPrinter implements
 
         return null;
     }
+    @Override
+    public Void visitIfValExpression(IfValExpression i) {
+        builder.append("if val ");
+        i.pat().accept(this);
+        builder.append(" := ");
+        i.matched().accept(this);
+        builder.append(" then ");
+        i.thenBranch().accept(this);
+        builder.append(" else ");
+        i.elseBranch().accept(this);
+        
+        return null;
+    }
 
     @Override
     public Void visitListExpression(ListExpression l) {
@@ -468,6 +488,17 @@ public class PrettyPrinter implements
 
         return null;
     }
+    @Override
+    public Void visitWhileValYieldExpression(WhileValYieldExpression w) {
+        builder.append("while val ");
+        w.pattern().accept(this);
+        builder.append(" := ");
+        w.matched().accept(this);
+        builder.append(" yield ");
+        w.body().accept(this);
+
+        return null;
+    }
 
     @Override
     public Void visitWhileDoExpression(WhileDoExpression w) {
@@ -478,9 +509,20 @@ public class PrettyPrinter implements
         return null;
     }
     @Override
+    public Void visitWhileValDoExpression(WhileValDoExpression w) {
+        builder.append("while val ");
+        w.pattern().accept(this);
+        builder.append(" := ");
+        w.matched().accept(this);
+        w.body().accept(this);
+
+        return null;
+    }
+
+    @Override
     public Void visitForYieldExpression(ForYieldExpression f) {
         builder.append("for ");
-        builder.append(f.variable().lexeme());
+        f.pat().accept(this);
         builder.append(" in ");
         f.collection().accept(this);
         if(f.guard() != null) {
@@ -496,7 +538,7 @@ public class PrettyPrinter implements
     @Override
     public Void visitForDoExpression(ForDoExpression f) {
         builder.append("for ");
-        builder.append(f.variable().lexeme());
+        f.pat().accept(this);
         builder.append(" in ");
         f.collection().accept(this);
         if(f.guard() != null) {
@@ -558,9 +600,21 @@ public class PrettyPrinter implements
     @Override
     public Void visitVariableDeclaration(VariableDeclaration v) {
         builder.append(v.isReassignable() ? "var " : "val ");
-        builder.append(v.Name().lexeme());
+        v.pat().accept(this);
         builder.append(" := ");
         v.initializer().accept(this);
+        builder.append(";");
+
+        return null;
+    }
+    @Override
+    public Void visitValElseDeclaration(ValElseDeclaration v) {
+        builder.append("val ");
+        v.pat().accept(this);
+        builder.append(" := ");
+        v.initializer().accept(this);
+        builder.append(" else ");
+        v.elseBranch().accept(this);
         builder.append(";");
 
         return null;
@@ -655,17 +709,16 @@ public class PrettyPrinter implements
         return null;
     }
     @Override
-    public Void visitReturnStatement(ReturnStatement r) {
+    public Void visitReturnExpression(ReturnExpression r) {
         builder.append("return ");
         r.returnValue().accept(this);
-        builder.append(";");
 
         return null;
     }
 
     @Override
     public Void visitSetStatement(SetStatement s) {
-        builder.append(s.name().lexeme());
+        s.setter().accept(this);
         builder.append(" := ");
         s.expression().accept(this);
         builder.append(";");
@@ -673,32 +726,7 @@ public class PrettyPrinter implements
         return null;
     }
 
-    @Override
-    public Void visitSetIndexStatement(SetIndexStatement s) {
-        builder.append("(");
-        s.list().accept(this);
-        builder.append(")[");
-        s.index().accept(this);
-        builder.append("] := ");
-        s.expression().accept(this);
-        builder.append(";");
-
-        return null;
-    }
-
-    @Override
-    public Void visitSetPropertyStatement(SetPropertyStatement s) {
-        builder.append("(");
-        s.target().accept(this);
-        builder.append(").");
-        builder.append(s.name().lexeme());
-        builder.append(" := ");
-        s.expression().accept(this);
-        builder.append(";");
-
-        return null;
-    }
-    @Override
+   @Override
     public Void visitEnumDeclaration(EnumDeclaration e) {
         builder.append("enum ");
         builder.append(e.Name().lexeme());
@@ -784,6 +812,102 @@ public class PrettyPrinter implements
         for(var pat: c.subPatterns()) {
             if(needsComma) builder.append(", ");
             pat.accept(this);
+        }
+        builder.append(")");
+        return null;
+    }
+    @Override
+    public Void visitNever(Never n) {
+        builder.append("Never");
+        return null;
+    }
+    @Override
+    public Void visitTupleExpression(TupleExpression t) {
+        builder.append("(");
+        boolean needComma = false;
+        for(var expr : t.elements()) {
+            if(needComma) builder.append(", ");
+            expr.accept(this);
+            needComma = true;
+        }
+        builder.append(")");
+        return null;
+    }
+    @Override
+    public Void visitTuple(Tuple t) {
+        builder.append("(");
+        boolean needComma = false;
+        for(var type: t.types()) {
+            if(needComma) builder.append(", ");
+            type.accept(this);
+            needComma = true;
+        }
+        builder.append(")");
+        return null;
+    }
+    @Override
+    public Void visitTuplePattern(TuplePattern p) {
+        builder.append("(");
+        boolean needComma = false;
+        for(var pat: p.subPatterns()) {
+            if(needComma) builder.append(", ");
+            pat.accept(this);
+            needComma = true;
+        }
+        builder.append(")");
+        return null;
+    }
+    @Override
+    public Void visitTupleRep(TupleRep t) {
+        builder.append("(");
+        boolean needComma = false;
+        for(var typerep : t.elements()) {
+            if(needComma) builder.append(", ");
+            typerep.accept(this);
+            needComma = true;
+        }
+        builder.append(")");
+        return null;
+    }
+    @Override
+    public Void visitWildcardExpression(WildcardExpression w) {
+        builder.append("?");
+        return null;
+    }
+    @Override
+    public Void visitWildcardSetter(WildcardSetter w) {
+        builder.append("?");
+        return null;
+    }
+    @Override
+    public Void visitVariableSetter(VariableSetter v) {
+        builder.append(v.name().lexeme());
+        return null;
+    }
+    @Override
+    public Void visitIndexSetter(IndexSetter i) {
+        builder.append("(");
+        i.list().accept(this);
+        builder.append(")[");
+        i.index().accept(this);
+        builder.append("]");
+        return null;
+    }
+    @Override
+    public Void visitPropertySetter(PropertySetter p) {
+        builder.append("(");
+        p.object().accept(this);
+        builder.append(").");
+        builder.append(p.name().lexeme());
+        return null;
+    }
+    @Override
+    public Void visitTupleSetter(TupleSetter s) {
+        builder.append("(");
+        boolean needComma = false;
+        for(var setter: s.setters()) {
+            if(needComma) builder.append(", ");
+            setter.accept(this);
         }
         builder.append(")");
         return null;

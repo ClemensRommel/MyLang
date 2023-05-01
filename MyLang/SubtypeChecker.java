@@ -124,4 +124,22 @@ public class SubtypeChecker implements TypeRepVisitor<Boolean> {
     public Boolean visitUnknownType(UnknownType u) {
         return false;
     }
+    @Override
+    public Boolean visitNever(Never n) {
+        return true;
+    }
+    @Override
+    public Boolean visitTupleRep(TupleRep t) {
+        if(target instanceof TupleRep t2) {
+            if(t2.elements().size() != t.elements().size()) {
+                return false;
+            }
+            boolean allOk = true;
+            for(int i = 0; i < t.elements().size(); i++) {
+                allOk &= isSubtypeOf(t2.elements().get(i), t.elements().get(i));
+            }
+            return allOk;
+        }
+        return false;
+    }
 }

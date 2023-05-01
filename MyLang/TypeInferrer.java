@@ -1,15 +1,11 @@
 package MyLang;
 
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
 import static MyLang.MyLangAST.*;
 
 public class TypeInferrer 
-    implements ExpressionVisitor<TypeRep> {
+    implements ExpressionVisitor<TypeRep>, PatternVisitor<Void>, SetterVisitor<TypeRep> {
     private Typechecker tc;
+    private TypeRep matched = null;
 
     public TypeInferrer(Typechecker t) {
         tc = t;
@@ -17,6 +13,17 @@ public class TypeInferrer
 
     public TypeRep infer(Expression e) {
         return e.accept(this);
+    }
+
+    public TypeRep inferSetter(Setter s) {
+        return s.accept(this);
+    }
+
+    private void inferPatternTypes(Pattern p, TypeRep matched) {
+        var previousMatched = this.matched;
+        this.matched = tc.env.normalize(matched, tc);
+        p.accept(this);
+        this.matched = previousMatched;
     }
 
     @Override
@@ -99,6 +106,14 @@ public class TypeInferrer
     public TypeRep visitIfExpression(IfExpression i) {
         return infer(i.thenBranch());
     }
+    @Override
+    public TypeRep visitIfValExpression(IfValExpression i) {
+        tc.openScope();
+            inferPatternTypes(i.pat(), infer(i.matched()));
+            var thenBranchType = infer(i.thenBranch());
+        tc.closeScope();
+        return thenBranchType;
+    }
 
     @Override
     public TypeRep visitListExpression(ListExpression l) {
@@ -160,7 +175,20 @@ public class TypeInferrer
 
     @Override 
     public TypeRep visitWhileYieldExpression(WhileYieldExpression wy) {
-        return tc.inferElemTypeOfParameter(wy.body(), true);
+        return new ListOfRep(tc.inferElemTypeOfParameter(wy.body(), true));
+    }
+
+    @Override
+    public TypeRep visitWhileValDoExpression(WhileValDoExpression w) {
+        return Typechecker.voidType;
+    }
+    @Override
+    public TypeRep visitWhileValYieldExpression(WhileValYieldExpression wy) {
+        tc.openScope();
+            inferPatternTypes(wy.pattern(), infer(wy.matched()));
+            var bodyType = infer(wy.body());
+        tc.closeScope();
+        return new ListOfRep(bodyType);
     }
 
     @Override
@@ -171,10 +199,10 @@ public class TypeInferrer
     public TypeRep visitForYieldExpression(ForYieldExpression fy) {
         var collectionType = infer(fy.collection());
         tc.openScope();
-        if(collectionType instanceof ListOfRep l) {
-            tc.declareType(fy.variable().lexeme(), l.elements(), false);
-        }
-        var resultingType = tc.inferElemTypeOfParameter(fy.body(), true);
+            if(collectionType instanceof ListOfRep l) {
+                inferPatternTypes(fy.pat(), l.elements());
+            }
+            var resultingType = tc.inferElemTypeOfParameter(fy.body(), true);
         tc.closeScope();
         return resultingType;
     }
@@ -195,6 +223,107 @@ public class TypeInferrer
         if(m.branches().size() == 0) {
             return Typechecker.unknown();
         }
-        return infer(m.branches().get(0));
+        tc.openScope();
+            inferPatternTypes(m.cases().get(0), infer(m.matched()));
+            var branchType = infer(m.branches().get(0));
+        tc.closeScope();
+        return branchType;
+    }
+    @Override
+    public Void visitWildcard(Wildcard w) {
+        return null;
+    }
+    @Override
+    public Void visitNumberPattern(NumberPattern p) {
+        return null;
+    }
+    @Override 
+    public Void visitStringPattern(StringPattern p) {
+        return null;
+    }
+    @Override
+    public Void visitBooleanPattern(BooleanPattern p) {
+        return null;
+    }
+    @Override
+    public Void visitVariableBinding(VariableBinding v) {
+        tc.declareType(v.name().lexeme(), matched, false);
+        return null;
+    }
+    @Override
+    public Void visitConstructorPattern(ConstructorPattern p) {
+        if(matched instanceof EnumType e) {
+            if(e.variants().containsKey(p.constr().lexeme())) {
+                var variant = e.variants().get(p.constr().lexeme());
+                if(variant instanceof FunctionTypeRep f) {
+                    if(f.parameters().size() == p.subPatterns().size()) {
+                        for(int i = 0; i < p.subPatterns().size(); i++) {
+                            inferPatternTypes(
+                                p.subPatterns().get(i),
+                                f.parameters().get(i));
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    @Override
+    public TypeRep visitReturnExpression(ReturnExpression r) {
+        return Typechecker.neverType;
+    }
+    @Override
+    public TypeRep visitTupleExpression(TupleExpression t) {
+        return new TupleRep(t.elements().stream().map(this::infer).toList());
+    }
+    @Override
+    public Void visitTuplePattern(TuplePattern p) {
+        if(matched instanceof TupleRep t) {
+            var counter = Math.min(t.elements().size(), p.subPatterns().size());
+            for(int i = 0; i < counter; i++) {
+                inferPatternTypes(p.subPatterns().get(i), t.elements().get(i));
+            }
+        }
+        return null;
+    }
+    @Override
+    public TypeRep visitWildcardExpression(WildcardExpression w) {
+        return Typechecker.unknown();
+    }
+    @Override
+    public TypeRep visitWildcardSetter(WildcardSetter w) {
+        return Typechecker.voidType;
+    }
+    @Override
+    public TypeRep visitVariableSetter(VariableSetter v) {
+        return tc.getTypeOf(v.name(), true);
+    }
+    @Override
+    public TypeRep visitIndexSetter(IndexSetter i) {
+        var listType = infer(i.list());
+        if(listType instanceof ListOfRep l) {
+            return l.elements();
+        } else {
+            return Typechecker.unknown();
+        }
+    }
+    @Override
+    public TypeRep visitPropertySetter(PropertySetter p) {
+        var objectType = infer(p.object());
+        if(objectType instanceof ClassType c) {
+            if(c.accessors().containsKey(p.name().lexeme())) {
+                return c.accessors().get(p.name().lexeme());
+            }
+        }
+        return Typechecker.unknown();
+    }
+    @Override
+    public TypeRep visitTupleSetter(TupleSetter t) {
+        return new TupleRep(t.setters().stream()
+            .map(this::inferSetter)
+            .toList()
+        );
     }
 }

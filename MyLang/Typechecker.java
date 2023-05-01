@@ -10,7 +10,7 @@ import static MyLang.MyLangAST.*;
 
 
 public class Typechecker implements 
-        DeclarationVisitor<Void>, ExpressionVisitor<Void>, StatementVisitor<Void>, PatternVisitor<Void> {
+        DeclarationVisitor<Void>, ExpressionVisitor<Void>, StatementVisitor<Void>, PatternVisitor<Void>, SetterVisitor<Void> {
     private boolean hadError = false;
     private List<String> errors = new ArrayList<>();
 
@@ -22,6 +22,8 @@ public class Typechecker implements
 
     private TypeRep checkTarget = null;
     TypeRep currentReturnType = null;
+    private boolean exportCurrentPatterns = false;
+    private boolean isMutable = false;
 
     MyLangRunner runner;
 
@@ -101,6 +103,18 @@ public class Typechecker implements
         }
         //System.out.println("inferred type "+showType(resultType)+" of expression "+e);
         return env.normalize(resultType, this);
+    }
+    private TypeRep inferSetterType(Setter s) {
+        var setterType = ti.inferSetter(s);
+        checkSetter(s, setterType);
+        return setterType;
+    }
+
+    private void checkSetter(Setter s, TypeRep type) {
+        var previousTarget = checkTarget;
+        checkTarget = type;
+        s.accept(this);
+        checkTarget = previousTarget;
     }
 
     TypeRep inferElemTypeOfParameter(Parameter param, boolean inferMode) {
@@ -197,10 +211,11 @@ public class Typechecker implements
 
     void declare(DeclarationOrStatement decl) {
         if(decl instanceof VariableDeclaration v) {
-            declareType(v.Name().lexeme(), tcomp.compileType(v.type()), v.isReassignable());
-            if(v.export()) {
-                env.exportValue(v.Name().lexeme());
-            }
+            checkIrrefutablePattern(v.pat(), tcomp.compileType(v.type()), v.export(), v.isReassignable());
+
+        } else if(decl instanceof ValElseDeclaration v) {
+            var matched = inferType(v.initializer());
+            checkPattern(matched, v.pat(), false);
         } else if(decl instanceof FunctionDeclaration f) {
             declareType(f.Name().lexeme(), functionTypeOf(f), false);
             if(f.export()) {
@@ -233,6 +248,25 @@ public class Typechecker implements
             }
         }
     }
+
+    private void checkIrrefutablePattern(Pattern p, TypeRep t, boolean export, boolean isReassigneable) {
+        if(isIrrefutable(p)) {
+            var previousExport = exportCurrentPatterns;
+            exportCurrentPatterns = export;
+            checkPattern(t, p, isReassigneable);
+            exportCurrentPatterns = previousExport;
+        }
+    }
+    private boolean isIrrefutable(Pattern p) {
+        if(p instanceof Wildcard || p instanceof VariableBinding) {
+            return true;
+        } else if(p instanceof TuplePattern t) {
+            return t.subPatterns().stream().allMatch(this::isIrrefutable);
+        } else {
+            return false;
+        }
+    }
+
     TypeRep enumTypeOf(EnumDeclaration e) {
         return new EnumType(e.Name(), 
             e.variants().stream().collect(Collectors.toMap(
@@ -279,7 +313,11 @@ public class Typechecker implements
         Map<String, Boolean> map = new HashMap<>();
         for(Declaration decl: decls) {
             if(decl instanceof VariableDeclaration v) {
-                map.put(v.Name().lexeme(), v.isReassignable());
+                if(v.pat() instanceof VariableBinding b) {
+                    map.put(b.name().lexeme(), v.isReassignable());
+                } else {
+                    error("Cannot use Patterns in Field declarations");
+                }
             } else if(decl instanceof FunctionDeclaration f) {
                 map.put(f.Name().lexeme(),false);
             }
@@ -289,8 +327,8 @@ public class Typechecker implements
 
     Map<String, TypeRep> accessorsIn(ClassDeclaration c) {
         openScope();
-        gatherTypes(c.fieldsAndMethods());
-        Map<String, TypeRep> types = env.getDeclaredTypesOfValues();
+            gatherTypes(c.fieldsAndMethods());
+            Map<String, TypeRep> types = env.getDeclaredTypesOfValues();
         closeScope();
         return types;
     }
@@ -328,35 +366,45 @@ public class Typechecker implements
         checkType(tcomp.compileType(value.type()), value.initializer());
         return null;
     }
+    @Override
+    public Void visitValElseDeclaration(ValElseDeclaration v) {
+        if(inClass) {
+            error("ValElse not allowed as Field declaration");
+        }
+        var matched = inferType(v.initializer());
+        checkType(neverType, v.elseBranch());
+        checkPattern(matched, v.pat(), false);
+        return null;
+    }
 
     @Override
     public Void visitFunctionDeclaration(FunctionDeclaration value) {
         openScope();
-        for(int i = 0; i < value.parameters().names().size(); i++) {
-            declareType(value.parameters().names().get(i).lexeme(), tcomp.compileType(value.parameters().types().get(i)), false);
-        }
-        if(value.parameters().varargsName() != null) {
-            declareType(
+            for(int i = 0; i < value.parameters().names().size(); i++) {
+                declareType(value.parameters().names().get(i).lexeme(), tcomp.compileType(value.parameters().types().get(i)), false);
+            }
+            if(value.parameters().varargsName() != null) {
+                declareType(
                     value.parameters().varargsName().lexeme(), 
                     new ListOfRep(tcomp.compileType(value.parameters().varargsType())), 
                     false);
-        }
-        value.parameters().optionals().forEach(optional -> {
-            var type = tcomp.compileType(optional.type());
-            checkType(type, optional.defaultValue());
-            declareType(optional.name(), type, false);
-        });
-        value.parameters().named().forEach((var name, var type) -> {
-            declareType(name, tcomp.compileType(type), false);
-        });
-        value.parameters().optionalNamed().forEach((var name, var type) -> {
-            declareType(name, tcomp.compileType(type.type()), false);
-        });
-        var retType = tcomp.compileType(value.retType());
-        var previousReturnType = currentReturnType;
-        currentReturnType = retType;
-        checkType(retType, value.body());
-        currentReturnType = previousReturnType;
+            }
+            value.parameters().optionals().forEach(optional -> {
+                var type = tcomp.compileType(optional.type());
+                checkType(type, optional.defaultValue());
+                declareType(optional.name(), type, false);
+            });
+            value.parameters().named().forEach((var name, var type) -> {
+                declareType(name, tcomp.compileType(type), false);
+            });
+            value.parameters().optionalNamed().forEach((var name, var type) -> {
+                declareType(name, tcomp.compileType(type.type()), false);
+            });
+            var retType = tcomp.compileType(value.retType());
+            var previousReturnType = currentReturnType;
+            currentReturnType = retType;
+            checkType(retType, value.body());
+            currentReturnType = previousReturnType;
         closeScope();
         return null;
     }
@@ -365,17 +413,17 @@ public class Typechecker implements
     public Void visitClassDeclaration(ClassDeclaration value) {
         var classType = env.getTypeByName(value.Name().lexeme());
         openScope();
-        boolean prevInClass = inClass;
-        inClass = true;
-        declareType("this", classType, false);
-        for(Declaration declaration: value.fieldsAndMethods()) {
-            checkDeclaration(declaration);
-        }
-        if(value.constructor() != null)  {
-            checkConstructor(value.constructor());
-        }
+            boolean prevInClass = inClass;
+            inClass = true;
+            declareType("this", classType, false);
+            for(Declaration declaration: value.fieldsAndMethods()) {
+                checkDeclaration(declaration);
+            }
+            if(value.constructor() != null)  {
+                checkConstructor(value.constructor());
+            }
 
-        inClass = prevInClass;
+            inClass = prevInClass;
 
         closeScope();
 
@@ -396,8 +444,8 @@ public class Typechecker implements
         return p.prettyPrint(t);
     }
 
-    void typeMismatch(TypeRep expected, TypeRep given) {
-        error("Expected '"+showType(expected)+"', got '"+showType(given)+"'");
+    void typeMismatch(TypeRep expected, TypeRep given, String expr) {
+        error("Expected '"+showType(expected)+"', got '"+showType(given)+"' in '"+expr+"'");
     }
 
     boolean isAssigneableTo(TypeRep to, TypeRep from) {
@@ -427,7 +475,7 @@ public class Typechecker implements
 
     @Override
     public Void visitNumericLiteral(NumericLiteral value) {
-        hasType(numberType);
+        hasType(numberType, p.prettyPrint(value));
         return null;
     }
 
@@ -435,7 +483,7 @@ public class Typechecker implements
 
     @Override
     public Void visitStringLiteral(StringLiteral value) {
-        hasType(stringType);
+        hasType(stringType, p.prettyPrint(value));
         return null;
     }
 
@@ -443,7 +491,7 @@ public class Typechecker implements
 
     @Override
     public Void visitBooleanLiteral(BooleanLiteral value) {
-        hasType(booleanType);
+        hasType(booleanType, p.prettyPrint(value));
         return null;
     }
 
@@ -451,7 +499,7 @@ public class Typechecker implements
 
     @Override
     public Void visitNullLiteral(NullLiteral value) {
-        hasType(voidType);
+        hasType(voidType, "null");
         return null;
     }
 
@@ -481,7 +529,7 @@ public class Typechecker implements
         if(!exists(value.value().lexeme())) {
             unknownVariable(value.value());
         } else {
-            hasType(getTypeOf(value.value()));
+            hasType(getTypeOf(value.value()), value.value().lexeme());
         }
         return null;
     }
@@ -493,19 +541,19 @@ public class Typechecker implements
                 checkType(booleanType, b.left());
                 checkType(booleanType, b.right());
 
-                hasType(booleanType);
+                hasType(booleanType, p.prettyPrint(b));
             }
             case PLUS -> {
                 var leftType = inferType(b.left());
                 if(leftType.equals(stringType)) {
                     checkType(voidType, b.right());
-                    hasType(stringType);
+                    hasType(stringType, p.prettyPrint(b));
                 } else {
                     var rightType = inferType(b.right());
                     if(rightType.equals(stringType)) {
-                        hasType(stringType);
+                        hasType(stringType, p.prettyPrint(b));
                     } else if(leftType.equals(numberType) && rightType.equals(numberType)) {
-                        hasType(numberType);
+                        hasType(numberType, p.prettyPrint(b));
                     } else {
                         error("["+b.operator().line()+"] Expected Number or String, got "+showType(leftType));
                         error("["+b.operator().line()+"] Expected Number or String, got "+showType(rightType));
@@ -516,25 +564,25 @@ public class Typechecker implements
                 checkType(numberType, b.left());
                 checkType(numberType, b.right());
 
-                hasType(numberType);
+                hasType(numberType, p.prettyPrint(b));
             }
             case GREATER, GREATER_EQUAL, LESS, LESS_EQUAL -> {
                 checkType(numberType, b.left());
                 checkType(numberType, b.right());
 
-                hasType(booleanType);
+                hasType(booleanType, p.prettyPrint(b));
             }
             case EQUAL -> {
                 var leftType = inferType(b.left());
                 checkType(leftType, b.right());
 
-                hasType(booleanType);
+                hasType(booleanType, p.prettyPrint(b));
             }
             case IN -> {
                 TypeRep elementType = inferType(b.left());
                 checkType(new ListOfRep(elementType), b.right());
 
-                hasType(booleanType);
+                hasType(booleanType, p.prettyPrint(b));
             }
             default -> throw new RuntimeException("Unknown binary operator: "+b.operator().lexeme());
         }
@@ -546,10 +594,10 @@ public class Typechecker implements
     public Void visitUnaryOperation(UnaryOperation o) {
         if(o.operator().type() == TokenType.BANG) {
             checkType(booleanType, o.operand());
-            hasType(booleanType);
+            hasType(booleanType, p.prettyPrint(o));
         } else if(o.operator().type() == TokenType.PLUS || o.operator().type() == TokenType.MINUS) {
             checkType(numberType, o.operand());
-            hasType(numberType);
+            hasType(numberType, p.prettyPrint(o));
         }
 
         return null;
@@ -618,7 +666,7 @@ public class Typechecker implements
             }
         }
 
-        hasType(t.returnType());
+        hasType(t.returnType(), p.prettyPrint(c));
     }
 
     @Override
@@ -636,48 +684,48 @@ public class Typechecker implements
     @Override
     public Void visitFunctionExpression(FunctionExpression f) {
         openScope();
-        var parameterTypes = f.parameters().types().stream()
-            .map(tcomp::compileType)
-            .toList();
-        var varargsType = tcomp.compileType(f.parameters().varargsType());
-        for(int i = 0; i < parameterTypes.size(); i++) {
-            declareType(
+            var parameterTypes = f.parameters().types().stream()
+                .map(tcomp::compileType)
+                .toList();
+            var varargsType = tcomp.compileType(f.parameters().varargsType());
+            for(int i = 0; i < parameterTypes.size(); i++) {
+                declareType(
                     f.parameters().names().get(i).lexeme(), 
                     parameterTypes.get(i),
                     false);
-        }
-        var optionalParamsTypes = f.parameters().optionals().stream()
-            .map(OptionalParam::type)
-            .map(tcomp::compileType)
-            .toList();
-        for(int i = 0; i < optionalParamsTypes.size(); i++) {
-            checkType(optionalParamsTypes.get(i), f.parameters().optionals().get(i).defaultValue());
-            declareType(
-                f.parameters().optionals().get(i).name(),
-                optionalParamsTypes.get(i),
-                false
-            );
-        }
-        if(f.parameters().varargsName() != null) {
-            declareType(
+            }
+            var optionalParamsTypes = f.parameters().optionals().stream()
+                .map(OptionalParam::type)
+                .map(tcomp::compileType)
+                .toList();
+            for(int i = 0; i < optionalParamsTypes.size(); i++) {
+                checkType(optionalParamsTypes.get(i), f.parameters().optionals().get(i).defaultValue());
+                declareType(
+                    f.parameters().optionals().get(i).name(),
+                    optionalParamsTypes.get(i),
+                    false
+                );
+            }
+            if(f.parameters().varargsName() != null) {
+                declareType(
                     f.parameters().varargsName().lexeme(),
                     new ListOfRep(tcomp.compileType(f.parameters().varargsType())),
                     false);
-        }
-        var namedTypes = tcomp.namedTypesIn(f.parameters().named());
-        namedTypes.forEach((var name, var type) -> {
-            declareType(name, type, false);
-        });
+            }
+            var namedTypes = tcomp.namedTypesIn(f.parameters().named());
+            namedTypes.forEach((var name, var type) -> {
+                declareType(name, type, false);
+            });
         
-        var optionalNamedTypes = tcomp.optionalNamedTypesIn(f.parameters().optionalNamed());
-        optionalNamedTypes.forEach((var name , var type) -> {
-            declareType(name, type, false);
-        });
-        var returnType = tcomp.compileType(f.retType());
-        var previousReturnType = currentReturnType;
-        currentReturnType = returnType;
-        checkType(returnType, f.body());
-        currentReturnType = previousReturnType;
+            var optionalNamedTypes = tcomp.optionalNamedTypesIn(f.parameters().optionalNamed());
+            optionalNamedTypes.forEach((var name , var type) -> {
+                declareType(name, type, false);
+            });
+            var returnType = tcomp.compileType(f.retType());
+            var previousReturnType = currentReturnType;
+            currentReturnType = returnType;
+            checkType(returnType, f.body());
+            currentReturnType = previousReturnType;
         closeScope();
         FunctionTypeRep type = new FunctionTypeRep(
                 parameterTypes,
@@ -688,7 +736,7 @@ public class Typechecker implements
                 returnType,
                 env); 
 
-        hasType(env.normalize(type, this));
+        hasType(env.normalize(type, this), p.prettyPrint(f));
 
         return null;
     }
@@ -703,20 +751,32 @@ public class Typechecker implements
     }
 
     @Override
+    public Void visitIfValExpression(IfValExpression i) {
+        var matchedType = inferType(i.matched());
+        openScope();
+            checkPattern(matchedType, i.pat(), false);
+            checkType(checkTarget, i.thenBranch());
+        closeScope();
+        checkType(checkTarget, i.elseBranch());
+
+        return null;
+    }
+
+    @Override
     public Void visitListExpression(ListExpression l) {
         if(checkTarget instanceof ListOfRep lt) {
             for(var p : l.elements()) {
                 checkParameter(lt.elements(), p, true);
             }
         } else {
-            typeMismatch(checkTarget, inferType(l));
+            typeMismatch(checkTarget, inferType(l), p.prettyPrint(l));
         }
         return null;
     }
 
-    private void hasType(TypeRep t) {
+    private void hasType(TypeRep t, String expr) {
         if(!isAssigneableTo(checkTarget, t)) {
-            typeMismatch(checkTarget, t);
+            typeMismatch(checkTarget, t, expr);
         }
     }
 
@@ -832,21 +892,21 @@ public class Typechecker implements
                 if(accessorType instanceof UnknownType) {
                     error("["+p.name().line()+"] Unknown Property Type of property '"+p.name().lexeme()+"'");
                 }
-                hasType(accessorType);
+                hasType(accessorType, this.p.prettyPrint(p));
             }
         } else if(leftType instanceof ListOfRep l) {
             var methodType = listMethodType(p.name().lexeme(), l);
             if(methodType instanceof UnknownType) {
                 error("["+p.name().line()+"] List has no property '"+p.name().lexeme()+"'");
             } else {
-                hasType(methodType);
+                hasType(methodType, this.p.prettyPrint(p));
             }
         } else if(leftType instanceof MyLangAST.Module m) {
             var type = m.enviroment().getTypeOfValue(p.name().lexeme());
             if(type instanceof UnknownType || (!m.enviroment().valueExported(p.name().lexeme()))) {
                 error("["+p.name().line()+"] Module "+m.name()+" does not export '"+p.name().lexeme()+"'");
             } else {
-                hasType(type);
+                hasType(type, this.p.prettyPrint(p));
             }
         } else {
             error("["+p.name().line()+"] Type "+showType(leftType)+" has no properties");
@@ -858,17 +918,28 @@ public class Typechecker implements
     @Override
     public Void visitBlockExpression(BlockExpression b) {
         openScope();
-        for(DeclarationOrStatement d : b.statements()) {
-            declare(d);
+            for(DeclarationOrStatement d : b.statements()) {
+                checkAndDeclare(d);            
+            }
 
-            checkDeclOrStatement(d);
-        }
-
-        checkType(checkTarget, b.returnValue());
+            checkType(checkTarget, b.returnValue());
 
         closeScope();
 
         return null;
+    }
+    private void checkAndDeclare(DeclarationOrStatement dors) {
+        if(dors instanceof Statement s) {
+            checkStatement(s);
+        } else if(dors instanceof Declaration d) {
+            if(d instanceof FunctionDeclaration || d instanceof ClassDeclaration || d instanceof EnumDeclaration) {
+                declare(d);
+                checkDeclaration(d);
+            } else {
+                checkDeclaration(d);
+                declare(d);
+            }
+        }
     }
 
     @Override
@@ -876,7 +947,18 @@ public class Typechecker implements
         checkType(booleanType, wd.condition());
         checkStatement(wd.body());
 
-        hasType(voidType);
+        hasType(voidType, p.prettyPrint(wd));
+        return null;
+    }
+    @Override
+    public Void visitWhileValDoExpression(WhileValDoExpression w) {
+        var matched = inferType(w.matched());
+        openScope();
+            checkPattern(matched, w.pattern(), false);
+            checkType(voidType, w.body());
+        closeScope();
+
+        hasType(voidType, p.prettyPrint(w));
         return null;
     }
 
@@ -887,8 +969,23 @@ public class Typechecker implements
             checkParameter(l.elements(), wy.body(), true);
         } else {
             var bodyType = new ListOfRep(inferElemTypeOfParameter(wy.body(), false));
-            typeMismatch(checkTarget, bodyType);
+            typeMismatch(checkTarget, bodyType, p.prettyPrint(wy));
         }
+
+        return null;
+    }
+    @Override
+    public Void visitWhileValYieldExpression(WhileValYieldExpression wy) {
+        var matched = inferType(wy.matched());
+        openScope();
+            checkPattern(matched, wy.pattern(), false);
+            if(checkTarget instanceof ListOfRep l) {
+                checkType(l.elements(), wy.body());
+            } else {
+                var bodyType = inferType(wy.body());
+                typeMismatch(checkTarget, new ListOfRep(bodyType), p.prettyPrint(wy));
+            } 
+        closeScope();
 
         return null;
     }
@@ -898,13 +995,13 @@ public class Typechecker implements
         var collectionType = inferType(fd.collection());
         if(collectionType instanceof ListOfRep l) {
             openScope();
-            declareType(fd.variable().lexeme(), l.elements(), false);
-            checkType(booleanType, fd.guard());
-            checkStatement(fd.body());
-            hasType(voidType);
+                checkPattern(l.elements(), fd.pat(), false);
+                checkType(booleanType, fd.guard());
+                checkStatement(fd.body());
+                hasType(voidType, p.prettyPrint(fd));
             closeScope();
         } else {
-            error("["+fd.variable().line()+"] Cannot iterate values of type '"+showType(collectionType)+"'");
+            error("Cannot iterate values of type '"+showType(collectionType)+"'");
         }
         return null;
     }
@@ -914,15 +1011,16 @@ public class Typechecker implements
         var collectionType = inferType(fy.collection());
         if(collectionType instanceof ListOfRep l) {
             openScope();
-            declareType(fy.variable().lexeme(), l.elements(), false);
-            checkType(booleanType, fy.guard());
-            if(checkTarget instanceof ListOfRep l2) {
-                checkParameter(l2.elements(), fy.body(), true);
-            } else {
-                typeMismatch(checkTarget, new ListOfRep(inferElemTypeOfParameter(fy.body(), false)));
-            }
+                checkPattern(l.elements(), fy.pat(), false);
+                checkType(booleanType, fy.guard());
+                if(checkTarget instanceof ListOfRep l2) {
+                    checkParameter(l2.elements(), fy.body(), true);
+                } else {
+                    typeMismatch(checkTarget, new ListOfRep(inferElemTypeOfParameter(fy.body(), false)), p.prettyPrint(fy));
+                }
+            closeScope();
         } else {
-            error("["+fy.variable().line()+"] Cannot iterate values of type '"+showType(collectionType)+"'");
+            error(" Cannot iterate values of type '"+showType(collectionType)+"'");
         }
         return null;
     }
@@ -934,7 +1032,7 @@ public class Typechecker implements
         checkType(numberType, r.start());
         checkType(numberType, r.end());
         checkType(numberType, r.step());
-        hasType(rangeType);
+        hasType(rangeType, p.prettyPrint(r));
         return null;
     }
 
@@ -944,7 +1042,7 @@ public class Typechecker implements
         if(currentThisType instanceof UnknownType) {
             error("["+t.keyword().line()+"] Cannot use this outside of methods");
         }
-        hasType(currentThisType);
+        hasType(currentThisType, "this");
         return null;
     }
 
@@ -961,51 +1059,8 @@ public class Typechecker implements
     
     @Override
     public Void visitSetStatement(SetStatement s) {
-        var assignedType = getTypeOf(s.name());
-        var isReassignable = isReassignable(s.name().lexeme());
-        if(!isReassignable) {
-            error("["+s.name().line()+"] Cannot reassign variable '"+s.name().lexeme()+"' because it is declared as immutable");
-        }
-        if(assignedType instanceof UnknownType) {
-            error("["+s.name().line()+"] Tried to reassign undeclared variable '"+s.name().lexeme()+"'");
-        }
-
+        TypeRep assignedType = inferSetterType(s.setter());
         checkType(assignedType, s.expression());
-        
-        return null;
-    }
-
-    @Override
-    public Void visitSetIndexStatement(SetIndexStatement si) {
-        var collectionType = inferType(si.list());
-        checkType(numberType, si.index());
-        if(collectionType instanceof ListOfRep l) {
-            checkType(l.elements(), si.expression());
-        } else {
-            typeMismatch(new ListOfRep(inferType(si.expression())), collectionType);
-        }
-
-        return null;
-    }
-
-    @Override
-    public Void visitSetPropertyStatement(SetPropertyStatement p) {
-        var classType = inferType(p.target());
-        if(classType instanceof ClassType t) {
-            if(!t.accessors().containsKey(p.name().lexeme())) {
-                error("["+p.name().line()+"] Cannot set property '"+
-                        p.name().lexeme()+"' because Object has no property of this name");
-                return null;
-            }
-            var propertyType = t.accessors().get(p.name().lexeme());
-            checkType(propertyType, p.expression());
-            var isReassignable = t.readability().get(p.name().lexeme());
-            if(!isReassignable && !(p.target() instanceof ThisExpression && inConstructor)) {
-                error("["+p.name().line()+"] Cannot reassign property '"+p.name().lexeme()+"' because it's immutable");
-            }
-        } else {
-            error("["+p.name().line()+"] Cannot assign to property because Value is not an object but an '"+showType(classType)+"'");
-        }
         return null;
     }
 
@@ -1021,13 +1076,15 @@ public class Typechecker implements
         checkStatement(i.body());
         return null;
     }
+    public static TypeRep neverType = new Never();
     @Override
-    public Void visitReturnStatement(ReturnStatement r) {
+    public Void visitReturnExpression(ReturnExpression r) {
         if(currentReturnType == null) {
             error("Cannot return outside of Function");
             return null;
         }
         checkType(currentReturnType, r.returnValue());
+        hasType(neverType, p.prettyPrint(r));
 
         return null;
     }
@@ -1046,18 +1103,21 @@ public class Typechecker implements
         var resultType = inferType(m.branches().get(0));
         for(int i = 0; i < m.cases().size(); i++) {
             openScope();
-            checkPattern(matchedType, m.cases().get(i));
-            checkType(resultType, m.branches().get(i));
+                checkPattern(matchedType, m.cases().get(i), false);
+                checkType(resultType, m.branches().get(i));
             closeScope();
         }
 
         return null;
     }
 
-    private void checkPattern(TypeRep t, Pattern p) {
+    private void checkPattern(TypeRep t, Pattern p, boolean isReassigneable) {
         var previousTarget = checkTarget;
         checkTarget = t;
+        var previousIsReassigneable = isMutable;
+        isMutable = isReassigneable;
         p.accept(this);
+        isMutable = previousIsReassigneable;
         checkTarget = previousTarget;
     }
 
@@ -1067,17 +1127,17 @@ public class Typechecker implements
     }
     @Override
     public Void visitNumberPattern(NumberPattern n) {
-        hasType(numberType);
+        hasType(numberType, n.value()+"");
         return null;
     }
     @Override
     public Void visitBooleanPattern(BooleanPattern b) {
-        hasType(booleanType);
+        hasType(booleanType, b.value()+"");
         return null;
     }
     @Override
     public Void visitStringPattern(StringPattern s) {
-        hasType(stringType);
+        hasType(stringType, p.prettyPrint(new StringLiteral(s.value())));
         return null;
     }
     @Override
@@ -1085,7 +1145,10 @@ public class Typechecker implements
         declareType(
             v.name().lexeme(), 
             checkTarget, 
-            false);
+            isMutable);
+        if(exportCurrentPatterns) {
+            env.exportValue(v.name().lexeme());
+        }
         return null;
     }
     @Override
@@ -1100,7 +1163,7 @@ public class Typechecker implements
                         "': Expected "+constructorType.parameters().size()+", got "+p.subPatterns().size());
                 } else {
                     for(int i = 0; i < p.subPatterns().size(); i++) {
-                        checkPattern(constructorType.parameters().get(i), p.subPatterns().get(i));
+                        checkPattern(constructorType.parameters().get(i), p.subPatterns().get(i), false);
                     }
                 }
             }
@@ -1110,4 +1173,97 @@ public class Typechecker implements
         }
         return null;
     }
+    @Override
+    public Void visitTupleExpression(TupleExpression t) {
+        if(checkTarget instanceof TupleRep t2) {
+            if(t2.elements().size() != t.elements().size()) {
+                error("Expected Tuple with "+t2.elements().size()+" elements, but got "+t.elements().size()+" elements");
+                return null;
+            }
+            for(int i = 0; i < t.elements().size(); i++) {
+                checkType(t2.elements().get(i), t.elements().get(i));
+            }
+        } else {
+            typeMismatch(checkTarget, new TupleRep(t.elements().stream().map(this::inferType).toList()), p.prettyPrint(t));
+        }
+        return null;
+    }
+    @Override
+    public Void visitTuplePattern(TuplePattern p) {
+        if(checkTarget instanceof TupleRep t) {
+            if(t.elements().size() != p.subPatterns().size()) {
+                error("Expected Tuple with "+p.subPatterns().size()+"elements, got Tuple with "+t.elements().size()+": "+this.p.prettyPrint(t));
+                return null;
+            }
+            for(int i = 0; i < t.elements().size(); i++) {
+                checkPattern(t.elements().get(i), p.subPatterns().get(i), isMutable);
+            }
+        }
+        return null;
+    }
+    @Override
+    public Void visitWildcardExpression(WildcardExpression w) {
+        error("Got wildcard expression of type "+p.prettyPrint(checkTarget)+"on line "+w.position().line());
+        return null;
+    }
+    @Override
+    public Void visitWildcardSetter(WildcardSetter s) {
+        return null;
+    }
+    @Override
+    public Void visitTupleSetter(TupleSetter s) {
+        if(checkTarget instanceof TupleRep t) {
+            if(t.elements().size() != s.setters().size()) {
+                typeMismatch(checkTarget, ti.inferSetter(s), p.prettyPrint(s));
+                return null;
+            }
+            for(int i = 0; i < t.elements().size(); i++) {
+                checkSetter(s.setters().get(i), t.elements().get(i));
+            }
+            return null;
+        } else {
+            typeMismatch(checkTarget, ti.inferSetter(s), p.prettyPrint(s));
+            return null;
+        }
+    }
+    @Override
+    public Void visitIndexSetter(IndexSetter i) {
+        checkType(new ListOfRep(checkTarget), i.list());
+        checkType(numberType, i.index());
+        return null;
+    }
+    @Override
+    public Void visitPropertySetter(PropertySetter p) {
+        var objectType = inferType(p.object());
+        if(objectType instanceof ClassType c) {
+            var propertyType = c.accessors().get(p.name().lexeme());
+            if(propertyType == null) {
+                error("["+p.name().line()+"] Type "+this.p.prettyPrint(c)+" has no property  of name "+p.name().lexeme());
+            }
+            var isReassignable = c.readability().get(p.name().lexeme());
+            if(!isReassignable && !inConstructor) {
+                error("["+p.name().line()+"]: Property "+
+                    p.name().lexeme()+" of type "+this.p.prettyPrint(c)+" is not reassigneable");
+            }
+            if(!isAssigneableTo(propertyType, checkTarget)) {
+                typeMismatch(propertyType, checkTarget, this.p.prettyPrint(p));
+            }           
+        } else {
+            error("["+p.name().line()+"] Type "+this.p.prettyPrint(objectType)+" has no Properties");
+        }
+        return null;
+    }
+    @Override
+    public Void visitVariableSetter(VariableSetter s) {
+        var variableType = getTypeOf(s.name());
+        var reassigneable = isReassignable(s.name().lexeme());
+        if(!reassigneable) {
+            error("["+s.name().line()+"]: Cannot reassign variable "+s.name().lexeme()+" because it is immutable");
+        }
+        if(!isAssigneableTo(variableType, checkTarget)) {
+            typeMismatch(variableType, checkTarget, p.prettyPrint(s));
+        }
+        return null;
+    }
+
 }

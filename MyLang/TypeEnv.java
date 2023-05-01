@@ -108,8 +108,13 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
         return values;
     }
     public boolean isReassigneable(String name) {
-        return true;
-//        return reassignability.get(name);
+        if(reassignability.containsKey(name)) {
+            return reassignability.get(name);
+        }
+        if(outer != null) {
+            return outer.isReassigneable(name);
+        }
+        return false;
     }
 
     public TypeRep normalize(TypeRep t, Typechecker tc) {
@@ -192,6 +197,14 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
             ", "+types.keySet().toString()+
             " exported: "+exportedValues.toString() + ", "+ exportedTypes.toString()+
             (outer != null ? " | "+outer.toString() : "");
+    }
+    @Override
+    public TypeRep visitNever(Never n) {
+        return n;
+    }
+    @Override
+    public TypeRep visitTupleRep(TupleRep t) {
+        return new TupleRep(t.elements().stream().map(e -> normalize(e, tc)).toList());
     }
 }
 

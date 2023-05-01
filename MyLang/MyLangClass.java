@@ -22,8 +22,13 @@ public record MyLangClass(
         MyLangObject instance = new MyLangObject();
         instance.klass = this;
         for(var decl : fields) {
-            instance.readability.put(decl.Name().lexeme(), decl.isReassignable());
-            instance.fields.put(decl.Name().lexeme(), interpreter.interpretExpression(decl.initializer()));
+            instance.readability.put(
+                ((VariableBinding) decl.pat()).name().lexeme(), 
+                decl.isReassignable());
+
+            instance.fields.put(
+                ((VariableBinding) decl.pat()).name().lexeme(), 
+                interpreter.interpretExpression(decl.initializer()));
         }
         if(constructor != null) {
             boolean prevInConstructor = interpreter.inConstructor;

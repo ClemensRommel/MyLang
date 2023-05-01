@@ -19,6 +19,8 @@ public class MyLangParser {
 
     private boolean defaultVisibility = false;
 
+    private PrettyPrinter p = new PrettyPrinter();
+
     public MyLangParser(String source) {
         tokens = MyLangScanner.tokenize(source);
         length = tokens.size();
@@ -137,25 +139,25 @@ public class MyLangParser {
     // parses expressions, statements and declarations
     private MyLangAST parseAny() {
         if(peek().type().isVisibilityDeclaration() || 
-                (peek().type().startsDeclaration() && peekNext().type().isIdentifier())) {
+                (peek().type().startsDeclaration() && 
+                    !(peek().type() == TokenType.FUN && peekNext().type() != TokenType.IDENTIFIER))) {
             return parseDeclaration();
         } else if(match(TokenType.SEMICOLON)) {
             return new EmptyDeclaration(previous());
         } else {
             var start = current;
             if(match(TokenType.IF)) {
+                if(match(TokenType.VAL)) {
+                    current = start;
+                } else {
                 var condition = parseExpression();
                 if(match(TokenType.DO)) {
                     var body = finishBlockExpression();
                     return new IfStatement(condition, new ExpressionStatement(body));
                 } else { // Backtrack and instead parse a expression
                     current = start;
-                }
-            } else if(match(TokenType.RETURN)) {
-                var body = parseExpression();
-                consume(TokenType.SEMICOLON);
-                return new ReturnStatement(body);
-            }
+                }}
+            } 
             var expression = parseExpression();
             if(match(TokenType.SEMICOLON)) {
                 return new ExpressionStatement(expression);
@@ -227,9 +229,7 @@ public class MyLangParser {
         } else if(match(TokenType.BOOLEAN)) {
             return new BooleanType();
         } else if(match(TokenType.LPAREN)) {
-            var inner = parseType();
-            consume(TokenType.RPAREN);
-            return inner;
+            return tupleType();
         } else if(match(TokenType.STRING)) {
             return new StringType();
         } else if(match(TokenType.VOID)) {
@@ -301,6 +301,20 @@ public class MyLangParser {
 
     }
 
+    private Type tupleType() {
+        List<Type> elements = new ArrayList<>();
+        if(!match(TokenType.RPAREN)) {
+            do {
+                elements.add(parseType());
+            } while(match(TokenType.COMMA));
+            consume(TokenType.RPAREN);
+        }
+        if(elements.size() == 1) {
+            return elements.get(0);
+        }
+        return new Tuple(elements);
+    }
+
     private Declaration parseDeclaration() {
         boolean export = defaultVisibility;
         if(peek().type().isVisibilityDeclaration()) {
@@ -366,19 +380,36 @@ public class MyLangParser {
     }
 
     private Declaration finalizeVariableDeclaration(boolean isReassignable, boolean export) {
-        var name = consume(TokenType.IDENTIFIER);
-        consume(TokenType.COLON);
-        var type = parseType();
+        var pat = parsePattern();
+        Type type = null;
+        if(match(TokenType.COLON)) {
+            type = parseType();
+        }
         Expression initializer;
         if(inClass && match(TokenType.SEMICOLON)) {
             initializer = new NullLiteral(previous());
         } else {
             consume(TokenType.ASSIGN);
             initializer = parseExpression();
+            if(match(TokenType.ELSE)) {
+                var elseBranch = parseExpression();
+                consume(TokenType.SEMICOLON);
+                if(type != null) {
+                    throw new ParseError("Type Annotations are not allowed in val-else", previous().line());
+                }
+                if(isReassignable) {
+                    throw new ParseError("Val-Else is not allowed to be reassigneable, use val instead of var", 
+                        previous().line());
+                }
+                return new ValElseDeclaration(pat, initializer, elseBranch);
+            }
             consume(TokenType.SEMICOLON);
         }
+        if(type == null) {
+            throw new ParseError("Expect Type Annotation in Variable Declaration", previous().line());
+        }
         return new VariableDeclaration(
-                name, 
+                pat,
                 type, 
                 initializer, 
                 isReassignable, 
@@ -533,20 +564,21 @@ public class MyLangParser {
 
 
     private Statement makeAssigment(Expression leftHandSide, Expression rightHandSide) {
-        if(leftHandSide instanceof Identifier ident) {
-            return new SetStatement(ident.value(), rightHandSide);
-        } else if(leftHandSide instanceof IndexExpression index) {
-            return new SetIndexStatement(
-                    index.list(), 
-                    index.index(), 
-                    rightHandSide);
-        } else if(leftHandSide instanceof PropertyExpression property) {
-            return new SetPropertyStatement(
-                    property.object(), 
-                    property.name(), 
-                    rightHandSide);
+        return new SetStatement(makeSetter(leftHandSide), rightHandSide);
+    }
+    private Setter makeSetter(Expression from) {
+        if(from instanceof Identifier i) {
+            return new VariableSetter(i.value());
+        } else if(from instanceof IndexExpression i) {
+            return new IndexSetter(i.list(), i.index());
+        } else if(from instanceof PropertyExpression p) {
+            return new PropertySetter(p.object(), p.name());
+        } else if(from instanceof WildcardExpression w) {
+            return new WildcardSetter();
+        } else if(from instanceof TupleExpression t) {
+            return new TupleSetter(t.elements().stream().map(this::makeSetter).toList());
         } else {
-            throw new ParseError("Expected Identifier as Assigment target", -1);
+            throw new ParseError("Invalid Setter: "+p.prettyPrint(from), previous().line());
         }
     }
 
@@ -667,10 +699,18 @@ public class MyLangParser {
 
     private Expression primary() {
         if(match(TokenType.LPAREN)) {
-            var expr = parseExpression();
-            consume(TokenType.RPAREN);
-            return expr;
+            return tupleExpression();
         } else if(match(TokenType.IF)) {
+            if(match(TokenType.VAL)) {
+                var pat = parsePattern();
+                consume(TokenType.ASSIGN);
+                var matched = parseExpression();
+                consume(TokenType.THEN);
+                var thenBranch = parseExpression();
+                consume(TokenType.ELSE);
+                var elseBranch = parseExpression();
+                return new IfValExpression(pat, matched, thenBranch, elseBranch);
+            }
             var condition = parseExpression();
             consume(TokenType.THEN);
             var thenBranch = parseExpression();
@@ -678,17 +718,9 @@ public class MyLangParser {
             var elseBranch = parseExpression();
             return new IfExpression(condition, thenBranch, elseBranch);
         } else if(match(TokenType.WHILE)) {
-            var condition = parseExpression();
-            if(match(TokenType.DO)) {
-                var body = finishBlockExpression();
-                return new WhileDoExpression(condition, new ExpressionStatement(body));
-            } else {
-                consume(TokenType.YIELD);
-                var body = finishBlockExpression();
-                return new WhileYieldExpression(condition, new ExpressionParameter(body));
-            }
+            return finishWhileExpression();
         } else if(match(TokenType.FOR)) {
-            var variableName = consume(TokenType.IDENTIFIER);
+            var pat = parsePattern();
             consume(TokenType.IN);
             var collection = parseExpression();
             Expression guard = new BooleanLiteral(true);
@@ -697,11 +729,11 @@ public class MyLangParser {
             }
             if(match(TokenType.DO)) {
                 var body = finishBlockExpression();
-                return new ForDoExpression(variableName, collection, guard, new ExpressionStatement(body));
+                return new ForDoExpression(pat, collection, guard, new ExpressionStatement(body));
             } else {
                 consume(TokenType.YIELD);
                 var body = finishBlockExpression();
-                return new ForYieldExpression(variableName, collection, guard, new ExpressionParameter(body));
+                return new ForYieldExpression(pat, collection, guard, new ExpressionParameter(body));
             }
         } else if(match(TokenType.DO)) {
             return finishBlockExpression();
@@ -711,8 +743,51 @@ public class MyLangParser {
             return finishFunctionExpression();
         } else if(match(TokenType.MATCH)) {
             return finishMatchExpression();
+        } else if(match(TokenType.RETURN)) {
+            var value = parseExpression();
+            return new ReturnExpression(value);
         }
         return someIdentifierOrNew();
+    }
+
+    private Expression tupleExpression() {
+        List<Expression> elements = new ArrayList<>();
+        if(!match(TokenType.RPAREN)) {
+            do {
+                elements.add(parseExpression());
+            } while(match(TokenType.COMMA));
+            consume(TokenType.RPAREN);
+        }
+        if(elements.size() == 1) {
+            return elements.get(0);
+        }
+        return new TupleExpression(elements);
+    }
+
+    private Expression finishWhileExpression() {
+        if(match(TokenType.VAL)) {
+            var pat = parsePattern();
+            consume(TokenType.ASSIGN);
+            var matched = parseExpression();
+            if(match(TokenType.DO)) {
+                var body = finishBlockExpression();
+                return new WhileValDoExpression(pat, matched, body);
+            } else {
+                consume(TokenType.YIELD);
+                var body = finishBlockExpression();
+                return new WhileValYieldExpression(pat, matched, body);
+            }
+        } else {
+            var condition = parseExpression();
+            if(match(TokenType.DO)) {
+                var body = finishBlockExpression();
+                return new WhileDoExpression(condition, new ExpressionStatement(body));
+            } else {
+                consume(TokenType.YIELD);
+                var body = finishBlockExpression();
+                return new WhileYieldExpression(condition, new ExpressionParameter(body));
+            }
+        }
     }
 
     private Expression someIdentifierOrNew() {
@@ -745,9 +820,6 @@ public class MyLangParser {
             } else {
                 current = start;
             }
-        } else if(match(TokenType.RETURN)) {
-            var body = parseExpression();
-            return new ReturnStatement(body);
         }
         var left = parseExpression();
         Statement resulting;
@@ -918,6 +990,8 @@ public class MyLangParser {
             return new BooleanLiteral(false);
         } else if(match(TokenType.NULL)) {
             return new NullLiteral(previous());
+        } else if(match(TokenType.QUESTION_MARK)) {
+            return new WildcardExpression(previous());
         } else {
             throw new ParseError("Expected literal, got "+next().type(), next().line());
         }
@@ -947,6 +1021,18 @@ public class MyLangParser {
                 consume(TokenType.RPAREN);
             }
             return new ConstructorPattern(name, subPatterns);
+        } else if(match(TokenType.LPAREN)) {
+            List<Pattern> subPatterns = new ArrayList<>();
+            if(!match(TokenType.RPAREN)) {
+                do {
+                    subPatterns.add(parsePattern());
+                } while(match(TokenType.COMMA));
+                consume(TokenType.RPAREN);
+            }
+            if(subPatterns.size() == 1) {
+                return subPatterns.get(0);
+            }
+            return new TuplePattern(subPatterns);
         }
         throw new ParseError("Invalid Pattern start: "+peek().type(), peek().line());
     }

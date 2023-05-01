@@ -11,7 +11,8 @@ import java.util.Scanner;
 import java.util.stream.Collectors;
 
 public class MyLangInterpreter implements ExpressionVisitor<Object>,
-       DeclarationVisitor<Void>, StatementVisitor<Void>, ParameterVisitor<List<Object>>, PatternVisitor<Boolean> {
+       DeclarationVisitor<Void>, StatementVisitor<Void>, ParameterVisitor<List<Object>>, 
+       PatternVisitor<Boolean>, SetterVisitor<Void> {
 
     public MyLangModule currentModule = new MyLangModule();
 
@@ -21,6 +22,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     public Random random = new Random();
 
     boolean inConstructor = false;
+    boolean isMutable = false;
     Object currentMatcher = null;
 
     private Map<String, MyLangCallable> listMethods = Map.ofEntries(
@@ -33,6 +35,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         Map.entry("append", MyLangBuiltinFunction.listAppend)
     );
     private MyLangClass listClass = new MyLangClass("List", listMethods, List.of(), null, new MyLangEnviroment());
+
+    private boolean exportCurrentPatterns;
     
 
     MyLangEnviroment env = currentModule.names;
@@ -265,6 +269,19 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             return interpretExpression(value.elseBranch());
         }
     }
+    @Override
+    public Object visitIfValExpression(IfValExpression value) {
+        var matched = interpretExpression(value.matched());
+        openScope();
+        Object result;
+        if(matches(matched, value.pat())) {
+            result = interpretExpression(value.thenBranch());
+        } else {
+            result = interpretExpression(value.elseBranch());
+        }
+        closeScope();
+        return result;
+    }
 
     @Override
     public Object visitListExpression(ListExpression value) {
@@ -296,7 +313,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             return theObject.getField(value.name().lexeme());
         } else if(object instanceof List theList) {
             if(value.name().lexeme().equals("length")) {
-                return theList.size();
+                return (double) theList.size();
             } else if(value.name().lexeme().equals("first")) {
                 return theList.get(0);
             } else if(value.name().lexeme().equals("last")) {
@@ -341,22 +358,34 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
 
     @Override
     public Void visitSetStatement(SetStatement value) {
-        env.setVariable(value.name().lexeme(), interpretExpression(value.expression()));
+        var setValue = interpretExpression(value.expression());
+        set(value.setter(), setValue);
         return null;
+    }
+    private void set(Setter s, Object setValue) {
+        var previousMatcher = currentMatcher;
+        currentMatcher = setValue;
+        s.accept(this);
+        currentMatcher = previousMatcher;
     }
 
     @Override
     public Void visitVariableDeclaration(VariableDeclaration value) {
         Object result = interpretExpression(value.initializer());
-        env.declareVariable(value.Name().lexeme(), result, value.isReassignable());
-        if(value.export()) {
-            if(currentModule.names != env) {
-                throw new InterpreterError("Cannot export local variable ('"+value.Name().lexeme()+"')");
-            }
-            currentModule.exports.add(value.Name().lexeme());
-        }
+        var previousExport = exportCurrentPatterns;
+        exportCurrentPatterns = value.export();
+        matches(result, value.pat(), value.isReassignable());
+        exportCurrentPatterns = previousExport;
         return null;
     }
+    @Override
+    public Void visitValElseDeclaration(ValElseDeclaration value) {
+        Object initializer = interpretExpression(value.initializer());
+        if(!matches(initializer, value.pat())) {
+            interpretExpression(value.elseBranch());
+        }
+        return null;
+    } 
 
     @Override
     public Void visitFunctionDeclaration(FunctionDeclaration value) {
@@ -377,50 +406,6 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         }
         return null;
     }
-
-    @Override
-    public Void visitSetIndexStatement(SetIndexStatement value) {
-        var list = interpretExpression(value.list());
-        var uncheckedIndex = interpretExpression(value.index());
-        var newVal = interpretExpression(value.expression());
-        if(list instanceof List theList) {
-            var index = (double) uncheckedIndex;
-            if(!(index >= 0 && index < theList.size()) || index % 1 != 0) {
-                throw new InterpreterError("Index out of bounds or invalid index: " + stringify(index));
-            }
-            List<Object> actualList = theList;
-            actualList.set((int) index, newVal);
-            return null;
-        } else {
-            throw new InterpreterError("Invalid list type: " + list.getClass());
-        }
-    }
-
-    @Override
-    public Void visitSetPropertyStatement(SetPropertyStatement value) {
-        var object = interpretExpression(value.target());
-        boolean overrideImmutable = inConstructor && (value.target() instanceof ThisExpression);
-        var newValue = interpretExpression(value.expression());
-        if(object instanceof MyLangObject theObject) {
-            theObject.setField(value.name().lexeme(), newValue, overrideImmutable);
-            return null;
-        } else if(object instanceof List theList) {
-            if(value.name().lexeme().equals("first")) {
-                theList.set(0, newValue);
-                return null;
-            } else if(value.name().lexeme().equals("last")) {
-                theList.set(theList.size() - 1, newValue);
-                return null;
-            } else if(value.name().lexeme().equals("rest") || value.name().lexeme().equals("head")) {
-                throw new InterpreterError("Cannot change head or rest of List");
-            } else {
-                throw new InterpreterError("List has no property called "+ value.name().lexeme());
-            }
-        } else {
-            throw new InterpreterError("Invalid object type: " + object.getClass());
-        }
-    }
-
     @Override
     public Object visitWhileYieldExpression(WhileYieldExpression value) {
         List<Object> results = new ArrayList<>();
@@ -429,11 +414,43 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         }
         return results;
     }
+    @Override
+    public Object visitWhileValYieldExpression(WhileValYieldExpression value) {
+        List<Object> results = new ArrayList<>();
+        while(true) {
+            openScope();
+            var matches = matches(interpretExpression(value.matched()), value.pattern());
+            if(matches) {
+                results.add(interpretExpression(value.body()));
+                closeScope();
+            } else {
+                closeScope();
+                break;
+            }
+        }
+
+        return results; 
+    }
 
     @Override
     public Object visitWhileDoExpression(WhileDoExpression value) {
         while(truthy(interpretExpression(value.condition()))) {
             interpretStatement(value.body());
+        }
+        return null;
+    }
+    @Override
+    public Object visitWhileValDoExpression(WhileValDoExpression value) {
+        while(true) {
+            openScope();
+            var matches = matches(interpretExpression(value.matched()), value.pattern());
+            if(matches) {
+                interpretExpression(value.body());
+                closeScope();
+            } else {
+                closeScope();
+                break;
+            }
         }
         return null;
     }
@@ -445,8 +462,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         if(collection instanceof List theList) {
             for(Object element : theList) {
                 openScope();
-                env.declareVariable(value.variable().lexeme(), element, false);
-                if(truthy(interpretExpression(value.guard()))) {
+                if(matches(element, value.pat()) && truthy(interpretExpression(value.guard()))) {
                     results.addAll(interpretParameter(value.body()));
                 }
                 closeScope();
@@ -463,8 +479,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         if(collection instanceof List theList) {
             for(Object element : theList) {
                 openScope();
-                env.declareVariable(value.variable().lexeme(), element, false);
-                if(truthy(interpretExpression(value.guard()))) {
+                if(matches(element, value.pat()) && truthy(interpretExpression(value.guard()))) {
                     interpretStatement(value.body());
                 }
                 closeScope();
@@ -636,7 +651,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         return null;
     } 
     @Override
-    public Void visitReturnStatement(ReturnStatement r) {
+    public Void visitReturnExpression(ReturnExpression r) {
         throw new ReturnException(interpretExpression(r.returnValue()));
     }
     @Override
@@ -672,9 +687,16 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     }
 
     private boolean matches(Object o, Pattern p) {
+        return matches(o, p, false);
+    }
+
+    private boolean matches(Object o, Pattern p, boolean isReassigneable) {
         var previousMatcher = currentMatcher;
         currentMatcher = o;
+        var previousMutable = isMutable;
+        isMutable = isReassigneable;
         var result = p.accept(this);
+        isMutable = previousMutable;
         currentMatcher = previousMatcher;
         return result;
     }
@@ -685,7 +707,14 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     }
     @Override
     public Boolean visitVariableBinding(VariableBinding v) {
-        env.declareVariable(v.name().lexeme(), currentMatcher, false);
+        env.declareVariable(v.name().lexeme(), currentMatcher, isMutable);
+
+        if(exportCurrentPatterns) {
+            if(currentModule.names != env) {
+                throw new InterpreterError("Cannot export local variable "+v.name().lexeme());
+            }
+            currentModule.exports.add(v.name().lexeme());
+        }
         return true;
     }
     @Override
@@ -716,5 +745,72 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         } else {
             return false;
         }
+    }
+    @Override
+    public Object visitTupleExpression(TupleExpression t) {
+        var exprs = t.elements();
+        List<Object> resulting = new ArrayList<>();
+        for(var expr: exprs) {
+            resulting.add(interpretExpression(expr));
+        }
+        return resulting.toArray();
+    }
+    @Override
+    public Boolean visitTuplePattern(TuplePattern tp) {
+        if(currentMatcher instanceof Object[] tuple) {
+            if(tuple.length != tp.subPatterns().size()) {
+                return false;
+            }
+            boolean allMatch = true;
+            for(int i = 0; i < tuple.length; i++) {
+                allMatch &= matches(tuple[i], tp.subPatterns().get(i), isMutable);
+            }
+            return allMatch;
+        } else {
+            return false;
+        }
+    }
+    @Override
+    public Void visitWildcardExpression(WildcardExpression w) {
+        throw new InterpreterError("Reached Wildcard on line "+w.position().line());
+    }
+    @Override
+    public Void visitWildcardSetter(WildcardSetter w) {
+        return null;
+    }
+    @Override
+    public Void visitVariableSetter(VariableSetter s) {
+        if(!env.localVariableDeclared(s.name().lexeme())) {
+            System.out.println(env);
+        }
+        env.setVariable(s.name().lexeme(), currentMatcher);
+        return null;
+    }
+    @Override
+    public Void visitTupleSetter(TupleSetter t) {
+        var tuple = (Object[]) currentMatcher;
+        for(int i = 0; i < tuple.length; i++) {
+            set(t.setters().get(i), tuple[i]);
+        }
+        return null;
+    }
+    @Override
+    public Void visitIndexSetter(IndexSetter i) {
+        var list = (List) interpretExpression(i.list());
+        var index = (Double) interpretExpression(i.index());
+        if(index % 1 != 0) {
+            throw new InterpreterError("Invalid index "+index);
+        }
+        if(index < 0 || index >= list.size()) {
+            throw new InterpreterError("Index "+index+" out of range for list of length "+list.size());
+        }
+        list.set((int) (double) index, currentMatcher);
+        return null;
+    }
+    @Override
+    public Void visitPropertySetter(PropertySetter p) {
+        var object = (MyLangObject) interpretExpression(p.object());
+        object.setField(p.name().lexeme(), currentMatcher, inConstructor);
+        return null;
     }
 }

@@ -69,4 +69,10 @@ public record TypeCompiler(Typechecker tc) implements TypeVisitor<TypeRep> {
         var from = compileType(a.accessed());
         return new AccessRep(from, a.name());
     }
+    @Override
+    public TypeRep visitTuple(Tuple t) {
+        return new TupleRep(t.types().stream()
+            .map(this::compileType)
+            .toList());
+    }
 }

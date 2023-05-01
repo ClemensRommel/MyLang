@@ -13,17 +13,23 @@ public T visitUnaryOperation(UnaryOperation value);
 public T visitFunctionCall(FunctionCall value);
 public T visitFunctionExpression(FunctionExpression value);
 public T visitIfExpression(IfExpression value);
+public T visitIfValExpression(IfValExpression value);
 public T visitListExpression(ListExpression value);
+public T visitTupleExpression(TupleExpression value);
 public T visitIndexExpression(IndexExpression value);
 public T visitPropertyExpression(PropertyExpression value);
 public T visitBlockExpression(BlockExpression value);
 public T visitWhileYieldExpression(WhileYieldExpression value);
+public T visitWhileValYieldExpression(WhileValYieldExpression value);
 public T visitWhileDoExpression(WhileDoExpression value);
+public T visitWhileValDoExpression(WhileValDoExpression value);
 public T visitForYieldExpression(ForYieldExpression value);
 public T visitForDoExpression(ForDoExpression value);
 public T visitRangeExpression(RangeExpression value);
 public T visitThisExpression(ThisExpression value);
+public T visitReturnExpression(ReturnExpression value);
 public T visitMatchExpression(MatchExpression value);
+public T visitWildcardExpression(WildcardExpression value);
 }
 public static sealed interface Expression extends MyLangAST {
     public <T> T accept(ExpressionVisitor<T> visitor);
@@ -68,9 +74,17 @@ public static record IfExpression(Expression condition, Expression thenBranch, E
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitIfExpression(this);
 }}
+public static record IfValExpression(Pattern pat, Expression matched, Expression thenBranch, Expression elseBranch) implements Expression {
+public <T> T accept(ExpressionVisitor<T> visitor) {
+    return visitor.visitIfValExpression(this);
+}}
 public static record ListExpression(List<Parameter> elements) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitListExpression(this);
+}}
+public static record TupleExpression(List<Expression> elements) implements Expression {
+public <T> T accept(ExpressionVisitor<T> visitor) {
+    return visitor.visitTupleExpression(this);
 }}
 public static record IndexExpression(Expression list, Expression index) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
@@ -88,15 +102,23 @@ public static record WhileYieldExpression(Expression condition, Parameter body) 
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitWhileYieldExpression(this);
 }}
+public static record WhileValYieldExpression(Pattern pattern, Expression matched, Expression body) implements Expression {
+public <T> T accept(ExpressionVisitor<T> visitor) {
+    return visitor.visitWhileValYieldExpression(this);
+}}
 public static record WhileDoExpression(Expression condition, Statement body) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitWhileDoExpression(this);
 }}
-public static record ForYieldExpression(Token variable, Expression collection, Expression guard, Parameter body) implements Expression {
+public static record WhileValDoExpression(Pattern pattern, Expression matched, Expression body) implements Expression {
+public <T> T accept(ExpressionVisitor<T> visitor) {
+    return visitor.visitWhileValDoExpression(this);
+}}
+public static record ForYieldExpression(Pattern pat, Expression collection, Expression guard, Parameter body) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitForYieldExpression(this);
 }}
-public static record ForDoExpression(Token variable, Expression collection, Expression guard, Statement body) implements Expression {
+public static record ForDoExpression(Pattern pat, Expression collection, Expression guard, Statement body) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitForDoExpression(this);
 }}
@@ -108,12 +130,21 @@ public static record ThisExpression(Token keyword) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitThisExpression(this);
 }}
+public static record ReturnExpression(Expression returnValue) implements Expression {
+public <T> T accept(ExpressionVisitor<T> visitor) {
+    return visitor.visitReturnExpression(this);
+}}
 public static record MatchExpression(Expression matched, List<Pattern> cases, List<Expression> branches) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitMatchExpression(this);
 }}
+public static record WildcardExpression(Token position) implements Expression {
+public <T> T accept(ExpressionVisitor<T> visitor) {
+    return visitor.visitWildcardExpression(this);
+}}
 public static interface DeclarationVisitor<T> {
 public T visitVariableDeclaration(VariableDeclaration value);
+public T visitValElseDeclaration(ValElseDeclaration value);
 public T visitFunctionDeclaration(FunctionDeclaration value);
 public T visitClassDeclaration(ClassDeclaration value);
 public T visitEnumDeclaration(EnumDeclaration value);
@@ -124,9 +155,13 @@ public T visitEmptyDeclaration(EmptyDeclaration value);
 public static sealed interface Declaration extends MyLangAST,  DeclarationOrStatement,  ConstructorOrDeclaration {
     public <T> T accept(DeclarationVisitor<T> visitor);
 }
-public static record VariableDeclaration(Token Name, Type type, Expression initializer, boolean isReassignable, boolean export) implements Declaration {
+public static record VariableDeclaration(Pattern pat, Type type, Expression initializer, boolean isReassignable, boolean export) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitVariableDeclaration(this);
+}}
+public static record ValElseDeclaration(Pattern pat, Expression initializer, Expression elseBranch) implements Declaration {
+public <T> T accept(DeclarationVisitor<T> visitor) {
+    return visitor.visitValElseDeclaration(this);
 }}
 public static record FunctionDeclaration(Token Name, ParameterInformation parameters, Expression body, Type retType, boolean export) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
@@ -166,9 +201,6 @@ public static interface StatementVisitor<T> {
 public T visitExpressionStatement(ExpressionStatement value);
 public T visitIfStatement(IfStatement value);
 public T visitSetStatement(SetStatement value);
-public T visitSetIndexStatement(SetIndexStatement value);
-public T visitSetPropertyStatement(SetPropertyStatement value);
-public T visitReturnStatement(ReturnStatement value);
 public T visitEmptyStatement(EmptyStatement value);
 }
 public static sealed interface Statement extends MyLangAST,  DeclarationOrStatement {
@@ -182,25 +214,43 @@ public static record IfStatement(Expression condition, Statement body) implement
 public <T> T accept(StatementVisitor<T> visitor) {
     return visitor.visitIfStatement(this);
 }}
-public static record SetStatement(Token name, Expression expression) implements Statement {
+public static record SetStatement(Setter setter, Expression expression) implements Statement {
 public <T> T accept(StatementVisitor<T> visitor) {
     return visitor.visitSetStatement(this);
-}}
-public static record SetIndexStatement(Expression list, Expression index, Expression expression) implements Statement {
-public <T> T accept(StatementVisitor<T> visitor) {
-    return visitor.visitSetIndexStatement(this);
-}}
-public static record SetPropertyStatement(Expression target, Token name, Expression expression) implements Statement {
-public <T> T accept(StatementVisitor<T> visitor) {
-    return visitor.visitSetPropertyStatement(this);
-}}
-public static record ReturnStatement(Expression returnValue) implements Statement {
-public <T> T accept(StatementVisitor<T> visitor) {
-    return visitor.visitReturnStatement(this);
 }}
 public static record EmptyStatement(Token semicolon) implements Statement {
 public <T> T accept(StatementVisitor<T> visitor) {
     return visitor.visitEmptyStatement(this);
+}}
+public static interface SetterVisitor<T> {
+public T visitVariableSetter(VariableSetter value);
+public T visitIndexSetter(IndexSetter value);
+public T visitPropertySetter(PropertySetter value);
+public T visitTupleSetter(TupleSetter value);
+public T visitWildcardSetter(WildcardSetter value);
+}
+public static sealed interface Setter extends MyLangAST {
+    public <T> T accept(SetterVisitor<T> visitor);
+}
+public static record VariableSetter(Token name) implements Setter {
+public <T> T accept(SetterVisitor<T> visitor) {
+    return visitor.visitVariableSetter(this);
+}}
+public static record IndexSetter(Expression list, Expression index) implements Setter {
+public <T> T accept(SetterVisitor<T> visitor) {
+    return visitor.visitIndexSetter(this);
+}}
+public static record PropertySetter(Expression object, Token name) implements Setter {
+public <T> T accept(SetterVisitor<T> visitor) {
+    return visitor.visitPropertySetter(this);
+}}
+public static record TupleSetter(List<Setter> setters) implements Setter {
+public <T> T accept(SetterVisitor<T> visitor) {
+    return visitor.visitTupleSetter(this);
+}}
+public static record WildcardSetter() implements Setter {
+public <T> T accept(SetterVisitor<T> visitor) {
+    return visitor.visitWildcardSetter(this);
 }}
 public static interface ConstructorVisitor<T> {
 public T visitClassConstructor(ClassConstructor value);
@@ -248,6 +298,7 @@ public T visitWildcard(Wildcard value);
 public T visitNumberPattern(NumberPattern value);
 public T visitBooleanPattern(BooleanPattern value);
 public T visitStringPattern(StringPattern value);
+public T visitTuplePattern(TuplePattern value);
 public T visitConstructorPattern(ConstructorPattern value);
 }
 public static sealed interface Pattern extends MyLangAST {
@@ -273,6 +324,10 @@ public static record StringPattern(String value) implements Pattern {
 public <T> T accept(PatternVisitor<T> visitor) {
     return visitor.visitStringPattern(this);
 }}
+public static record TuplePattern(List<Pattern> subPatterns) implements Pattern {
+public <T> T accept(PatternVisitor<T> visitor) {
+    return visitor.visitTuplePattern(this);
+}}
 public static record ConstructorPattern(Token constr, List<Pattern> subPatterns) implements Pattern {
 public <T> T accept(PatternVisitor<T> visitor) {
     return visitor.visitConstructorPattern(this);
@@ -285,6 +340,7 @@ public static interface TypeVisitor<T> {
 public T visitTypeIdentifier(TypeIdentifier value);
 public T visitFunctionType(FunctionType value);
 public T visitListOf(ListOf value);
+public T visitTuple(Tuple value);
 public T visitAccess(Access value);
 public T visitVoidType(VoidType value);
 public T visitNumberType(NumberType value);
@@ -310,6 +366,10 @@ public <T> T accept(TypeVisitor<T> visitor) {
 public static record ListOf(Type elements) implements Type {
 public <T> T accept(TypeVisitor<T> visitor) {
     return visitor.visitListOf(this);
+}}
+public static record Tuple(List<Type> types) implements Type {
+public <T> T accept(TypeVisitor<T> visitor) {
+    return visitor.visitTuple(this);
 }}
 public static record Access(Type accessed, Token name) implements Type {
 public <T> T accept(TypeVisitor<T> visitor) {
@@ -337,7 +397,9 @@ public T visitFunctionTypeRep(FunctionTypeRep value);
 public T visitClassType(ClassType value);
 public T visitEnumType(EnumType value);
 public T visitListOfRep(ListOfRep value);
+public T visitTupleRep(TupleRep value);
 public T visitBuiltin(Builtin value);
+public T visitNever(Never value);
 public T visitAccessRep(AccessRep value);
 public T visitUnknownType(UnknownType value);
 public T visitModule(Module value);
@@ -377,9 +439,17 @@ public static record ListOfRep(TypeRep elements) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitListOfRep(this);
 }}
+public static record TupleRep(List<TypeRep> elements) implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitTupleRep(this);
+}}
 public static record Builtin(BuiltinType type) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitBuiltin(this);
+}}
+public static record Never() implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitNever(this);
 }}
 public static record AccessRep(TypeRep accessed, Token name) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
