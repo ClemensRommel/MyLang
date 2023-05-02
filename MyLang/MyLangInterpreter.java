@@ -327,6 +327,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             } else {
                 throw new InterpreterError("List has no property '"+ value.name().lexeme()+"'");
             }
+        } else if(object instanceof EnumVariantObject e) {
+            return e.getProperty(value.name().lexeme());
         } else if(object instanceof MyLangModule m) {
             if(m.exports.contains(value.name().lexeme())) {
                 return m.names.getVariable(value.name().lexeme());
@@ -536,7 +538,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             .toList();
     }
 
-    private Map<String, MyLangCallable> compileMethods(List<Declaration> fieldsAndMethods) {
+    private Map<String, MyLangCallable> compileMethods(List<? extends Declaration> fieldsAndMethods) {
         return fieldsAndMethods.stream()
             .filter((var fieldOrMethod) -> (fieldOrMethod instanceof FunctionDeclaration))
             .map(field -> (FunctionDeclaration) field)
@@ -660,14 +662,15 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     }
     @Override
     public Void visitEnumDeclaration(EnumDeclaration e) {
+        Map<String, MyLangCallable> methods = compileMethods(e.methods());
         for(var variant: e.variants()) {
-            declareEnumConstructor(variant);
+            declareEnumConstructor(variant, methods);
         }
         return null;
     }
 
-    private void declareEnumConstructor(EnumConstructor e) {
-        env.declareVariable(e.name().lexeme(), new EnumVariant(e.name(), e.parameters().size()), false);
+    private void declareEnumConstructor(EnumConstructor e, Map<String, MyLangCallable> methods) {
+        env.declareVariable(e.name().lexeme(), new EnumVariant(e.name(), e.parameters().size(), methods), false);
     }
 
     @Override

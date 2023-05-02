@@ -344,10 +344,22 @@ public class MyLangParser {
         var name = consume(TokenType.IDENTIFIER);
         consume(TokenType.WHERE);
         List<EnumConstructor> variants = new ArrayList<>();
-        while(!match(TokenType.END)) {
-            variants.add(parseEnumVariant());
+        List<FunctionDeclaration> methods = new ArrayList<>();
+        if(peek().type() == TokenType.IDENTIFIER) {
+            while(true) {
+                variants.add(parseEnumVariant());
+                if(match(TokenType.SEMICOLON)) {
+                    break;
+                } else {
+                    consume(TokenType.COMMA);
+                }
+            }
         }
-        var result = new EnumDeclaration(name, variants, export);
+        while(!match(TokenType.END)) {
+            consume(TokenType.FUN);
+            methods.add(finalizeFunctionDeclaration(true));
+        }
+        var result = new EnumDeclaration(name, variants, export, methods);
         return result;
     }
 
@@ -361,7 +373,6 @@ public class MyLangParser {
             } while(match(TokenType.COMMA));
             consume(TokenType.RPAREN);
         }
-        consume(TokenType.SEMICOLON);
         return new EnumConstructor(name, params);
     }
 
@@ -405,9 +416,7 @@ public class MyLangParser {
             }
             consume(TokenType.SEMICOLON);
         }
-        if(type == null) {
-            throw new ParseError("Expect Type Annotation in Variable Declaration", previous().line());
-        }
+
         return new VariableDeclaration(
                 pat,
                 type, 
@@ -415,7 +424,7 @@ public class MyLangParser {
                 isReassignable, 
                 export);
     }
-    private Declaration finalizeFunctionDeclaration(boolean export) {
+    private FunctionDeclaration finalizeFunctionDeclaration(boolean export) {
         var name = consume(TokenType.IDENTIFIER);
         var expression = finalizeFunctionExpressionWithName(name.lexeme(), 1);
         return new FunctionDeclaration(

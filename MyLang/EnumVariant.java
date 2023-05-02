@@ -2,7 +2,7 @@ package MyLang;
 
 import java.util.*;
 
-public record EnumVariant(Token Name, int argCount) implements MyLangCallable {
+public record EnumVariant(Token Name, int argCount, Map<String, MyLangCallable> methods) implements MyLangCallable {
     public String getName() {
         return Name.lexeme();
     }

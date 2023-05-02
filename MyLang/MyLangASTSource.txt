@@ -31,7 +31,7 @@ Declaration < MyLangAST, DeclarationOrStatement, ConstructorOrDeclaration =
     |   ValElseDeclaration:  Pattern pat, Expression initializer, Expression elseBranch
     |   FunctionDeclaration: Token Name, ParameterInformation parameters, Expression body, Type retType, boolean export
     |   ClassDeclaration:    Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor, boolean export
-    |   EnumDeclaration:     Token Name, List<EnumConstructor> variants, boolean export
+    |   EnumDeclaration:     Token Name, List<EnumConstructor> variants, boolean export, List<FunctionDeclaration> methods
     |   TypeDefDeclaration:  Token Name, Type definition, boolean export
     |   ModuleDeclaration:   MyLangPath Name
     |   EmptyDeclaration:    Token semicolon;
@@ -108,6 +108,7 @@ TypeRep < MyLangAST =
     |   EnumType:
             Token name,
             Map<String, TypeRep> variants,
+            Map<String, TypeRep> methods,
             TypeEnv  env
     |   ListOfRep: TypeRep elements
     |   TupleRep:   List<TypeRep> elements

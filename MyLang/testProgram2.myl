@@ -1,15 +1,33 @@
-fun fibbonacciN(n: Number): Number {
-    var last: Number := 1;
-    var lastBefore: Number := 1;
-    for i in [2..n] do {
-        val lastBefore2: Number := lastBefore;
-        lastBefore := last;
-        last := last + lastBefore2;
-    };
-    last
-};
+enum NumLinkedList where
+    Empty(),
+    Cons(Number, NumLinkedList);
 
-/* druckt /* die fibbonacci */ zahlen */
-fun main() {
-    print(fibbonacciN(40));
-};
+    fun length(): Number := match this do 
+        case Empty() := 0;
+        case Cons(?, xs) := 1 + xs.length();
+    end;
+
+end
+
+fun foldr(x: Number, f: Fun(Number, Number): Number)(xs: NumLinkedList): Number := match xs do 
+    case Empty() := x;
+    case Cons(y, ys) := f(y, foldr(x, f)(ys));
+end;
+
+fun sum(list: NumLinkedList): Number := /* match list do 
+    case Empty() := 0;
+    case Cons(n, ns) := n + sum(ns);
+end; */ foldr(0, fun(x: Number, y: Number): Number := x + y)(list);
+
+
+fun list(xs: Number[]): NumLinkedList := if xs.length = 0 then Empty() else Cons(xs.first, list(xs.rest));
+
+fun main() do
+    print(Cons(3, Empty()));
+    print(sum(Cons(3, Cons(5, Cons(-17, Empty())))));
+    print(list([1..5]));
+    val myList := list([1..15: 3]);
+    print(myList);
+    print(myList.length());
+    print(sum(myList));
+end

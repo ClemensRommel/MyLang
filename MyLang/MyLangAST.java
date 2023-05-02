@@ -171,7 +171,7 @@ public static record ClassDeclaration(Token Name, List<Declaration> fieldsAndMet
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitClassDeclaration(this);
 }}
-public static record EnumDeclaration(Token Name, List<EnumConstructor> variants, boolean export) implements Declaration {
+public static record EnumDeclaration(Token Name, List<EnumConstructor> variants, boolean export, List<FunctionDeclaration> methods) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitEnumDeclaration(this);
 }}
@@ -431,6 +431,7 @@ public <T> T accept(TypeRepVisitor<T> visitor) {
 }}
 public static record EnumType(Token name,
             Map<String, TypeRep> variants,
+            Map<String, TypeRep> methods,
             TypeEnv  env) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitEnumType(this);

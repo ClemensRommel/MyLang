@@ -211,7 +211,7 @@ public class Typechecker implements
 
     void declare(DeclarationOrStatement decl) {
         if(decl instanceof VariableDeclaration v) {
-            checkIrrefutablePattern(v.pat(), tcomp.compileType(v.type()), v.export(), v.isReassignable());
+            checkIrrefutablePattern(v.pat(), variableDeclarationTypeOf(v), v.export(), v.isReassignable());
 
         } else if(decl instanceof ValElseDeclaration v) {
             var matched = inferType(v.initializer());
@@ -249,6 +249,14 @@ public class Typechecker implements
         }
     }
 
+    private TypeRep variableDeclarationTypeOf(VariableDeclaration v) {
+        if(v.type() == null) {
+            return inferType(v.initializer());
+        } else {
+            return tcomp.compileType(v.type());
+        }
+    }
+
     private void checkIrrefutablePattern(Pattern p, TypeRep t, boolean export, boolean isReassigneable) {
         if(isIrrefutable(p)) {
             var previousExport = exportCurrentPatterns;
@@ -274,6 +282,9 @@ public class Typechecker implements
                 c -> enumConstructorTypeOf(c, e.Name())
                 )
             ),
+            e.methods().stream().collect(Collectors.toMap(
+                d -> d.Name().lexeme(), 
+                d -> functionTypeOf(d))),
             env);
     }
     TypeRep enumConstructorTypeOf(EnumConstructor e, Token enumName) {
@@ -363,7 +374,7 @@ public class Typechecker implements
         if(inClass && value.initializer() instanceof NullLiteral) {
             return null;
         }
-        checkType(tcomp.compileType(value.type()), value.initializer());
+        checkType(variableDeclarationTypeOf(value), value.initializer());
         return null;
     }
     @Override
@@ -908,6 +919,13 @@ public class Typechecker implements
             } else {
                 hasType(type, this.p.prettyPrint(p));
             }
+        } else if(leftType instanceof EnumType e) {
+            if(!e.methods().containsKey(p.name().lexeme())) {
+                error("["+p.name().line()+"]: Object "+this.p.prettyPrint(p.object())+" has no property "+p.name().lexeme());
+            } else {
+                var type = e.methods().get(p.name().lexeme());
+                hasType(type, this.p.prettyPrint(p));
+            }
         } else {
             error("["+p.name().line()+"] Type "+showType(leftType)+" has no properties");
         }
@@ -1094,6 +1112,17 @@ public class Typechecker implements
         for(var constructor : e.variants()) { // Check that all Constructors are Well-Formed
             env.normalize(enumConstructorTypeOf(constructor, e.Name()), this); 
         }
+        var enumType = env.getTypeByName(e.Name().lexeme());
+        openScope();
+            boolean prevInClass = inClass;
+            inClass = true;
+            declareType("this", enumType, false);
+            
+            for(var method : e.methods()) {
+                checkDeclaration(method);    
+            }
+
+            inClass = prevInClass;
         return null;
     }
 

@@ -151,6 +151,12 @@ public class TypeInferrer
             } else {
                 return Typechecker.unknown();
             }
+        } else if(classType instanceof EnumType e) {
+            if(e.methods().containsKey(p.name().lexeme())) {
+                return e.methods().get(p.name().lexeme());
+            } else {
+                return Typechecker.unknown();
+            }
         } else {
             return Typechecker.unknown();
         }
