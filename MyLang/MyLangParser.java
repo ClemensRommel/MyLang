@@ -198,7 +198,7 @@ public class MyLangParser {
     private ClassConstructor finalizeClassConstructor(String typeName) {
         var keyword = previous();
         consume(TokenType.LPAREN);
-        var parameters = parseParameters();
+        var parameters = parseParameters(false);
         consume(TokenType.RPAREN);
         consume(TokenType.DO);
         var body = finishBlockExpression();
@@ -436,7 +436,7 @@ public class MyLangParser {
     }
     private FunctionExpression finalizeFunctionExpressionWithName(String name, int counter) {
         consume(TokenType.LPAREN);
-        var parameters = parseParameters();
+        var parameters = parseParameters(false);
         consume(TokenType.RPAREN); 
         if(peek().type() == TokenType.LPAREN) {
             var next = finalizeFunctionExpressionWithName(name, counter+1);
@@ -507,7 +507,7 @@ public class MyLangParser {
                 export);
     }
 
-    private ParameterInformation parseParameters() {
+    private ParameterInformation parseParameters(boolean allowInferredTypes) {
         List<Token> parameters = new ArrayList<>();
         List<Type> types = new ArrayList<>();
         Map<String, Type> named = new HashMap<>();
@@ -526,8 +526,16 @@ public class MyLangParser {
                     varargsType = parseType();
                     break;
                 }
-                consume(TokenType.COLON);
-                types.add(parseType());
+                if(!allowInferredTypes) {
+                    consume(TokenType.COLON);
+                    types.add(parseType());
+                } else {
+                    if(match(TokenType.COLON)) {
+                        types.add(parseType());
+                    } else {
+                        types.add(null);
+                    }
+                }
             } while(match(TokenType.COMMA));
         }
         if(match(TokenType.LBRACKET)) { // Optional Params
@@ -906,9 +914,9 @@ public class MyLangParser {
 
     private Expression finishFunctionExpression() {
         consume(TokenType.LPAREN);
-        var parameters = parseParameters();
+        var parameters = parseParameters(true);
         consume(TokenType.RPAREN);
-        Type returnType = new VoidType();
+        Type returnType = null;
         if(match(TokenType.COLON)) {
             returnType = parseType();
         }

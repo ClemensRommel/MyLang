@@ -337,8 +337,11 @@ public class PrettyPrinter implements
         builder.append("fun");
         builder.append("(");
         prettyPrintParameters(f.parameters());
-        builder.append("): ");
-        f.retType().accept(this);
+        builder.append(")");
+        if(f.retType() != null) {
+            builder.append(": ");
+            f.retType().accept(this);
+        }
         builder.append(" := ");
         f.body().accept(this);
 
@@ -349,8 +352,10 @@ public class PrettyPrinter implements
         boolean addComma = false;
         for(int i = 0; i < p.names().size(); i++) { // Normal Parameters
             builder.append(p.names().get(i).lexeme());
-            builder.append(":");
-            p.types().get(i).accept(this);
+            if(p.types().get(i) != null) {
+                builder.append(":");
+                p.types().get(i).accept(this);
+            }
             if(i != p.names().size() - 1) {
                 builder.append(",");
             }

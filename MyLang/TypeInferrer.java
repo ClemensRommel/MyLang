@@ -92,6 +92,9 @@ public class TypeInferrer
 
     @Override
     public TypeRep visitFunctionExpression(FunctionExpression f) {
+        if(f.parameters().types().stream().anyMatch(x -> x == null) || f.retType() == null) {
+            tc.error("Cannot infer types of parameters or returntype of function expression "+tc.p.prettyPrint(f));
+        }
         return new FunctionTypeRep(
                 f.parameters().types().stream().map(tc.tcomp::compileType).toList(),
                 f.parameters().optionals().stream().map(OptionalParam::type).map(tc.tcomp::compileType).toList(),

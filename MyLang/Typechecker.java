@@ -460,11 +460,9 @@ public class Typechecker implements
     }
 
     boolean isAssigneableTo(TypeRep to, TypeRep from) {
-        if(to == null) {
-            throw new RuntimeException("to cannot be null");
-        }
-        if(from == null) {
-            throw new RuntimeException("from cannot be null");
+        if(to == null || from == null) {
+            hadError = true;
+            return true;
         }
         to = env.normalize(to, this);
         from = env.normalize(from, this);
@@ -694,21 +692,17 @@ public class Typechecker implements
 
     @Override
     public Void visitFunctionExpression(FunctionExpression f) {
+        FunctionTypeRep functiontype = compileAndReplace(checkTarget, f);
         openScope();
-            var parameterTypes = f.parameters().types().stream()
-                .map(tcomp::compileType)
-                .toList();
-            var varargsType = tcomp.compileType(f.parameters().varargsType());
+            var parameterTypes = functiontype.parameters();
+            var varargsType = functiontype.varargsType();
             for(int i = 0; i < parameterTypes.size(); i++) {
                 declareType(
                     f.parameters().names().get(i).lexeme(), 
                     parameterTypes.get(i),
                     false);
             }
-            var optionalParamsTypes = f.parameters().optionals().stream()
-                .map(OptionalParam::type)
-                .map(tcomp::compileType)
-                .toList();
+            var optionalParamsTypes = functiontype.optionalParameters();
             for(int i = 0; i < optionalParamsTypes.size(); i++) {
                 checkType(optionalParamsTypes.get(i), f.parameters().optionals().get(i).defaultValue());
                 declareType(
@@ -723,16 +717,16 @@ public class Typechecker implements
                     new ListOfRep(tcomp.compileType(f.parameters().varargsType())),
                     false);
             }
-            var namedTypes = tcomp.namedTypesIn(f.parameters().named());
+            var namedTypes = functiontype.named();
             namedTypes.forEach((var name, var type) -> {
                 declareType(name, type, false);
             });
         
-            var optionalNamedTypes = tcomp.optionalNamedTypesIn(f.parameters().optionalNamed());
+            var optionalNamedTypes = functiontype.optionalNamed();
             optionalNamedTypes.forEach((var name , var type) -> {
                 declareType(name, type, false);
             });
-            var returnType = tcomp.compileType(f.retType());
+            var returnType = functiontype.returnType();
             var previousReturnType = currentReturnType;
             currentReturnType = returnType;
             checkType(returnType, f.body());
@@ -750,6 +744,55 @@ public class Typechecker implements
         hasType(env.normalize(type, this), p.prettyPrint(f));
 
         return null;
+    }
+    private FunctionTypeRep compileAndReplace(TypeRep t, FunctionExpression f) {
+        List<TypeRep> parameterTypes = null;
+        TypeRep retType = tcomp.compileType(f.retType());
+        if(t instanceof FunctionTypeRep ftype) {
+            var params = f.parameters();
+            var origParams = params.types();
+            parameterTypes = new ArrayList<>();
+            for(int i = 0; i < params.types().size(); i++) {
+                if(origParams.get(i) != null) {
+                    parameterTypes.add(tcomp.compileType(origParams.get(i)));
+                } else if(ftype.parameters().size() <= i) {
+                    parameterTypes.add(unknown());
+                } else {
+                    parameterTypes.add(ftype.parameters().get(i));
+                }
+            }
+            if(retType == null) {
+                retType = ftype.returnType();
+            }
+        } else {
+            parameterTypes = f.parameters().types().stream()
+                .map(tcomp::compileType)
+                .toList();
+        } 
+        return new FunctionTypeRep(
+            parameterTypes,
+            f.parameters().optionals().stream()
+                .map(OptionalParam::type)
+                .map(tcomp::compileType)
+                .toList(),
+            f.parameters().named().entrySet().stream()
+                .map(entry -> Map.entry(entry.getKey(), tcomp.compileType(entry.getValue())))
+                .collect(Collectors.toMap(
+                    Map.Entry::getKey,
+                    Map.Entry::getValue
+                )
+            ),
+            f.parameters().optionalNamed().entrySet().stream()
+                .map(entry -> Map.entry(entry.getKey(), tcomp.compileType(entry.getValue().type())))
+                .collect(Collectors.toMap(
+                    Map.Entry::getKey,
+                    Map.Entry::getValue
+                )
+            ),
+            tcomp.compileType(f.parameters().varargsType()),
+            retType,
+            env
+        );
     }
 
     @Override
