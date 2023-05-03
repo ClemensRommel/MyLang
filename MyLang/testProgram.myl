@@ -1,14 +1,14 @@
 enum Test where
-    Variant1(Number, Bool, String);
-    Variant2(Test[]);
+    Variant1(Number, Bool, String),
+    Variant2(Test[]),
     Variant3(Test, Fun(Test): Test);
 end
 
 fun main() do 
-    val x: Test := Variant1(26, true, "variant1 test");
-    val f: Fun(Test[]): Test := Variant2;
+    val x := Variant1(26, true, "variant1 test");
+    val f := Variant2;
     fun g(x: Test): Test := Variant2([x]);
-    val z: Test := Variant3(x, g);
+    val z := Variant3(x, g);
     print(new Variant1(13, false, "test"));
     print(x);
     print(f([Variant1(-25 + 2, false, "variant2 test")]));
@@ -37,20 +37,20 @@ fun main() do
 end
 
 enum DateiErgebnis where
-    Inhalt(String);
+    Inhalt(String),
     Fehler(String);
 end
 fun öffneDatei(pfad: String): DateiErgebnis := if pfad = "test" then Fehler("unbekannte Datei") else Inhalt(pfad);
 
-val dateien: String[] := ["test", for n in [1..5] yield "test"+n end.., "test"];
+val dateien := ["test", for n in [1..5] yield "test"+n end.., "test"];
 
-val ergebnisse: DateiErgebnis[] := for x in dateien yield öffneDatei(x) end;
+val ergebnisse := for x in dateien yield öffneDatei(x) end;
 
-val inhalte: String[] := for Inhalt(str) in ergebnisse yield "Inhalt: " + str end;
+val inhalte := for Inhalt(str) in ergebnisse yield "Inhalt: " + str end;
 
 fun paar(x: Number, y: Number): (Number, Number) := (x, y);
 
-val (variable1, variable2): (Number, Number) := paar(3, 4);
+val (variable1, variable2) := paar(3, 4);
 
 fun fakultaet(x: Number): Number := match x do 
     case 0 := 1;
@@ -75,27 +75,27 @@ fun f2(x: Number): MaybeNumber := if x = 0 then EndOfIteration() else SomeNumber
 fun f3(x: Number): MaybeNumber := if x = 5 then EndOfIteration() else SomeNumber(x + 5);
 
 fun testIter(xs: Number[]) do 
-    val iterator: NumberListIterator := NumberListIterator(xs);
+    val iterator := NumberListIterator(xs);
     while val SomeNumber(n) := iterator.next() do 
         print("Element: "+n);
     end;
 end
 
 class NumberListIterator where
-    var index: Number := 0;
+    var index := 0;
     val list: Number[];
     new(xs: Number[]) do
         this.list := xs;
     end
     fun next(): MaybeNumber := if this.index >= this.list.length then EndOfIteration() else do 
-        val element: Number := this.list[this.index];
+        val element := this.list[this.index];
         this.index := this.index + 1;
         SomeNumber(element)
     end;
 end;
 
 enum MaybeNumber where
-    EndOfIteration();
+    EndOfIteration(),
     SomeNumber(Number);
 end
 
@@ -107,7 +107,7 @@ class TupleTest where
 end;
 
 fun fib(n: Number) do
-    var (a ,b): (Number, Number):= (1, 1);
+    var (a ,b) := (1, 1);
     for i in [0..n-2] do 
         (a, b) := (b, a+b);
     end;

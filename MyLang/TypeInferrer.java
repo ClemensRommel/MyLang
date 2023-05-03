@@ -213,7 +213,7 @@ public class TypeInferrer
             }
             var resultingType = tc.inferElemTypeOfParameter(fy.body(), true);
         tc.closeScope();
-        return resultingType;
+        return new ListOfRep(resultingType);
     }
 
     @Override

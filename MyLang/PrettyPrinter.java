@@ -806,7 +806,7 @@ public class PrettyPrinter implements
 
     @Override
     public Void visitVariableBinding(VariableBinding v) {
-        builder.append(v.name());
+        builder.append(v.name().lexeme());
         return null;
     }
     @Override
