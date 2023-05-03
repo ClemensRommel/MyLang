@@ -1,0 +1,119 @@
+fun getContent(content: String): OptionalString do 
+    val fileContent := openFile(content);
+    if isNull(fileContent) then None() else Some(fileContent)
+end
+
+enum OptionalString where
+    Some(String),
+    None();
+end
+
+fun main() do 
+    val Some(content) := getContent("MyLang/MyLangASTSource.txt") else do 
+        print("Fehler beim öffnen der Datei");
+        return null
+    end;
+    val interfaces := getInterfacesIn(content);
+    print("package MyLang;");
+    print("import java.util.List;");
+    print("import java.util.Map;");
+
+    print("public interface MyLangAST {");
+
+    for interface in interfaces do 
+        interface.generate();
+    end;
+
+    print("}");
+end
+
+class Interface where 
+    var constructors: Type[] := [];
+    var name: String := "";
+    var implementedInterfaces: String[] := [];
+
+    fun generate() do 
+        if this.constructors.length > 0 do 
+            this.generateVisitor();
+        end
+        print("public static sealed interface ", this.name, " extends ", combineInterfaces(this.implementedInterfaces), " {");
+
+        if this.constructors.length > 0 do 
+            print("    public <T> T accept(", this.name, "Visitor<T> visitor);");
+        end
+
+        print("}");
+
+        for constructor in this.constructors do 
+            print("public static record ", constructor.name, "(", constructor.fields,") implements ", constructor.interface, " {");
+            print("public <T> T accept(", this.name, "Visitor<T> visitor) {");
+            print("    return visitor.visit", constructor.name, "(this);");
+            print("}}");
+        end
+    end
+
+    fun generateVisitor() do 
+        print("public static interface ", this.name, "Visitor<T> {");
+        for constructor in this.constructors do 
+            print("public T visit", constructor.name, "(", constructor.name, " value);");
+        end;
+        print("}");
+    end
+end;
+
+class Type where 
+    var name: String := "";
+    var fields: String := "";
+    var interface: String := "";
+end;
+
+fun combineInterfaces(string: String[]): String do 
+    if string.length = 0 do 
+        return "";
+    end
+    if string.length = 1 do 
+        return string[0];
+    end
+    var result: String := string[0];
+    for interface in string.rest do 
+        result := result + ", "+interface;
+    end;
+    result
+end;
+
+fun getInterfacesIn(string: String): Interface[] do 
+    val interfaces: Interface[] := [];
+    val declarations := for str in split(string, ";") if strip(str) != "" yield strip(str) end;
+    for declaration in declarations do 
+        val interface := Interface();
+        val parts := split(declaration, "=");
+        val declarationParts := split(strip(parts[0]), "<");
+        interface.name := strip(declarationParts[0]);
+        interface.implementedInterfaces := split(strip(declarationParts[1]), ",");
+        if parts.length > 1 then do 
+            interface.constructors := getConstructors(strip(parts[1]), interface.name);
+        end else do 
+            interface.constructors := [];
+        end;
+        interfaces.push(interface);
+    end;
+    interfaces
+end
+
+fun getConstructors(string: String, interface: String): Type[] do 
+    val constructors: Type[] := [];
+    val parts := split(string, "\|");
+    for part in parts do 
+        val constructor := Type();
+        val constructorParts := split(part, ":");
+        if constructorParts.length = 0 do 
+            print("Error in constructor ", part);
+            return [];
+        end;
+        constructor.name := strip(constructorParts[0]);
+        constructor.fields := if constructorParts.length < 2 then "" else strip(constructorParts[1]);
+        constructor.interface := interface;
+        constructors.push(constructor);
+    end;
+    constructors
+end

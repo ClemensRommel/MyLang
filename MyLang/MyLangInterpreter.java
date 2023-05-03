@@ -50,7 +50,12 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         MyLangBuiltinFunction.input,
         MyLangBuiltinFunction.number,
         MyLangBuiltinFunction.random,
-        MyLangBuiltinFunction.clock
+        MyLangBuiltinFunction.clock,
+        MyLangBuiltinFunction.openFile,
+        MyLangBuiltinFunction.isNull,
+        MyLangBuiltinFunction.split,
+        MyLangBuiltinFunction.strip,
+        MyLangBuiltinFunction.len
     };
 
     private void loadBuiltins() {

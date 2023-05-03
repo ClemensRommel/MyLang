@@ -1,9 +1,11 @@
 package MyLang;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import static MyLang.MyLangAST.*;
+import java.nio.file.*;
+import java.io.IOException;
 
 public abstract class MyLangBuiltinFunction implements MyLangCallable {
     public final String name;
@@ -19,6 +21,99 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         }
     }
 
+    public static final MyLangBuiltinFunction len = new MyLangBuiltinFunction("len",
+        new FunctionTypeRep(
+            List.of(Typechecker.stringType),
+            List.of(),
+            Map.of(),
+            Map.of(),
+            null,
+            Typechecker.numberType,
+            new TypeEnv()
+        )) {
+        @Override
+        public Object call(MyLangInterpreter i, List<Object> args, Map<String, Object> named) {
+            return ((String) args.get(0)).length();
+        }
+    };
+
+    public static final MyLangBuiltinFunction split = new MyLangBuiltinFunction("split",
+        new FunctionTypeRep(
+            List.of(Typechecker.stringType, Typechecker.stringType),
+            List.of(),
+            Map.of(),
+            Map.of(),
+            null,
+            new ListOfRep(Typechecker.stringType),
+            new TypeEnv()
+        )) {
+    @Override
+    public Object call(MyLangInterpreter i, List<Object> args, Map<String, Object> named) {
+            var toBeSplitted = (String) args.get(0);
+            var regex = (String) args.get(1);
+            var results = toBeSplitted.split(regex);
+            var result = new ArrayList<Object>(results.length);
+            for(var r: results) {
+                result.add(r);
+            }
+            return result;
+        }
+};
+
+    public static final MyLangBuiltinFunction strip = new MyLangBuiltinFunction("strip", 
+        new FunctionTypeRep(
+            List.of(Typechecker.stringType),
+            List.of(),
+            Map.of(),
+            Map.of(),
+            null,
+            Typechecker.stringType,
+            new TypeEnv()
+        )) {
+        @Override
+        public Object call(MyLangInterpreter i, List<Object> args, Map<String, Object> named) {
+            return ((String) args.get(0)).strip();
+        }
+    };
+
+    public static final MyLangBuiltinFunction isNull = new MyLangBuiltinFunction("isNull",
+        new FunctionTypeRep(
+            List.of(Typechecker.voidType),
+            List.of(),
+            Map.of(),
+            Map.of(),
+            null,
+            Typechecker.booleanType, new TypeEnv()
+        )) {
+        @Override
+        public Object call(MyLangInterpreter i, List<Object> args, Map<String, Object> named) {
+            return args.get(0) == null;
+        }
+    };
+
+    public static final MyLangBuiltinFunction openFile = new MyLangBuiltinFunction(
+        "openFile",
+        new FunctionTypeRep(
+            List.of(Typechecker.stringType),
+            List.of(),
+            Map.of(),
+            Map.of(),
+            null,
+            Typechecker.stringType,
+            new TypeEnv()
+        )) {
+            @Override
+            public Object call(
+                MyLangInterpreter interpreter, 
+                List<Object> args, 
+                Map<String, Object> named) {
+                try {
+                    return Files.readString(Paths.get((String) args.get(0)));
+                } catch(IOException e) {
+                    return null;
+                }
+            }
+    };
 
     public static final MyLangBuiltinFunction print = new MyLangBuiltinFunction(
             "print", 

@@ -581,7 +581,7 @@ public class Typechecker implements
 
                 hasType(booleanType, p.prettyPrint(b));
             }
-            case EQUAL -> {
+            case EQUAL, NOT_EQUAL -> {
                 var leftType = inferType(b.left());
                 checkType(leftType, b.right());
 

@@ -14,7 +14,12 @@ fun foldr(x: Number, f: Fun(Number, Number): Number)(xs: NumLinkedList): Number 
     case Cons(y, ys) := f(y, foldr(x, f)(ys));
 end;
 
+val inf := 1/0;
+
 val sum := foldr(0, fun(x, y) := x + y);
+val product := foldr(1, fun(x, y) := x * y);
+val max := foldr(-inf, fun(x, y) := if x < y then y else x);
+fun average(list: NumLinkedList): Number := sum(list) / list.length();
 
 fun list(xs: Number[]): NumLinkedList := if xs.length = 0 then Empty() else Cons(xs.first, list(xs.rest));
 
@@ -22,8 +27,11 @@ fun main() do
     print(Cons(3, Empty()));
     print(sum(Cons(3, Cons(5, Cons(-17, Empty())))));
     print(list([1..5]));
-    val myList := list([1..15: 3]);
+    val myList := list([1..19: 3]);
     print(myList);
     print(myList.length());
     print(sum(myList));
+    print(average(myList));
+    print(product(myList));
+    print(max(myList));
 end

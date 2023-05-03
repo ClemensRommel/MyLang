@@ -68,7 +68,7 @@ public class MyLangParser {
             throw new ParseError("Expected " + type + " but got EOF", tokens.get(length - 1).line());
         }
         if(peek().type() != type) {
-            throw new ParseError("Expected " + type + ", got " + peek().type(), peek().line());
+            throw new ParseError("Expected " + type + ", got " + peek().type() + (peek().type() != TokenType.ERROR ? "" : peek()), peek().line());
         }
         return next();
     }
