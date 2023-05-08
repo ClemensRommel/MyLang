@@ -6,6 +6,7 @@ Expression < MyLangAST = NumericLiteral: double value
                        | BinaryOperation: Token operator, Expression left, Expression right
                        | UnaryOperation: Token operator, Expression operand
                        | FunctionCall: Expression callee, List<Parameter> arguments, Map<String, Expression> named
+                       | InstExpression: Expression instantiated, List<Type> args
                        | FunctionExpression: String optionalName, ParameterInformation parameters, Expression body, Type retType
                        | IfExpression: Expression condition, Expression thenBranch, Expression elseBranch
                        | IfValExpression: Pattern pat, Expression matched, Expression thenBranch, Expression elseBranch
@@ -19,7 +20,6 @@ Expression < MyLangAST = NumericLiteral: double value
                        | WhileDoExpression: Expression condition, Statement body
                        | WhileValDoExpression: Pattern pattern, Expression matched, Expression body
                        | ForYieldExpression: Pattern pat, Expression collection, Expression guard, Parameter body
-                       | ForDoExpression: Pattern pat, Expression collection, Expression guard, Statement body
                        | RangeExpression: Expression start, Expression end, Expression step
                        | ThisExpression: Token keyword
                        | ReturnExpression: Expression returnValue
@@ -29,7 +29,7 @@ Expression < MyLangAST = NumericLiteral: double value
 Declaration < MyLangAST, DeclarationOrStatement, ConstructorOrDeclaration =
         VariableDeclaration: Pattern pat, Type type, Expression initializer, boolean isReassignable, boolean export
     |   ValElseDeclaration:  Pattern pat, Expression initializer, Expression elseBranch
-    |   FunctionDeclaration: Token Name, ParameterInformation parameters, Expression body, Type retType, boolean export
+    |   FunctionDeclaration: Token Name, List<Token> typeParams, ParameterInformation parameters, Expression body, Type retType, boolean export
     |   ClassDeclaration:    Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor, boolean export
     |   EnumDeclaration:     Token Name, List<EnumConstructor> variants, boolean export, List<FunctionDeclaration> methods
     |   TypeDefDeclaration:  Token Name, Type definition, boolean export
@@ -41,6 +41,7 @@ Statement < MyLangAST, DeclarationOrStatement =
         ExpressionStatement: Expression expression
     |   IfStatement: Expression condition, Statement body
     |   SetStatement: Setter setter, Expression expression
+    |   ForDoStatement: Pattern pat, Expression collection, Expression guard, Expression body
     |   EmptyStatement: Token semicolon;
 
 Setter < MyLangAST = 
@@ -99,6 +100,8 @@ TypeRep < MyLangAST =
             TypeRep varargsType, 
             TypeRep returnType, 
             TypeEnv env
+    |   GenericType: List<Token> typeParams, TypeRep type, TypeEnv env
+    |   TypeVar: Token name, TypeEnv env
     |   ClassType: 
             Token name, 
             Map<String, TypeRep> accessors, 

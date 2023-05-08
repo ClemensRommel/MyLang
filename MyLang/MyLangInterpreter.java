@@ -481,13 +481,13 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     }
 
     @Override
-    public Object visitForDoExpression(ForDoExpression value) {
+    public Void visitForDoStatement(ForDoStatement value) {
         var collection = interpretExpression(value.collection());
         if(collection instanceof List theList) {
             for(Object element : theList) {
                 openScope();
                 if(matches(element, value.pat()) && truthy(interpretExpression(value.guard()))) {
-                    interpretStatement(value.body());
+                    interpretExpression(value.body());
                 }
                 closeScope();
             }
@@ -820,5 +820,9 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         var object = (MyLangObject) interpretExpression(p.object());
         object.setField(p.name().lexeme(), currentMatcher, inConstructor);
         return null;
+    }
+    @Override
+    public Object visitInstExpression(InstExpression i) {
+        return interpretExpression(i.instantiated());
     }
 }

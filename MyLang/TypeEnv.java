@@ -206,5 +206,12 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
     public TypeRep visitTupleRep(TupleRep t) {
         return new TupleRep(t.elements().stream().map(e -> normalize(e, tc)).toList());
     }
+    @Override
+    public TypeRep visitTypeVar(TypeVar v) {
+        return v;
+    }
+    @Override
+    public TypeRep visitGenericType(GenericType g) {
+        return new GenericType(g.typeParams(), normalize(g.type(), tc), g.env());
+    }
 }
-

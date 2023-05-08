@@ -142,4 +142,12 @@ public class SubtypeChecker implements TypeRepVisitor<Boolean> {
         }
         return false;
     }
+    @Override
+    public Boolean visitGenericType(GenericType g) {
+        return g.equals(target);
+    }
+    @Override
+    public Boolean visitTypeVar(TypeVar t) {
+        return t.equals(target);
+    }
 }

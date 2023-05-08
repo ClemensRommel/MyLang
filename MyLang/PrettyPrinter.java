@@ -541,7 +541,7 @@ public class PrettyPrinter implements
     }
 
     @Override
-    public Void visitForDoExpression(ForDoExpression f) {
+    public Void visitForDoStatement(ForDoStatement f) {
         builder.append("for ");
         f.pat().accept(this);
         builder.append(" in ");
@@ -751,6 +751,7 @@ public class PrettyPrinter implements
         for(var param: e.parameters()) {
             if(needComma) builder.append(", ");
             param.accept(this);
+            needComma = true;
         }
         builder.append(");");
 
@@ -817,6 +818,7 @@ public class PrettyPrinter implements
         for(var pat: c.subPatterns()) {
             if(needsComma) builder.append(", ");
             pat.accept(this);
+            needsComma = true;
         }
         builder.append(")");
         return null;
@@ -913,7 +915,42 @@ public class PrettyPrinter implements
         for(var setter: s.setters()) {
             if(needComma) builder.append(", ");
             setter.accept(this);
+            needComma = true;
         }
+        builder.append(")");
+        return null;
+    }
+    @Override
+    public Void visitInstExpression(InstExpression i) {
+        builder.append("(");
+        i.instantiated().accept(this);
+        builder.append(").[");
+        boolean needComma = false;
+        for(var type : i.args()) {
+            if(needComma) builder.append(", ");
+            type.accept(this);
+            needComma = true;
+        }
+        builder.append("]");
+        return null;
+    }
+    @Override
+    public Void visitTypeVar(TypeVar t) {
+        builder.append(t.name().lexeme());
+        return null;
+    }
+    @Override
+    public Void visitGenericType(GenericType  g) {
+        builder.append("(");
+        builder.append("for[");
+        boolean needComma = false;
+        for(var param : g.typeParams()) {
+            if(needComma) builder.append(", ");
+            builder.append(param.lexeme());
+            needComma = true;
+        }
+        builder.append("] ");
+        g.type().accept(this);
         builder.append(")");
         return null;
     }

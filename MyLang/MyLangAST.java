@@ -11,6 +11,7 @@ public T visitIdentifier(Identifier value);
 public T visitBinaryOperation(BinaryOperation value);
 public T visitUnaryOperation(UnaryOperation value);
 public T visitFunctionCall(FunctionCall value);
+public T visitInstExpression(InstExpression value);
 public T visitFunctionExpression(FunctionExpression value);
 public T visitIfExpression(IfExpression value);
 public T visitIfValExpression(IfValExpression value);
@@ -24,7 +25,6 @@ public T visitWhileValYieldExpression(WhileValYieldExpression value);
 public T visitWhileDoExpression(WhileDoExpression value);
 public T visitWhileValDoExpression(WhileValDoExpression value);
 public T visitForYieldExpression(ForYieldExpression value);
-public T visitForDoExpression(ForDoExpression value);
 public T visitRangeExpression(RangeExpression value);
 public T visitThisExpression(ThisExpression value);
 public T visitReturnExpression(ReturnExpression value);
@@ -65,6 +65,10 @@ public <T> T accept(ExpressionVisitor<T> visitor) {
 public static record FunctionCall(Expression callee, List<Parameter> arguments, Map<String, Expression> named) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitFunctionCall(this);
+}}
+public static record InstExpression(Expression instantiated, List<Type> args) implements Expression {
+public <T> T accept(ExpressionVisitor<T> visitor) {
+    return visitor.visitInstExpression(this);
 }}
 public static record FunctionExpression(String optionalName, ParameterInformation parameters, Expression body, Type retType) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
@@ -118,10 +122,6 @@ public static record ForYieldExpression(Pattern pat, Expression collection, Expr
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitForYieldExpression(this);
 }}
-public static record ForDoExpression(Pattern pat, Expression collection, Expression guard, Statement body) implements Expression {
-public <T> T accept(ExpressionVisitor<T> visitor) {
-    return visitor.visitForDoExpression(this);
-}}
 public static record RangeExpression(Expression start, Expression end, Expression step) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitRangeExpression(this);
@@ -163,7 +163,7 @@ public static record ValElseDeclaration(Pattern pat, Expression initializer, Exp
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitValElseDeclaration(this);
 }}
-public static record FunctionDeclaration(Token Name, ParameterInformation parameters, Expression body, Type retType, boolean export) implements Declaration {
+public static record FunctionDeclaration(Token Name, List<Token> typeParams, ParameterInformation parameters, Expression body, Type retType, boolean export) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitFunctionDeclaration(this);
 }}
@@ -201,6 +201,7 @@ public static interface StatementVisitor<T> {
 public T visitExpressionStatement(ExpressionStatement value);
 public T visitIfStatement(IfStatement value);
 public T visitSetStatement(SetStatement value);
+public T visitForDoStatement(ForDoStatement value);
 public T visitEmptyStatement(EmptyStatement value);
 }
 public static sealed interface Statement extends MyLangAST,  DeclarationOrStatement {
@@ -217,6 +218,10 @@ public <T> T accept(StatementVisitor<T> visitor) {
 public static record SetStatement(Setter setter, Expression expression) implements Statement {
 public <T> T accept(StatementVisitor<T> visitor) {
     return visitor.visitSetStatement(this);
+}}
+public static record ForDoStatement(Pattern pat, Expression collection, Expression guard, Expression body) implements Statement {
+public <T> T accept(StatementVisitor<T> visitor) {
+    return visitor.visitForDoStatement(this);
 }}
 public static record EmptyStatement(Token semicolon) implements Statement {
 public <T> T accept(StatementVisitor<T> visitor) {
@@ -394,6 +399,8 @@ public <T> T accept(TypeVisitor<T> visitor) {
 public static interface TypeRepVisitor<T> {
 public T visitTypeIdentifierRep(TypeIdentifierRep value);
 public T visitFunctionTypeRep(FunctionTypeRep value);
+public T visitGenericType(GenericType value);
+public T visitTypeVar(TypeVar value);
 public T visitClassType(ClassType value);
 public T visitEnumType(EnumType value);
 public T visitListOfRep(ListOfRep value);
@@ -420,6 +427,14 @@ public static record FunctionTypeRep(List<TypeRep> parameters,
             TypeEnv env) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitFunctionTypeRep(this);
+}}
+public static record GenericType(List<Token> typeParams, TypeRep type, TypeEnv env) implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitGenericType(this);
+}}
+public static record TypeVar(Token name, TypeEnv env) implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitTypeVar(this);
 }}
 public static record ClassType(Token name, 
             Map<String, TypeRep> accessors, 

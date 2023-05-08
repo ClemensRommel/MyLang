@@ -1,37 +1,24 @@
-enum NumLinkedList where
-    Empty(),
-    Cons(Number, NumLinkedList);
+fun ggt(a: Number, b: Number): Number := 
+    if b >  a then 
+        ggt(b, a) 
+    else if b = a then 
+        a 
+    else ggt(a-b, b);
 
-    fun length(): Number := match this do 
-        case Empty() := 0;
-        case Cons(?, xs) := 1 + xs.length();
-    end;
-
-end
-
-fun foldr(x: Number, f: Fun(Number, Number): Number)(xs: NumLinkedList): Number := match xs do 
-    case Empty() := x;
-    case Cons(y, ys) := f(y, foldr(x, f)(ys));
+fun fakultaet(n: Number): Number := match n do 
+    case 0 := 1;
+    case n := n  * fakultaet(n-1);
 end;
 
-val inf := 1/0;
-
-val sum := foldr(0, fun(x, y) := x + y);
-val product := foldr(1, fun(x, y) := x * y);
-val max := foldr(-inf, fun(x, y) := if x < y then y else x);
-fun average(list: NumLinkedList): Number := sum(list) / list.length();
-
-fun list(xs: Number[]): NumLinkedList := if xs.length = 0 then Empty() else Cons(xs.first, list(xs.rest));
-
-fun main() do
-    print(Cons(3, Empty()));
-    print(sum(Cons(3, Cons(5, Cons(-17, Empty())))));
-    print(list([1..5]));
-    val myList := list([1..19: 3]);
-    print(myList);
-    print(myList.length());
-    print(sum(myList));
-    print(average(myList));
-    print(product(myList));
-    print(max(myList));
+fun main() do 
+    val before := clock();
+    print(ggt(632247, 527527));
+    print(clock() - before);
+    val before2 := clock();
+    for i in [1..1000] do 
+        fakultaet(i);
+    end
+    print(clock() - before2);
 end
+
+

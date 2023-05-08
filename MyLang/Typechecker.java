@@ -19,6 +19,7 @@ public class Typechecker implements
     SubtypeChecker s = new SubtypeChecker();
     TypeInferrer ti = new TypeInferrer(this);
     TypeCompiler tcomp = new TypeCompiler(this);
+    TypeApplier ta = new TypeApplier(this);
 
     private TypeRep checkTarget = null;
     TypeRep currentReturnType = null;
@@ -300,7 +301,11 @@ public class Typechecker implements
     }
 
     TypeRep functionTypeOf(FunctionDeclaration f) {
-        return new FunctionTypeRep(
+        openScope();
+        for(var typeParam : f.typeParams()) {
+            declareNewType(typeParam.lexeme(), new TypeVar(typeParam, env));
+        }
+        var type = new FunctionTypeRep(
                 f.parameters().types().stream().map(tcomp::compileType).toList(),
                 f.parameters().optionals().stream().map(OptionalParam::type).map(tcomp::compileType).toList(),
                 tcomp.namedTypesIn(f.parameters().named()),
@@ -308,6 +313,12 @@ public class Typechecker implements
                 tcomp.compileType(f.parameters().varargsType()),
                 tcomp.compileType(f.retType()),
                 env);
+        closeScope();
+        if(!f.typeParams().isEmpty()) {
+            return new GenericType(f.typeParams(), type, env);
+        } else {
+            return type;
+        }
     }
 
     TypeRep classTypeOf(ClassDeclaration c) {
@@ -391,6 +402,9 @@ public class Typechecker implements
     @Override
     public Void visitFunctionDeclaration(FunctionDeclaration value) {
         openScope();
+            for(var typeParam : value.typeParams()) {
+                declareNewType(typeParam.lexeme(), new TypeVar(typeParam, env));
+            }
             for(int i = 0; i < value.parameters().names().size(); i++) {
                 declareType(value.parameters().names().get(i).lexeme(), tcomp.compileType(value.parameters().types().get(i)), false);
             }
@@ -1052,14 +1066,13 @@ public class Typechecker implements
     }
 
     @Override
-    public Void visitForDoExpression(ForDoExpression fd) {
+    public Void visitForDoStatement(ForDoStatement fd) {
         var collectionType = inferType(fd.collection());
         if(collectionType instanceof ListOfRep l) {
             openScope();
                 checkPattern(l.elements(), fd.pat(), false);
                 checkType(booleanType, fd.guard());
-                checkStatement(fd.body());
-                hasType(voidType, p.prettyPrint(fd));
+                checkType(voidType, fd.body());
             closeScope();
         } else {
             error("Cannot iterate values of type '"+showType(collectionType)+"'");
@@ -1337,5 +1350,21 @@ public class Typechecker implements
         }
         return null;
     }
-
+    @Override
+    public Void visitInstExpression(InstExpression i) {
+        var instantiated = inferType(i.instantiated());
+        var resultingType = applyTo(
+                instantiated, 
+                i.args().stream()
+                    .map(tcomp::compileType)
+                    .map(t -> env.normalize(t, this))
+                    .toList());
+        hasType(
+            resultingType, 
+            "instantiation expression " + p.prettyPrint(i));
+        return null;
+    }
+    TypeRep applyTo(TypeRep t, List<TypeRep> args) {
+        return ta.apply(t, args, false);
+    }
 }

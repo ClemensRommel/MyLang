@@ -201,10 +201,6 @@ public class TypeInferrer
     }
 
     @Override
-    public TypeRep visitForDoExpression(ForDoExpression fd) {
-        return Typechecker.voidType;
-    }
-    @Override
     public TypeRep visitForYieldExpression(ForYieldExpression fy) {
         var collectionType = infer(fy.collection());
         tc.openScope();
@@ -334,5 +330,10 @@ public class TypeInferrer
             .map(this::inferSetter)
             .toList()
         );
+    }
+    @Override
+    public TypeRep visitInstExpression(InstExpression i) {
+        var instantiated = infer(i.instantiated());
+        return tc.ta.apply(instantiated, i.args().stream().map(tc.tcomp::compileType).toList(), true);
     }
 }

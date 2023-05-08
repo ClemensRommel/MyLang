@@ -146,7 +146,7 @@ public class MyLangParser {
             return new EmptyDeclaration(previous());
         } else {
             var start = current;
-            if(match(TokenType.IF)) {
+            if(match(TokenType.IF)) { // Try Parsing an If Statement. Backtrack if If Expression
                 if(match(TokenType.VAL)) {
                     current = start;
                 } else {
@@ -157,7 +157,21 @@ public class MyLangParser {
                 } else { // Backtrack and instead parse a expression
                     current = start;
                 }}
-            } 
+            } else if(match(TokenType.FOR)) { // Try Parsing an For Statement. Backtrack if For Expression
+                var pattern = parsePattern();
+                consume(TokenType.IN);
+                var collection = parseExpression();
+                Expression guard = new BooleanLiteral(true);
+                if(match(TokenType.IF)) {
+                    guard = parseExpression();
+                }
+                if(match(TokenType.DO)) {
+                    var body = finishBlockExpression();
+                    return new ForDoStatement(pattern, collection, guard, body);
+                } else {
+                    current = start;
+                }
+            }
             var expression = parseExpression();
             if(match(TokenType.SEMICOLON)) {
                 return new ExpressionStatement(expression);
@@ -426,9 +440,19 @@ public class MyLangParser {
     }
     private FunctionDeclaration finalizeFunctionDeclaration(boolean export) {
         var name = consume(TokenType.IDENTIFIER);
+        List<Token> typeParams = new ArrayList<>();
+        if(match(TokenType.LBRACKET)) {
+            if(!match(TokenType.RBRACKET)) {
+                do {
+                    typeParams.add(consume(TokenType.IDENTIFIER));
+                } while(match(TokenType.COMMA));
+                consume(TokenType.RBRACKET);
+            }
+        }
         var expression = finalizeFunctionExpressionWithName(name.lexeme(), 1);
         return new FunctionDeclaration(
                 name, 
+                typeParams,
                 expression.parameters(), 
                 expression.body(), 
                 expression.retType(), 
@@ -679,15 +703,26 @@ public class MyLangParser {
         while(match(TokenType.LPAREN) || match(TokenType.LBRACKET) || match(TokenType.DOT)) {
             var operator = previous();
             if(operator.type() == TokenType.DOT) {
-                boolean negated = match(TokenType.BANG);
-                Token negatedOp = previous();
-                var property = consume(TokenType.IDENTIFIER);
-                left = new PropertyExpression(left, property);
-                if(negated) {
-                    if(match(TokenType.LPAREN)) {
-                        left = finalizeFunctionCall(left);
+                if(match(TokenType.LBRACKET)) { // Instantiation
+                    List<Type> args = new ArrayList<>();
+                    if(!match(TokenType.RBRACKET)) {
+                        do {
+                            args.add(parseType());
+                        } while(match(TokenType.COMMA));
+                        consume(TokenType.RBRACKET);
                     }
-                    left = new UnaryOperation(negatedOp, left);
+                    left = new InstExpression(left, args);
+                } else {
+                    boolean negated = match(TokenType.BANG);
+                    Token negatedOp = previous();
+                    var property = consume(TokenType.IDENTIFIER);
+                    left = new PropertyExpression(left, property);
+                    if(negated) {
+                        if(match(TokenType.LPAREN)) {
+                            left = finalizeFunctionCall(left);
+                        }
+                        left = new UnaryOperation(negatedOp, left);
+                    }
                 }
             } else if(operator.type() == TokenType.LPAREN) {
                 left = finalizeFunctionCall(left);
@@ -744,14 +779,9 @@ public class MyLangParser {
             if(match(TokenType.IF)) {
                 guard = parseExpression();
             }
-            if(match(TokenType.DO)) {
-                var body = finishBlockExpression();
-                return new ForDoExpression(pat, collection, guard, new ExpressionStatement(body));
-            } else {
-                consume(TokenType.YIELD);
-                var body = finishBlockExpression();
-                return new ForYieldExpression(pat, collection, guard, new ExpressionParameter(body));
-            }
+            consume(TokenType.YIELD);
+            var body = finishBlockExpression();
+            return new ForYieldExpression(pat, collection, guard, new ExpressionParameter(body));
         } else if(match(TokenType.DO)) {
             return finishBlockExpression();
         } else if(match(TokenType.LBRACKET)) {
@@ -824,29 +854,6 @@ public class MyLangParser {
         } else {
             return literal();
         }
-    }
-
-    private Statement parseStatementOrExpression() {
-        if(match(TokenType.SEMICOLON)) return new EmptyStatement(previous());
-        var start = current;
-        if(match(TokenType.IF)) {
-            var condition = parseExpression();
-            if(match(TokenType.DO)) {
-                var body = finishBlockExpression();
-                return new IfStatement(condition, new ExpressionStatement(body));
-            } else {
-                current = start;
-            }
-        }
-        var left = parseExpression();
-        Statement resulting;
-        if((match(TokenType.ASSIGN))) {
-            var rightHandSide = parseExpression();
-            resulting = makeAssigment(left, rightHandSide);
-        } else {
-            resulting = new ExpressionStatement(left);
-        }
-        return resulting;
     }
 
     private Parameter parseParameter() {

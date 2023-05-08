@@ -22,7 +22,7 @@ fun main() do
 
     for interface in interfaces do 
         interface.generate();
-    end;
+    end
 
     print("}");
 end
@@ -56,7 +56,7 @@ class Interface where
         print("public static interface ", this.name, "Visitor<T> {");
         for constructor in this.constructors do 
             print("public T visit", constructor.name, "(", constructor.name, " value);");
-        end;
+        end
         print("}");
     end
 end;
@@ -77,13 +77,16 @@ fun combineInterfaces(string: String[]): String do
     var result: String := string[0];
     for interface in string.rest do 
         result := result + ", "+interface;
-    end;
+    end
     result
 end;
 
 fun getInterfacesIn(string: String): Interface[] do 
     val interfaces: Interface[] := [];
-    val declarations := for str in split(string, ";") if strip(str) != "" yield strip(str) end;
+    val declarations := for str in split(string, ";") 
+        if strip(str) != "" 
+            yield 
+            strip(str) end;
     for declaration in declarations do 
         val interface := Interface();
         val parts := split(declaration, "=");
@@ -96,7 +99,7 @@ fun getInterfacesIn(string: String): Interface[] do
             interface.constructors := [];
         end;
         interfaces.push(interface);
-    end;
+    end
     interfaces
 end
 
@@ -114,6 +117,6 @@ fun getConstructors(string: String, interface: String): Type[] do
         constructor.fields := if constructorParts.length < 2 then "" else strip(constructorParts[1]);
         constructor.interface := interface;
         constructors.push(constructor);
-    end;
+    end
     constructors
 end
