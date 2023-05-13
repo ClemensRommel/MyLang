@@ -1,0 +1,50 @@
+type Scheibe := Number;
+
+fun zug(xs: Scheibe[], ys: Scheibe[]) do 
+    ys.push(xs.pop());
+    druckeZustand();
+end
+
+fun stapel(anzahl: Number): Scheibe[] do 
+    val ergebnis: Scheibe[] := [];
+    for i in [1..anzahl+1] do
+        ergebnis.prepend(i);
+    end 
+    ergebnis 
+end
+
+fun neuesHanoiMit(anzahl: Number): (Scheibe[], Scheibe[], Scheibe[]) := (stapel(anzahl), [], []);
+
+fun verschiebe(anzahl: Number, von: Scheibe[], nach: Scheibe[], lager: Scheibe[]) do 
+    match anzahl do
+        case 1 := zug(von, nach);
+        case n := do 
+            verschiebe(n-1, von, lager, nach);
+            zug(von, nach);
+            verschiebe(n-1, lager, nach, von);
+        end;
+    end 
+end
+
+val scheibenZahl := 20;
+
+val (erstes, zweites, drittes) := neuesHanoiMit(scheibenZahl);
+
+fun druckeZustand() do 
+    /* print("--+---+--");
+    for i in [0..scheibenZahl] do 
+        print(
+            if erstes.length > i then erstes[i]+"" else " ",
+            " | ",
+            if zweites.length > i then zweites[i]+"" else " ",
+            " | ",
+            if drittes.length > i then drittes[i]+"" else " "
+        );
+    end */
+end
+
+fun main() do 
+    druckeZustand();
+    verschiebe(scheibenZahl, erstes, zweites, drittes);
+    print(erstes, zweites, drittes);
+end
