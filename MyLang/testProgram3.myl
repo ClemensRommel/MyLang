@@ -1,0 +1,8 @@
+fun test[A](a: A): Void do 
+    print(a);
+    test.[(A, A)]((a, a));
+end
+
+fun main() do 
+    test.[Number](3);
+end
