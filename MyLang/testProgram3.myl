@@ -1,8 +1,39 @@
-fun test[A](a: A): Void do 
-    print(a);
-    test.[(A, A)]((a, a));
+class Example(A) where 
+    val backing: A[] := [];
+
+    fun getAt(index: Number): A := backing[index];
+
+    fun setAt(index: Number, value: A) do 
+        backing[index] := value;
+    end
 end
 
-fun main() do 
-    test.[Number](3);
+enum Option(A) where 
+    None(),
+    Some(A);
 end
+
+type OptionalNumber := Option(Number);
+
+type TripleOf(A) := (A, A, A);
+
+
+// irgendwann denkbar
+// anonyme typfunktionen
+type Tripler := type(A) := (A, A, A);
+
+// higher kinded types
+type ApplyToTriple(F: type(Type): Type): type(Type): Type := type(A) := F((A, A, A));
+type TripleOptionaler := ApplyToTriple(Option);
+// GADTS
+enum MaybeStringOrNumberOrSomethingElse(A) where 
+    SomeString(A): MaybeStringOrNumberOrSomethingElse(String),
+    SomeNumber(A): MaybeStringOrNumberOrSomethingElse(Number),
+    SomethingElse(A): MaybeStringOrNumberOrSomethingElse(A);
+end
+
+fun f[A](x: MaybeStringOrNumberOrSomethingElse(A)) : A := match x do 
+    case SomeString(text) := text + " and more";
+    case SomeNumber(number) := number * 2;
+    case SomethingElse(x) := x;
+end;

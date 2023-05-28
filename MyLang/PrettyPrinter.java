@@ -944,13 +944,28 @@ public class PrettyPrinter implements
         builder.append("(");
         builder.append("for[");
         boolean needComma = false;
-        for(var param : g.typeParams()) {
+        for(var param : g.t().typeParams()) {
             if(needComma) builder.append(", ");
             builder.append(param.lexeme());
             needComma = true;
         }
         builder.append("] ");
-        g.type().accept(this);
+        g.t().body().accept(this);
+        builder.append(")");
+        return null;
+    }
+    @Override
+    public Void visitTypeFunction(TypeFunction t) {
+        builder.append("(");
+        builder.append("type(");
+        boolean needComma = false;
+        for(var param: t.typeParams()) {
+            if(needComma) builder.append(", ");
+            builder.append(param.lexeme());
+            needComma = true;
+        }
+        builder.append(") := ");
+        t.body().accept(this);
         builder.append(")");
         return null;
     }

@@ -212,6 +212,10 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
     }
     @Override
     public TypeRep visitGenericType(GenericType g) {
-        return new GenericType(g.typeParams(), normalize(g.type(), tc), g.env());
+        return new GenericType((TypeFunction) g.t().accept(this));
+    }
+    @Override
+    public TypeRep visitTypeFunction(TypeFunction t) {
+        return new TypeFunction(t.typeParams(), normalize(t.body(), tc), t.env());
     }
 }

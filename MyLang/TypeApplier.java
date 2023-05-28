@@ -1,48 +1,44 @@
 package MyLang;
 
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.stream.*;
 
 import static MyLang.MyLangAST.*;
 
 public class TypeApplier implements TypeRepVisitor<TypeRep> {
     private Typechecker tc;
+    private LinkedList<Map<String, TypeRep>> typeArgs = new LinkedList<>();
+    {
+        typeArgs.push(new HashMap<>());
+    }
+
+    private boolean inferMode = false;
 
     public TypeApplier(Typechecker t) {
         tc = t;
     }
 
-    public TypeRep apply(TypeRep t, List<TypeRep> args, boolean inferMode) {
-        if(tc.env.normalize(t, tc) instanceof GenericType g) {
-            if(g.typeParams().size() != args.size()) {
-                if(!inferMode) tc.error("Expected "+
-                    g.typeParams().size()+
-                    " Type Parameters but got "+
-                    args.size()+
-                    " to type "+tc.p.prettyPrint(t));
-                return Typechecker.unknown();
-            }
-            tc.openScope();
-            for(int i  = 0; i < args.size(); i++) {
-                tc.env.addType(g.typeParams().get(i).lexeme(), args.get(i));
-            }
-            var result = g.type().accept(this);
-            tc.closeScope();
-            return result;
-        } else {
-            StringBuilder arguments = new StringBuilder();
-            arguments.append("[");
-            boolean needComma = false;
-            for(var param : args) {
-                if(needComma) arguments.append(", ");
-                arguments.append(tc.p.prettyPrint(param));
-                needComma = true;
-            }
-            arguments.append("]");
-            if(!inferMode) tc.error("Tried to apply non-generic Type "+tc.p.prettyPrint(t) + "' to type Arguments "+arguments.toString());
+    public TypeRep apply(TypeFunction t, List<TypeRep> args, boolean inferMode) {
+        this.inferMode = inferMode;
+        assert typeArgs.size() == 1;
+        if(t.typeParams().size() != args.size()) {
+            if(!inferMode) tc.error("Expected "+
+                t.typeParams().size()+
+                " Type Parameters but got "+
+                args.size()+
+                " to type "+tc.p.prettyPrint(t));
             return Typechecker.unknown();
         }
+        for(int i  = 0; i < args.size(); i++) {
+            typeArgs.peek().put(t.typeParams().get(i).lexeme(), args.get(i));
+        }
+        var result = t.body().accept(this);
+        typeArgs.peek().clear();
+        assert typeArgs.size() == 1;
+        return result;
     }
     @Override
     public TypeRep visitTypeIdentifierRep(TypeIdentifierRep i) {return i;}
@@ -83,16 +79,27 @@ public class TypeApplier implements TypeRepVisitor<TypeRep> {
     public TypeRep visitClassType(ClassType c) {return c;}
     @Override
     public TypeRep visitGenericType(GenericType g) {
-        throw new RuntimeException("Reached a nested Generic type while applying type "+tc.p.prettyPrint(g));
+        return new GenericType((TypeFunction) g.t().accept(this));
     }
     @Override
     public TypeRep visitTypeVar(TypeVar t) {
-        if(tc.env.typeExists(t.name().lexeme())) {
-            return tc.env.getTypeByName(t.name().lexeme());
-        } else {
-            tc.error("Undefined type Variable '"+t.name().lexeme());
-            return t;
+        for(var map: typeArgs) {
+            if(map.containsKey(t.name().lexeme())) {
+                return map.get(t.name().lexeme());
+            } else {
+                continue;
+            }
         }
+        tc.error("Could not find Type Variable "+t.name().lexeme());
+        return t;
     }
 
+    @Override
+    public TypeRep visitTypeFunction(TypeFunction t) {
+        typeArgs.push(t.typeParams().stream()
+            .collect(Collectors.toMap(tp -> tp.lexeme(), tp -> new TypeVar(tp, t.env()))));
+        var newBody = t.body().accept(this);
+        typeArgs.pop();
+        return new TypeFunction(t.typeParams(), newBody, t.env());
+    }
 }

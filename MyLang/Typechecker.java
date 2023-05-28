@@ -315,7 +315,8 @@ public class Typechecker implements
                 env);
         closeScope();
         if(!f.typeParams().isEmpty()) {
-            return new GenericType(f.typeParams(), type, env);
+            var result = new GenericType((TypeFunction) env.normalize(new TypeFunction(f.typeParams(), type, env), this));
+            return result;
         } else {
             return type;
         }
@@ -485,6 +486,14 @@ public class Typechecker implements
             return true;
         }
         if(to.equals(voidType)) {
+            return true;
+        }
+        if(from instanceof TypeFunction t) {
+            error("Cannot use type function as real type: "+p.prettyPrint(t));
+            return true;
+        }
+        if(to instanceof TypeFunction t) {
+            error("Cannot use type function as real type: "+p.prettyPrint(t));
             return true;
         }
         return s.isSubtypeOf(to, from);
@@ -1365,6 +1374,16 @@ public class Typechecker implements
         return null;
     }
     TypeRep applyTo(TypeRep t, List<TypeRep> args) {
-        return ta.apply(t, args, false);
+        TypeFunction tf;
+        if(t instanceof GenericType g) {
+            tf = g.t();
+        } else if(t instanceof TypeFunction f) {
+            tf = f;
+        } else {
+            error("Tried to apply non-generic type "+p.prettyPrint(t)+"to type args "+
+                args.stream().map(p::prettyPrint).toList().toString());
+            return Typechecker.unknown();
+        }
+        return ta.apply(tf, args, false);
     }
 }

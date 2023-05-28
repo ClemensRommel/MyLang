@@ -334,6 +334,18 @@ public class TypeInferrer
     @Override
     public TypeRep visitInstExpression(InstExpression i) {
         var instantiated = infer(i.instantiated());
-        return tc.ta.apply(instantiated, i.args().stream().map(tc.tcomp::compileType).toList(), true);
+        TypeFunction tf;
+        if(instantiated instanceof GenericType g) {
+            tf = g.t();
+        } else if(instantiated instanceof TypeFunction t) {
+            tf = t; 
+        } else {
+            return Typechecker.unknown();
+        }
+        var resulting = tc.ta.apply(tf, i.args().stream()
+            .map(tc.tcomp::compileType)
+            .map(ta -> tc.env.normalize(ta, tc))
+            .toList(), true);
+        return resulting;
     }
 }

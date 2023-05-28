@@ -7,7 +7,7 @@ Expression < MyLangAST = NumericLiteral: double value
                        | UnaryOperation: Token operator, Expression operand
                        | FunctionCall: Expression callee, List<Parameter> arguments, Map<String, Expression> named
                        | InstExpression: Expression instantiated, List<Type> args
-                       | unctionExpression: String optionalName, ParameterInformation parameters, Expression body, Type retType
+                       | FunctionExpression: String optionalName, ParameterInformation parameters, Expression body, Type retType
                        | IfExpression: Expression condition, Expression thenBranch, Expression elseBranch
                        | IfValExpression: Pattern pat, Expression matched, Expression thenBranch, Expression elseBranch
                        | ListExpression: List<Parameter> elements
@@ -100,7 +100,8 @@ TypeRep < MyLangAST =
             TypeRep varargsType, 
             TypeRep returnType, 
             TypeEnv env
-    |   GenericType: List<Token> typeParams, TypeRep type, TypeEnv env
+    |   TypeFunction: List<Token> typeParams, TypeRep body, TypeEnv env
+    |   GenericType: TypeFunction t
     |   TypeVar: Token name, TypeEnv env
     |   ClassType: 
             Token name, 

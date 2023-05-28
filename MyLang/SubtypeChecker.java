@@ -150,4 +150,8 @@ public class SubtypeChecker implements TypeRepVisitor<Boolean> {
     public Boolean visitTypeVar(TypeVar t) {
         return t.equals(target);
     }
+    @Override
+    public Boolean visitTypeFunction(TypeFunction t) {
+        return false;
+    }
 }

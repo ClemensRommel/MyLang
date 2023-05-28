@@ -399,6 +399,7 @@ public <T> T accept(TypeVisitor<T> visitor) {
 public static interface TypeRepVisitor<T> {
 public T visitTypeIdentifierRep(TypeIdentifierRep value);
 public T visitFunctionTypeRep(FunctionTypeRep value);
+public T visitTypeFunction(TypeFunction value);
 public T visitGenericType(GenericType value);
 public T visitTypeVar(TypeVar value);
 public T visitClassType(ClassType value);
@@ -428,7 +429,11 @@ public static record FunctionTypeRep(List<TypeRep> parameters,
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitFunctionTypeRep(this);
 }}
-public static record GenericType(List<Token> typeParams, TypeRep type, TypeEnv env) implements TypeRep {
+public static record TypeFunction(List<Token> typeParams, TypeRep body, TypeEnv env) implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitTypeFunction(this);
+}}
+public static record GenericType(TypeFunction t) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitGenericType(this);
 }}
