@@ -141,7 +141,7 @@ public final class MyLangScanner {
             default -> {
                 if(Character.isDigit(previous())) {
                     yield numberLiteral();
-                } else if(Character.isLetter(previous())) {
+                } else if(Character.isLetter(previous()) || previous() == '_') {
                     yield identifier();
                 } else {
                     yield new Token(TokenType.ERROR, "" + previous(), line);
@@ -169,7 +169,7 @@ public final class MyLangScanner {
     private Token identifier() {
         StringBuilder sb = new StringBuilder();
         sb.append(previous());
-        while(Character.isLetterOrDigit(peek())) {
+        while(Character.isLetterOrDigit(peek()) || peek() == '_') {
             sb.append(next());
         }
         var identifier = sb.toString();

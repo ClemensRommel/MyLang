@@ -75,4 +75,13 @@ public record TypeCompiler(Typechecker tc) implements TypeVisitor<TypeRep> {
             .map(this::compileType)
             .toList());
     }
+    @Override
+    public TypeRep visitTypeAppl(TypeAppl t) {
+        return new TypeApplication(
+            compileType(t.applied()),
+            t.args().stream()
+                .map(this::compileType) 
+                .toList()
+        );
+    }
 }

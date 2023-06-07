@@ -23,7 +23,7 @@ public class TypeApplier implements TypeRepVisitor<TypeRep> {
 
     public TypeRep apply(TypeFunction t, List<TypeRep> args, boolean inferMode) {
         this.inferMode = inferMode;
-        assert typeArgs.size() == 1;
+        var mapsBefore = typeArgs.size();
         if(t.typeParams().size() != args.size()) {
             if(!inferMode) tc.error("Expected "+
                 t.typeParams().size()+
@@ -37,11 +37,18 @@ public class TypeApplier implements TypeRepVisitor<TypeRep> {
         }
         var result = t.body().accept(this);
         typeArgs.peek().clear();
-        assert typeArgs.size() == 1;
+        assert typeArgs.size() == mapsBefore;
         return result;
     }
     @Override
-    public TypeRep visitTypeIdentifierRep(TypeIdentifierRep i) {return i;}
+    public TypeRep visitTypeIdentifierRep(TypeIdentifierRep i) {
+        if (i.env().typeExists(i.name().lexeme())) {
+            if (i.env().getTypeByName(i.name().lexeme()) instanceof TypeVar v) {
+                return v.accept(this);
+            }
+        }
+        return i;
+    }
     @Override
     public TypeRep visitFunctionTypeRep(FunctionTypeRep f) {
         return new FunctionTypeRep(
@@ -74,7 +81,27 @@ public class TypeApplier implements TypeRepVisitor<TypeRep> {
     @Override
     public TypeRep visitModule(MyLangAST.Module m) {return m;}
     @Override
-    public TypeRep visitEnumType(EnumType t) {return t;}
+    public TypeRep visitEnumType(EnumType t) {
+        var resulting = new EnumType(
+            t.name(), 
+            t.variants()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(
+                    e -> e.getKey(),
+                    e -> e.getValue().accept(this)
+                )),
+            t.methods()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(
+                    e -> e.getKey(),
+                    e -> e.getValue().accept(this)
+                    )
+                ), 
+            t.env());
+        return resulting;
+    }
     @Override
     public TypeRep visitClassType(ClassType c) {return c;}
     @Override
@@ -101,5 +128,11 @@ public class TypeApplier implements TypeRepVisitor<TypeRep> {
         var newBody = t.body().accept(this);
         typeArgs.pop();
         return new TypeFunction(t.typeParams(), newBody, t.env());
+    }
+    @Override
+    public TypeRep visitTypeApplication(TypeApplication t) {
+        var callee = t.applied().accept(this);
+        var args = t.params().stream().map(tp -> tp.accept(this)).toList();
+        return new TypeApplication(callee, args);
     }
 }

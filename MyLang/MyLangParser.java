@@ -228,6 +228,15 @@ public class MyLangParser {
             } else if(match(TokenType.LBRACKET)) {
                 consume(TokenType.RBRACKET);
                 left = new ListOf(left);
+            } else if(match(TokenType.LPAREN)) {
+                List<Type> args = new ArrayList<>();
+                if(!match(TokenType.RPAREN)) {
+                    do {
+                        args.add(parseType());
+                    } while(match(TokenType.COMMA));
+                    consume(TokenType.RPAREN);
+                }
+                left = new TypeAppl(left, args);
             } else {
                 break;
             }
@@ -356,6 +365,16 @@ public class MyLangParser {
     }
     private Declaration finalizeEnumDeclaration(boolean export) {
         var name = consume(TokenType.IDENTIFIER);
+        List<Token> args = null;
+        if(match(TokenType.LPAREN)) {
+            args = new ArrayList<>();
+            if(!match(TokenType.RPAREN)) {
+                do {
+                    args.add(consume(TokenType.IDENTIFIER));
+                } while(match(TokenType.COMMA));
+                consume(TokenType.RPAREN);
+            }
+        }
         consume(TokenType.WHERE);
         List<EnumConstructor> variants = new ArrayList<>();
         List<FunctionDeclaration> methods = new ArrayList<>();
@@ -373,7 +392,7 @@ public class MyLangParser {
             consume(TokenType.FUN);
             methods.add(finalizeFunctionDeclaration(true));
         }
-        var result = new EnumDeclaration(name, variants, export, methods);
+        var result = new EnumDeclaration(name, args, variants, export, methods);
         return result;
     }
 
@@ -392,10 +411,20 @@ public class MyLangParser {
 
     private Declaration finalizeTypeDefDeclaration(boolean export) {
         var name = consume(TokenType.IDENTIFIER);
+        List<Token> args = null;
+        if(match(TokenType.LPAREN)) {
+            args = new ArrayList<>();
+            if(!match(TokenType.RPAREN)) {
+                do {
+                    args.add(consume(TokenType.IDENTIFIER));
+                } while(match(TokenType.COMMA));
+                consume(TokenType.RPAREN);
+            }
+        }
         consume(TokenType.ASSIGN);
         var def = parseType();
         consume(TokenType.SEMICOLON);
-        return new TypeDefDeclaration(name, def, export);
+        return new TypeDefDeclaration(name, args, def, export);
     }
 
     private Import finalizeImportDeclaration() {
@@ -502,6 +531,16 @@ public class MyLangParser {
 
     private Declaration finalizeClassDeclaration(boolean export) {
         var name = consume(TokenType.IDENTIFIER);
+        List<Token> args = null;
+        if(match(TokenType.LPAREN)) {
+            args = new ArrayList<>();
+            if(!match(TokenType.RPAREN)) {
+                do {
+                    args.add(consume(TokenType.IDENTIFIER));
+                } while(match(TokenType.COMMA));
+                consume(TokenType.RPAREN);
+            }
+        }
         consume(TokenType.WHERE);
         List<Declaration> members = new ArrayList<>();
         ClassConstructor constructor = null;
@@ -526,6 +565,7 @@ public class MyLangParser {
         consume(TokenType.SEMICOLON);
         return new ClassDeclaration(
                 name, 
+                args,
                 members, 
                 constructor, 
                 export);

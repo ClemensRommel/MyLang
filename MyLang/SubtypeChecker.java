@@ -154,4 +154,8 @@ public class SubtypeChecker implements TypeRepVisitor<Boolean> {
     public Boolean visitTypeFunction(TypeFunction t) {
         return false;
     }
+    @Override
+    public Boolean visitTypeApplication(TypeApplication t) {
+        throw new RuntimeException("This should be unreachable: there should not be unapplied functions in the subtype checker");
+    }
 }

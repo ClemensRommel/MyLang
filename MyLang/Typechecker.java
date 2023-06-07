@@ -230,7 +230,7 @@ public class Typechecker implements
                 env.exportType(c.Name().lexeme());
             }
         } else if(decl instanceof TypeDefDeclaration t) {
-            var definition = tcomp.compileType(t.definition());
+            var definition = typeDefType(t.args(), t.definition());
             declareNewType(t.Name().lexeme(), definition);
             if(t.export()) {
                 env.exportType(t.Name().lexeme());
@@ -239,7 +239,7 @@ public class Typechecker implements
             declareNewType(e.Name().lexeme(), enumTypeOf(e));
             for(var constructor: e.variants()) {
                 declareType(constructor.name().lexeme(),
-                    enumConstructorTypeOf(constructor, e.Name()), false);
+                    enumConstructorTypeOf(e.args(), constructor, e.Name(), true), false);
                 if(e.export()) {
                     env.exportValue(constructor.name().lexeme());
                 }
@@ -247,6 +247,22 @@ public class Typechecker implements
             if(e.export()) {
                 env.exportType(e.Name().lexeme());
             }
+        }
+    }
+
+    private TypeRep typeDefType(List<Token> args, Type definition) {
+        if(args == null) {
+            return tcomp.compileType(definition);
+        } else {
+            openScope();
+            for(var param : args) {
+                declareNewType(
+                    param.lexeme(), 
+                    new TypeVar(param, env));
+            }
+            var body = env.normalize(tcomp.compileType(definition), this);
+            closeScope();
+            return new TypeFunction(args, body, env);
         }
     }
 
@@ -277,27 +293,67 @@ public class Typechecker implements
     }
 
     TypeRep enumTypeOf(EnumDeclaration e) {
-        return new EnumType(e.Name(), 
-            e.variants().stream().collect(Collectors.toMap(
-                c -> c.name().lexeme(), 
-                c -> enumConstructorTypeOf(c, e.Name())
-                )
-            ),
-            e.methods().stream().collect(Collectors.toMap(
-                d -> d.Name().lexeme(), 
-                d -> functionTypeOf(d))),
-            env);
+        if(e.args() == null) {
+            return new EnumType(e.Name(), 
+                e.variants().stream().collect(Collectors.toMap(
+                    c -> c.name().lexeme(), 
+                    c -> enumConstructorTypeOf(e.args(), c, e.Name(), false)
+                    )
+                ),
+                e.methods().stream().collect(Collectors.toMap(
+                    d -> d.Name().lexeme(), 
+                    d -> functionTypeOf(d))),
+                env);
+        } else {
+            openScope();
+            for(var param : e.args()) {
+                declareNewType(param.lexeme(), new TypeVar(param, env));
+            }
+            var body = new EnumType(e.Name(), 
+                e.variants().stream().collect(Collectors.toMap(
+                    c -> c.name().lexeme(), 
+                    c -> enumConstructorTypeOf(e.args(), c, e.Name(), false)
+                    )
+                ),
+                e.methods().stream().collect(Collectors.toMap(
+                    d -> d.Name().lexeme(), 
+                    d -> functionTypeOf(d))),
+                env);
+            closeScope();
+            return new TypeFunction(e.args(), body, env);
+        }
     }
-    TypeRep enumConstructorTypeOf(EnumConstructor e, Token enumName) {
-        return new FunctionTypeRep(
+    TypeRep enumConstructorTypeOf(List<Token> args, EnumConstructor e, Token enumName, boolean function) {
+        openScope();
+        if(args != null) {
+            for(var param : args) {
+                declareNewType(param.lexeme(), new TypeVar(param, env));
+            }
+        } 
+        TypeRep returnType = new TypeIdentifierRep(enumName, env);
+        if(args != null) {
+            returnType = new TypeApplication(
+                returnType,
+                args.stream()
+                    .map(p -> (TypeRep) new TypeVar(p, env))
+                    .toList()
+            );
+        }
+        var body = new FunctionTypeRep(
             e.parameters().stream().map(tcomp::compileType).toList(),
             List.of(),
             Map.of(),
             Map.of(),
             null,
-            new TypeIdentifierRep(enumName, env),
+            returnType,
             env
         );
+        closeScope();
+        if(args != null && function) {
+            return new GenericType(new TypeFunction(args, this.env.normalize(body, this), env));
+        } else {
+            return body;
+        }
     }
 
     TypeRep functionTypeOf(FunctionDeclaration f) {
@@ -1175,13 +1231,28 @@ public class Typechecker implements
     @Override
     public Void visitEnumDeclaration(EnumDeclaration e) {
         for(var constructor : e.variants()) { // Check that all Constructors are Well-Formed
-            env.normalize(enumConstructorTypeOf(constructor, e.Name()), this); 
+            env.normalize(enumConstructorTypeOf(e.args(), constructor, e.Name(), false), this); 
         }
         var enumType = env.getTypeByName(e.Name().lexeme());
+
         openScope();
             boolean prevInClass = inClass;
             inClass = true;
+
+           if(e.args() != null && !e.args().isEmpty()) {
+                enumType = new TypeApplication(
+                    enumType, 
+                    e.args().stream().map(x -> (TypeRep) new TypeIdentifierRep(x, env)).toList()
+                );
+            }
+
             declareType("this", enumType, false);
+
+            if(e.args() != null)
+                for(var x : e.args()) {
+                    declareNewType(x.lexeme(), new TypeVar(x, env));
+                }
+
             
             for(var method : e.methods()) {
                 checkDeclaration(method);    
@@ -1194,11 +1265,10 @@ public class Typechecker implements
     @Override
     public Void visitMatchExpression(MatchExpression m) {
         var matchedType = inferType(m.matched());
-        var resultType = inferType(m.branches().get(0));
         for(int i = 0; i < m.cases().size(); i++) {
             openScope();
                 checkPattern(matchedType, m.cases().get(i), false);
-                checkType(resultType, m.branches().get(i));
+                checkType(checkTarget, m.branches().get(i));
             closeScope();
         }
 
@@ -1262,7 +1332,7 @@ public class Typechecker implements
                 }
             }
         } else {
-            error("Cannot match on Constructor of non-enum type '"+
+            error("Cannot match on Constructor " + p.constr().lexeme() + " of non-enum type '"+
                 this.p.prettyPrint(checkTarget)+"'");
         }
         return null;
@@ -1292,6 +1362,8 @@ public class Typechecker implements
             for(int i = 0; i < t.elements().size(); i++) {
                 checkPattern(t.elements().get(i), p.subPatterns().get(i), isMutable);
             }
+        } else {
+            error("Tried to match on non-tuple type "+this.p.prettyPrint(checkTarget) + "in pattern "+this.p.prettyPrint(p));
         }
         return null;
     }
@@ -1380,7 +1452,7 @@ public class Typechecker implements
         } else if(t instanceof TypeFunction f) {
             tf = f;
         } else {
-            error("Tried to apply non-generic type "+p.prettyPrint(t)+"to type args "+
+            error("Tried to apply non-generic type "+p.prettyPrint(t)+" to type args "+
                 args.stream().map(p::prettyPrint).toList().toString());
             return Typechecker.unknown();
         }

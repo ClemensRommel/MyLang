@@ -15,6 +15,13 @@ public class PrettyPrinter implements
         builder = null;
         return result;
     }
+    public String prettyPrint(Pattern t) {
+        builder = new StringBuilder();
+        t.accept(this);
+        var result = builder.toString();
+        builder = null;
+        return result;
+    }
     public String prettyPrint(Setter s) {
         builder = new StringBuilder();
         s.accept(this);
@@ -966,6 +973,32 @@ public class PrettyPrinter implements
         }
         builder.append(") := ");
         t.body().accept(this);
+        builder.append(")");
+        return null;
+    }
+    @Override
+    public Void visitTypeApplication(TypeApplication t) {
+        t.applied().accept(this);
+        builder.append("(");
+        boolean needComma = false;
+        for(var param : t.params()) {
+            if(needComma) builder.append(", ");
+            param.accept(this);
+            needComma = true;
+        }
+        builder.append(")");
+        return null;
+    }
+    @Override
+    public Void visitTypeAppl(TypeAppl t) {
+        t.applied().accept(this);
+        builder.append("(");
+        boolean needComma = false;
+        for(var param : t.args()) {
+            if(needComma) builder.append(", ");
+            param.accept(this);
+            needComma = true;
+        }
         builder.append(")");
         return null;
     }

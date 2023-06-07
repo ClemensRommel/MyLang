@@ -167,15 +167,15 @@ public static record FunctionDeclaration(Token Name, List<Token> typeParams, Par
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitFunctionDeclaration(this);
 }}
-public static record ClassDeclaration(Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor, boolean export) implements Declaration {
+public static record ClassDeclaration(Token Name, List<Token> args, List<Declaration> fieldsAndMethods, ClassConstructor constructor, boolean export) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitClassDeclaration(this);
 }}
-public static record EnumDeclaration(Token Name, List<EnumConstructor> variants, boolean export, List<FunctionDeclaration> methods) implements Declaration {
+public static record EnumDeclaration(Token Name, List<Token> args, List<EnumConstructor> variants, boolean export, List<FunctionDeclaration> methods) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitEnumDeclaration(this);
 }}
-public static record TypeDefDeclaration(Token Name, Type definition, boolean export) implements Declaration {
+public static record TypeDefDeclaration(Token Name, List<Token> args, Type definition, boolean export) implements Declaration {
 public <T> T accept(DeclarationVisitor<T> visitor) {
     return visitor.visitTypeDefDeclaration(this);
 }}
@@ -347,6 +347,7 @@ public T visitFunctionType(FunctionType value);
 public T visitListOf(ListOf value);
 public T visitTuple(Tuple value);
 public T visitAccess(Access value);
+public T visitTypeAppl(TypeAppl value);
 public T visitVoidType(VoidType value);
 public T visitNumberType(NumberType value);
 public T visitBooleanType(BooleanType value);
@@ -380,6 +381,10 @@ public static record Access(Type accessed, Token name) implements Type {
 public <T> T accept(TypeVisitor<T> visitor) {
     return visitor.visitAccess(this);
 }}
+public static record TypeAppl(Type applied, List<Type> args) implements Type {
+public <T> T accept(TypeVisitor<T> visitor) {
+    return visitor.visitTypeAppl(this);
+}}
 public static record VoidType() implements Type {
 public <T> T accept(TypeVisitor<T> visitor) {
     return visitor.visitVoidType(this);
@@ -400,6 +405,7 @@ public static interface TypeRepVisitor<T> {
 public T visitTypeIdentifierRep(TypeIdentifierRep value);
 public T visitFunctionTypeRep(FunctionTypeRep value);
 public T visitTypeFunction(TypeFunction value);
+public T visitTypeApplication(TypeApplication value);
 public T visitGenericType(GenericType value);
 public T visitTypeVar(TypeVar value);
 public T visitClassType(ClassType value);
@@ -432,6 +438,10 @@ public <T> T accept(TypeRepVisitor<T> visitor) {
 public static record TypeFunction(List<Token> typeParams, TypeRep body, TypeEnv env) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitTypeFunction(this);
+}}
+public static record TypeApplication(TypeRep applied, List<TypeRep> params) implements TypeRep {
+public <T> T accept(TypeRepVisitor<T> visitor) {
+    return visitor.visitTypeApplication(this);
 }}
 public static record GenericType(TypeFunction t) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {

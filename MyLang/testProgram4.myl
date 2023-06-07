@@ -1,0 +1,23 @@
+enum Option(T) where 
+    Some(T),
+    None();
+
+    fun or_else(f : Fun(): T): T := match this do 
+        case Some(x) := x;
+        case None() := f();
+    end;
+end
+
+class Test(A, B) where 
+    var element : A;
+    var next : Option(Test(B, A)) := None.[Test(B, A)]();
+    new(x : A) do 
+        element := x;
+    end
+end
+
+fun defaultize(on: Option(Number)): Number := on.or_else(fun() := 0);
+fun main() do 
+    print(defaultize(Some.[Number](3)));
+    print(defaultize(None.[Number]()));
+end

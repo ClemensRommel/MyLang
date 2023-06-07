@@ -30,9 +30,9 @@ Declaration < MyLangAST, DeclarationOrStatement, ConstructorOrDeclaration =
         VariableDeclaration: Pattern pat, Type type, Expression initializer, boolean isReassignable, boolean export
     |   ValElseDeclaration:  Pattern pat, Expression initializer, Expression elseBranch
     |   FunctionDeclaration: Token Name, List<Token> typeParams, ParameterInformation parameters, Expression body, Type retType, boolean export
-    |   ClassDeclaration:    Token Name, List<Declaration> fieldsAndMethods, ClassConstructor constructor, boolean export
-    |   EnumDeclaration:     Token Name, List<EnumConstructor> variants, boolean export, List<FunctionDeclaration> methods
-    |   TypeDefDeclaration:  Token Name, Type definition, boolean export
+    |   ClassDeclaration:    Token Name, List<Token> args, List<Declaration> fieldsAndMethods, ClassConstructor constructor, boolean export
+    |   EnumDeclaration:     Token Name, List<Token> args, List<EnumConstructor> variants, boolean export, List<FunctionDeclaration> methods
+    |   TypeDefDeclaration:  Token Name, List<Token> args, Type definition, boolean export
     |   ModuleDeclaration:   MyLangPath Name
     |   EmptyDeclaration:    Token semicolon;
 
@@ -85,6 +85,7 @@ Type < MyLangAST =
     |   ListOf: Type elements
     |   Tuple:  List<Type> types
     |   Access: Type accessed, Token name
+    |   TypeAppl: Type applied, List<Type> args
     |   VoidType: 
     |   NumberType: 
     |   BooleanType: 
@@ -101,6 +102,7 @@ TypeRep < MyLangAST =
             TypeRep returnType, 
             TypeEnv env
     |   TypeFunction: List<Token> typeParams, TypeRep body, TypeEnv env
+    |   TypeApplication: TypeRep applied, List<TypeRep> params
     |   GenericType: TypeFunction t
     |   TypeVar: Token name, TypeEnv env
     |   ClassType: 

@@ -193,10 +193,7 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
     }
     @Override
     public String toString() {
-        return values.keySet().toString() + 
-            ", "+types.keySet().toString()+
-            " exported: "+exportedValues.toString() + ", "+ exportedTypes.toString()+
-            (outer != null ? " | "+outer.toString() : "");
+        return "";
     }
     @Override
     public TypeRep visitNever(Never n) {
@@ -217,5 +214,23 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
     @Override
     public TypeRep visitTypeFunction(TypeFunction t) {
         return new TypeFunction(t.typeParams(), normalize(t.body(), tc), t.env());
+    }
+    @Override
+    public TypeRep visitTypeApplication(TypeApplication t) {
+        TypeFunction tf;
+        var callee = normalize(t.applied(), tc);
+        if(callee instanceof TypeFunction tf2) {
+            tf = tf2;
+        } else {
+            tc.error("Tried to apply non-type-function "+tc.p.prettyPrint(callee)+" to type parameters "+t.params()
+                .stream().map(tc.p::prettyPrint).toList());
+            return Typechecker.unknown();
+        }
+        return normalize(
+            tc.ta.apply(
+                tf,
+                t.params().stream().map(tp -> normalize(tp, tc)).toList(),
+                false),
+            tc);
     }
 }
