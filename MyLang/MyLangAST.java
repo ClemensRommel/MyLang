@@ -450,11 +450,14 @@ public <T> T accept(TypeRepVisitor<T> visitor) {
 public static record TypeVar(Token name, TypeEnv env) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitTypeVar(this);
-}}
+}
+    public String toString() {
+            return name.lexeme();
+        }}
 public static record ClassType(Token name, 
             Map<String, TypeRep> accessors, 
             Map<String, Boolean> readability, 
-            FunctionTypeRep constructor, 
+            TypeRep constructor, 
             TypeEnv env) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitClassType(this);

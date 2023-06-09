@@ -1,47 +1,12 @@
-fun main() {
-    print(test(4));
-    val a: A := A();
-    print(a.test());
-    print(a.test2());
-    a.x := 5;
-    print(a.test());
-    print(a.test2());
-    print(with(4, test));
-}
+class Wrap(A) where
+    var wrapped : A;
+    new(x : A) do 
+        this.wrapped := x;
+    end
+end
 
-fun test(x: Number): Number := 2x + 3;
-
-class A := {
-    var x: Number := 3;
-    val y: String := "test";
-
-    fun test(): Number := 2 * this.x;
-    fun test2(): String := this.x + this.y;
-};
-
-val ursprung: Koordinate := Koordinate(
-    y: 0, x: 0);
-val liste: Number[] := [1, 2, 3];
-val liste2: Number[] := [2, 3, liste.., 5 if x > 3]
-
-val liste3 : Number[] := if bedingung then x else y;
-
-val x: Number := ursprung.x;
-class Koordinate := {
-    val x: Number;
-    val y: Number;
-
-    init({x: Number, y: Number := 0}) {
-            this.x := x;
-            this.y := y;
-        }
-    }
-
-fun with(x: Number, f: Fun(Number): Number): Number := f(x);
-
-val x: Number := 3;
-
-fun f(x: Fun(Number): Number): Number {
-    return x(2);
-}
-
+fun main() do 
+    val x := Wrap.[Number](3);
+    print(x);
+    print(x.wrapped);
+end 

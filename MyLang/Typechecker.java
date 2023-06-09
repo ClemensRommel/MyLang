@@ -53,6 +53,7 @@ public class Typechecker implements
         runner.typecheckedFiles.put(name, new MyLangAST.Module(tc.currentFileName, tc.env));
 
         if(tc.hadError) {
+            System.out.println("Following errors occured:");
             for(var error: tc.errors) {
                 System.out.println(error);
             }
@@ -224,7 +225,7 @@ public class Typechecker implements
             }
         } else if(decl instanceof ClassDeclaration c) {
             declareNewType(c.Name().lexeme(), classTypeOf(c));
-            declareType(c.Name().lexeme(), constructorTypeOf(c), false);
+            declareType(c.Name().lexeme(), constructorTypeOf(c, false), false);
             if(c.export()) {
                 env.exportValue(c.Name().lexeme());
                 env.exportType(c.Name().lexeme());
@@ -379,13 +380,26 @@ public class Typechecker implements
     }
 
     TypeRep classTypeOf(ClassDeclaration c) {
-        return new ClassType(
+        if(c.args() != null) {
+            openScope();
+            for(var param: c.args()) {
+                declareNewType(
+                    param.lexeme(), 
+                    new TypeVar(param, env));
+            }
+        }
+        TypeRep type = new ClassType(
                     c.Name(),
                     accessorsIn(c),
                     getReadability(c.fieldsAndMethods()),
-                    constructorTypeOf(c),
+                    constructorTypeOf(c, true),
                     env
                 );
+        if(c.args() != null) {
+            type = new TypeFunction(c.args(), type, env);
+            closeScope();
+        }
+        return type;
     }
 
     Map<String, Boolean> getReadability(List<Declaration> decls) {
@@ -411,26 +425,50 @@ public class Typechecker implements
         closeScope();
         return types;
     }
-    FunctionTypeRep constructorTypeOf(ClassDeclaration c) {
+    TypeRep constructorTypeOf(ClassDeclaration c, boolean inClass) {
+        TypeRep constructor;
+        TypeRep retType = 
+                    new TypeIdentifierRep(c.Name(), env);
+        if(c.args() != null) {
+            if(!inClass) {
+                openScope();
+            }
+            retType = new TypeApplication(retType,
+                c.args().stream()
+                    .map(a -> (TypeRep) new TypeVar(a, env))
+                    .toList());
+            if(!inClass) {
+                for(var param : c.args()) {
+                    declareNewType(param.lexeme(), new TypeVar(param, env));
+                }
+            }
+        }
         if(c.constructor() == null) { // Standard Constructor
-            return new FunctionTypeRep(
+            constructor =  new FunctionTypeRep(
                     List.of(),
                     List.of(),
                     Map.of(),
                     Map.of(),
                     null,
-                    new TypeIdentifierRep(c.Name(), env),
+                    retType,
                     env);
-        }
-        return new FunctionTypeRep(
+        } else
+            constructor =  new FunctionTypeRep(
                 c.constructor().parameters().types().stream().map(tcomp::compileType).toList(),
                 c.constructor().parameters().optionals().stream().map(OptionalParam::type).map(tcomp::compileType).toList(),
                 tcomp.namedTypesIn(c.constructor().parameters().named()),
                 tcomp.optionalNamedTypesIn(c.constructor().parameters().optionalNamed()),
                 tcomp.compileType(c.constructor().parameters().varargsType()),
-                new TypeIdentifierRep(c.Name(), env),
+                retType,
                 env
                 );
+
+        if(c.args() != null && !inClass) {
+            closeScope();
+            return new GenericType(new TypeFunction(c.args(), constructor, env));
+        } else {
+            return constructor;
+        }
     }
 
     void declareType(String name, TypeRep type, boolean isReassignable) {
@@ -494,10 +532,22 @@ public class Typechecker implements
     @Override
     public Void visitClassDeclaration(ClassDeclaration value) {
         var classType = env.getTypeByName(value.Name().lexeme());
+
         openScope();
             boolean prevInClass = inClass;
-            inClass = true;
+            inClass = true; 
+            if(value.args() != null) {
+                classType = env.normalize(new TypeApplication(classType,
+                    value.args().stream()
+                        .map(a -> (TypeRep) new TypeVar(a, env))
+                        .toList()), this);
+            }
             declareType("this", classType, false);
+            if(value.args() != null) {
+                for(var arg : value.args()) {
+                    declareNewType(arg.lexeme(), new TypeVar(arg, env));
+                }    
+            }
             for(Declaration declaration: value.fieldsAndMethods()) {
                 checkDeclaration(declaration);
             }
@@ -539,6 +589,7 @@ public class Typechecker implements
         from = env.normalize(from, this);
         if(to.equals(unknown()) || from.equals(unknown())) {
             hadError = true;
+            System.out.println("Had unknown");
             return true;
         }
         if(to.equals(voidType)) {
@@ -595,7 +646,8 @@ public class Typechecker implements
         error("["+name.line()+"] Unknown variable '"+name.lexeme()+"'");
     }
 
-    static TypeRep unknown() {return new UnknownType();}
+    static TypeRep unknown() {
+        return new UnknownType();}
 
     TypeRep getTypeOf(Token name) {
         return getTypeOf(name, false);
@@ -1199,6 +1251,10 @@ public class Typechecker implements
     @Override
     public Void visitSetStatement(SetStatement s) {
         TypeRep assignedType = inferSetterType(s.setter());
+        if(assignedType instanceof UnknownType) {
+            error("Setter has unknown type in "+p.prettyPrint(s));
+            unknown();
+        }
         checkType(assignedType, s.expression());
         return null;
     }
@@ -1317,7 +1373,7 @@ public class Typechecker implements
     }
     @Override
     public Void visitConstructorPattern(ConstructorPattern p) {
-        if(checkTarget instanceof EnumType e) {
+        if(env.normalize(checkTarget, this) instanceof EnumType e) {
             if(!e.variants().containsKey(p.constr().lexeme())) {
                 error("Type '"+checkTarget+"' has no constructor '"+p.constr().lexeme()+"'");
             } else {
@@ -1405,6 +1461,9 @@ public class Typechecker implements
             var propertyType = c.accessors().get(p.name().lexeme());
             if(propertyType == null) {
                 error("["+p.name().line()+"] Type "+this.p.prettyPrint(c)+" has no property  of name "+p.name().lexeme());
+            }
+            if(propertyType instanceof UnknownType) {
+                error("Property had unknown type in "+this.p.prettyPrint(p));
             }
             var isReassignable = c.readability().get(p.name().lexeme());
             if(!isReassignable && !inConstructor) {

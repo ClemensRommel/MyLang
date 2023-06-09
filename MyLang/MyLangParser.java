@@ -562,7 +562,6 @@ public class MyLangParser {
             }
         }
         inClass = prevInClass;
-        consume(TokenType.SEMICOLON);
         return new ClassDeclaration(
                 name, 
                 args,

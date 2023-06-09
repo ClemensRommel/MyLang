@@ -103,7 +103,20 @@ public class TypeApplier implements TypeRepVisitor<TypeRep> {
         return resulting;
     }
     @Override
-    public TypeRep visitClassType(ClassType c) {return c;}
+    public TypeRep visitClassType(ClassType c) {
+        return new ClassType(c.name(),
+            c.accessors()
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(
+                    x -> x.getKey(),
+                    x -> x.getValue().accept(this)
+                )),
+            c.readability(),
+            c.constructor().accept(this),
+            c.env()
+            );
+    }
     @Override
     public TypeRep visitGenericType(GenericType g) {
         return new GenericType((TypeFunction) g.t().accept(this));

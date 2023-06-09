@@ -191,9 +191,13 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
     public TypeRep visitEnumType(EnumType e) {
         return e;
     }
+
     @Override
     public String toString() {
         return "";
+    }
+    public String asString() {
+        return "("+types.toString()+values.toString()+")\n"+(outer != null ? outer.asString() : "");
     }
     @Override
     public TypeRep visitNever(Never n) {

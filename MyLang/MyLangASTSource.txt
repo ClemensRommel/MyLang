@@ -109,7 +109,7 @@ TypeRep < MyLangAST =
             Token name, 
             Map<String, TypeRep> accessors, 
             Map<String, Boolean> readability, 
-            FunctionTypeRep constructor, 
+            TypeRep constructor, 
             TypeEnv env
     |   EnumType:
             Token name,

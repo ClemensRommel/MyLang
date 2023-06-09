@@ -148,7 +148,10 @@ public class SubtypeChecker implements TypeRepVisitor<Boolean> {
     }
     @Override
     public Boolean visitTypeVar(TypeVar t) {
-        return t.equals(target);
+        if(target instanceof TypeVar t2) {
+            return t.name().lexeme().equals(t2.name().lexeme());
+        }
+        return false;
     }
     @Override
     public Boolean visitTypeFunction(TypeFunction t) {
