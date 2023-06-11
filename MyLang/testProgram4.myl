@@ -12,7 +12,7 @@ class Test(A, B) where
     var element : A;
     var next : Option(Test(B, A)) := None.[Test(B, A)]();
     new(x : A) do 
-        element := x;
+        this.element := x;
     end
 end
 

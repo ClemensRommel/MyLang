@@ -307,7 +307,7 @@ public class TypeInferrer
     }
     @Override
     public TypeRep visitIndexSetter(IndexSetter i) {
-        var listType = infer(i.list());
+        var listType = tc.env.normalize(infer(i.list()), tc);
         if(listType instanceof ListOfRep l) {
             return l.elements();
         } else {
@@ -316,11 +316,13 @@ public class TypeInferrer
     }
     @Override
     public TypeRep visitPropertySetter(PropertySetter p) {
-        var objectType = infer(p.object());
+        var objectType = tc.env.normalize(infer(p.object()), tc);
         if(objectType instanceof ClassType c) {
             if(c.accessors().containsKey(p.name().lexeme())) {
                 return c.accessors().get(p.name().lexeme());
             }
+        } else {
+            System.out.println(objectType);
         }
         return Typechecker.unknown();
     }

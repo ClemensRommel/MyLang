@@ -104,7 +104,7 @@ public class TypeApplier implements TypeRepVisitor<TypeRep> {
     }
     @Override
     public TypeRep visitClassType(ClassType c) {
-        return new ClassType(c.name(),
+        var resulting = new ClassType(c.name(),
             c.accessors()
                 .entrySet()
                 .stream()
@@ -116,6 +116,7 @@ public class TypeApplier implements TypeRepVisitor<TypeRep> {
             c.constructor().accept(this),
             c.env()
             );
+        return resulting;
     }
     @Override
     public TypeRep visitGenericType(GenericType g) {

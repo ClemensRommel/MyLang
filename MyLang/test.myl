@@ -1,12 +1,14 @@
-class Wrap(A) where
+class Wrap(A) where 
     var wrapped : A;
     new(x : A) do 
         this.wrapped := x;
-    end
-end
+    end;
+end;
 
 fun main() do 
-    val x := Wrap.[Number](3);
-    print(x);
+    val x : Wrap(Number) := Wrap.[Number](3);
     print(x.wrapped);
-end 
+    x.wrapped := 4;
+    print(x.wrapped);
+    val y : Wrap(String) := Wrap.[String]("test");
+end
