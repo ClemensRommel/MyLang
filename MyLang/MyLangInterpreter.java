@@ -55,7 +55,10 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         MyLangBuiltinFunction.isNull,
         MyLangBuiltinFunction.split,
         MyLangBuiltinFunction.strip,
-        MyLangBuiltinFunction.len
+        MyLangBuiltinFunction.len,
+        MyLangBuiltinFunction.panic,
+        MyLangBuiltinFunction.matches,
+        MyLangBuiltinFunction.replace
     };
 
     private void loadBuiltins() {
@@ -317,6 +320,12 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
                 throw new InterpreterError("Index out of bounds or invalid index: " + stringify(index));
             }
             return theList.get((int) index);
+        } else if(list instanceof String str) {
+            var index = (double) interpretExpression(value.index());
+            if(index % 1 != 0) {
+                throw new InterpreterError("Index out of bounds or invalid index: " + stringify(index));
+            }
+            return String.valueOf(str.charAt((int) index));
         } else { // invalid list type
             throw new InterpreterError("Invalid list type: " + list.getClass());
         }

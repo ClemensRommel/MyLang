@@ -1,0 +1,277 @@
+module Tokenizer;
+
+export enum TokenType where
+    LPAREN(), RPAREN(), LBRACKET(), RBRACKET(), LBRACE(), RBRACE(), SEMICOLON(),
+    DOT(), DOTS(), COMMA(), COLON(), ASSIGN(), PLUS(), MINUS(), STAR(), SLASH(), PERCENT(), BANG(), EXPO(),
+    LESS(), LESS_EQUAL(), GREATER(), GREATER_EQUAL(), EQUAL(), NOT_EQUAL(),
+    QUESTION_MARK(),
+
+    END(), WHERE(), DO(),
+
+    NULL(), TRUE(), FALSE(), STRING_LITERAL(), NUMBER_LITERAL(),
+
+    AND(), OR(), XOR(),
+
+
+    IDENTIFIER(),
+
+    // Value kexwords
+    VAR(), VAL(), VALUE_THIS(), NEW(), FUN(), IF(), THEN(), ELSE(), WHILE(), FOR(), IN(), YIELD(),
+    RETURN(), MATCH(), CASE(),
+
+    // Namespacing Keywords
+    MODULE(), IMPORT(), EXPORT(), LOCAL(),
+
+    // Type Keywords
+    CLASS(), TYPE_FUN(), NUMBER(), BOOLEAN(), STRING(), VOID(), TYPE(), ENUM(),
+
+
+    EOF(), ERROR();
+end
+
+export class Token where 
+    val kind : TokenType;
+    val src : String;
+    new(k : TokenType, s : String) do 
+        this.kind := k;
+        this.src := s;
+    end
+end;
+
+class Tokenizer where 
+    val source : String;
+    var position : Number;
+
+    new(s : String) do 
+        this.source := s;
+        this.position := 0;
+    end;
+
+    fun peek() : String := this.source[this.position];
+    fun next() : String do 
+        val c := this.peek();
+        this.position := this.position + 1;
+        c
+    end
+
+    fun consume(str : String) do
+        val actual := this.next();
+        if actual != str do 
+            panic("Expected "+str+", got "+actual);
+        end
+    end
+
+    fun at_end() : Bool := this.position >= len(this.source);
+
+    fun tokenize() : Token[] do 
+        val tokens : Token[] := [];
+        while !this.at_end() do 
+            this.parse_token(tokens);
+        end;
+        tokens.push(Token(EOF(), ""));
+        tokens
+    end
+
+    fun parse_token(ls : Token[]) do 
+        val c := this.next();
+        if strip(c) = "" do // Skip whitespace
+            return null;
+        end
+        match c do 
+            case "(" := ls.push(Token(LPAREN(), "("));
+            case ")" := ls.push(Token(RPAREN(), ")"));
+            case "[" := ls.push(Token(LBRACKET(), "["));
+            case "]" := ls.push(Token(RBRACKET(), "]"));
+            case "{" := ls.push(Token(LBRACE(), "{"));
+            case "}" := ls.push(Token(RBRACE(), "}"));
+            case ";" := ls.push(Token(SEMICOLON(), ";"));
+            case ":" := if this.peek() = "=" then do 
+                this.consume("=");
+                ls.push(Token(ASSIGN(), ":="));                
+            end else do 
+                ls.push(Token(COLON(), ":"));
+            end;
+            case "." := if this.peek() = "." then do 
+                this.consume(".");
+                ls.push(Token(DOTS(), ".."));
+            end else do
+                ls.push(Token(DOT(), "."));
+            end;
+            case "," := ls.push(Token(COMMA(), ","));
+            case "+" := ls.push(Token(PLUS(), "+"));
+            case "-" := ls.push(Token(MINUS(), "-"));
+            case "*" := ls.push(Token(STAR(), "*"));
+            case "/" := do 
+                val nxt := this.peek();
+                if nxt = "/" or nxt = "*" then do
+                    this.comment();
+                end else do 
+                    ls.push(Token(SLASH(), "/"));
+                end;
+            end;
+            case "%" := ls.push(Token(PERCENT(), "%"));
+            case "^" := ls.push(Token(EXPO(), "^"));
+            case "<" := if this.peek() = "=" then do 
+                this.consume("=");
+                ls.push(Token(LESS_EQUAL(), "<="));
+            end else do 
+                ls.push(Token(LESS(), "<"));
+            end;
+            case ">" := if this.peek() = "=" then do 
+                this.consume("=");
+                ls.push(Token(GREATER_EQUAL(), ">="));
+            end else do 
+                ls.push(Token(GREATER(), ">"));
+            end;
+            case "=" := ls.push(Token(EQUAL(), "="));
+            case "!" := if this.peek() = "=" then do 
+                this.consume("=");
+                ls.push(Token(NOT_EQUAL(), "!="));
+            end else do 
+                ls.push(Token(BANG(), "!"));
+            end;
+            case "?" := ls.push(Token(QUESTION_MARK(), "?"));
+            case "\"" := do 
+                var content := "";
+                var running := true;
+                while !this.at_end() and running do 
+                    val next := this.next();
+                    if next = "\"" then do 
+                        running := false;
+                    end else if next = "\\" then do 
+                        match this.next() do 
+                            case "\\" := do 
+                                content := content + "\\";
+                            end;
+                            case "\"" := do 
+                                content := content + "\"";
+                            end;
+                            case "n" := do 
+                                content := content + "\n";
+                            end;
+                            case "t" := do 
+                                content := content + "\t";
+                            end;
+                            case "r" := do 
+                                content := content + "\r";
+                            end;
+                            case "0" := do 
+                                content := content + "\0";
+                            end;
+                            case c := do 
+                                content := content + c;
+                            end;
+                        end;
+                    end else do 
+                        content := content + next;
+                    end;
+                end;
+                ls.push(Token(STRING_LITERAL(), content));
+            end;
+            
+            case c := 
+                if matches(c, "[a-zA-Z]|_") then do 
+                    var ident := c;
+                    while !this.at_end() and matches(this.peek(), "[a-zA-Z0-9]|_") do 
+                        ident := ident + this.next();
+                    end;
+                    ls.push(Token(this.identifierToken(ident), ident));
+                end else if matches(c, "[0-9]") then do 
+                    var n := c;
+                    while !this.at_end() and matches(this.peek(), "[0-9]") do 
+                        n := n + this.next();
+                    end;
+                    ls.push(Token(NUMBER_LITERAL(), n));
+                end else do 
+                    panic("Invalid character: "+c);
+                end;
+        end;
+    end
+
+    fun identifierToken(name : String) : TokenType := match name do 
+        case "where" := WHERE();
+        case "end" := END();
+        case "true" := TRUE();
+        case "false" := FALSE();
+        case "null" := NULL();
+        case "not" := BANG();
+        case "this" := VALUE_THIS();
+        case "new" := NEW();
+        case "if" := IF();
+        case "then" := THEN();
+        case "else" := ELSE();
+        case "while" := WHILE();
+        case "for" := FOR();
+        case "in" := IN();
+        case "do" := DO();
+        case "yield" := YIELD();
+        case "and" := AND();
+        case "or" := OR();
+        case "xor" := XOR();
+        case "var" := VAR();
+        case "val" := VAL();
+        case "fun" := FUN();
+        case "class" := CLASS();
+        case "module" := MODULE();
+        case "import" := IMPORT();
+        case "export" := EXPORT();
+        case "local" := LOCAL();
+        case "type" := TYPE();
+        case "return" := RETURN();
+        case "enum" := ENUM();
+        case "match" := MATCH();
+        case "case" := CASE();
+        case "Fun" := TYPE_FUN();
+        case "Number" := NUMBER();
+        case "Bool" := BOOLEAN();
+        case "String" := STRING();
+        case "Void" := VOID();
+        case id := IDENTIFIER();
+    end;
+
+    fun comment() do 
+        val c := this.next();
+        if c = "/" then do 
+            while this.next() != "\n" do end;
+        end else do 
+            var ident_level := 1;
+            while ident_level > 0 do 
+                val nxt := this.next();
+                if nxt = "/" then do 
+                    if this.next() = "*" do 
+                        ident_level := ident_level + 1;
+                    end;
+                end else if nxt = "*" then do
+                    if this.next() = "/" do
+                        ident_level := ident_level - 1;
+                    end;
+                end else do end;
+            end;
+        end;
+    end
+end;
+
+fun getContent(content: String): OptionalString do 
+    val fileContent := openFile(content);
+    if isNull(fileContent) then None() else Some(fileContent)
+end
+
+enum OptionalString where
+    Some(String),
+    None();
+end
+
+fun main() do 
+    val Some(input) := getContent("mylmyl/Tokenizer.myl") else do 
+        panic("Could not open file")
+    end;
+    val tokenized := tokenize(input);
+    for elem in tokenized do 
+        print(elem);
+    end;
+end
+// test
+export fun tokenize(input : String) : Token[] do 
+    val t := Tokenizer(input);
+    t.tokenize()
+end 

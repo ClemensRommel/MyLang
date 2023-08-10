@@ -1,0 +1,38 @@
+module Ast;
+
+enum Expr where 
+    NumberLiteral(Number),
+    StringLiteral(String),
+    Boolean(Bool),
+    NullLiteral(),
+    Identifier(String),
+    BinaryOperation(BinOp, Expr, Expr),
+    UnaryOperation(UnOp, Expr, Expr);
+//    FunctionCall(Expr, Expr[]),
+//    IfExpr(Expr, Expr, Expr),
+//    ListExpr(Expr[]),
+//    IndexExpr(Expr, Expr),
+    // PropertyExpr(Expr, String),
+    // BlockExpr(Stmt[], Expr),
+    // WhileExpr(Expr, Stmt),
+    // ForExpr(String, Expr, Expr),
+//    ThisExpr();
+end;
+
+enum BinOp where 
+    Add(), Sub(), Mul(), Div(), Mod();
+end;
+enum UnOp where 
+    Plus(), Minus(), Not();
+end; 
+/*
+enum Stmt where 
+    ExprStmt(Expr),
+    IfStmt(Expr, Stmt),
+    SetStmt(String, Expr);
+end;
+
+enum Decl where 
+    VarDecl(String, Type, Expr, Bool /* mut */, Bool /* export */),
+end; 
+*/

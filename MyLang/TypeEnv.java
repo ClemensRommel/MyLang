@@ -177,9 +177,12 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
     public TypeRep visitAccessRep(AccessRep a) {
         var from = normalize(a.accessed(), tc);
         if(from instanceof MyLangAST.Module m) {
-            if(!m.enviroment().typeExported(a.name().lexeme())) {
+            /*if(!m.enviroment().typeExported(a.name().lexeme())) {
                 tc.error("Module does not export type '"+a.name().lexeme()+"'");
                 return Typechecker.unknown();
+            }*/
+            if(!m.enviroment().typeExists(a.name().lexeme())) {
+                tc.error("Tried to access non-existent type '"+a.name().lexeme()+"'");
             }
             return normalize(m.enviroment().getTypeByName(a.name().lexeme()), tc);
         } else {

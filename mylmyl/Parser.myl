@@ -1,0 +1,52 @@
+module Parser;
+
+import Tokenizer;
+import Ast;
+
+class Parser where 
+    val tokens : Tokenizer.Token[];
+    var pos : Number;
+
+    new(source : String) do
+        this.tokens := Tokenizer.tokenize(source);
+        this.pos := 0;
+    end;
+
+    fun next() : Tokenizer.Token do 
+        val token := this.tokens[this.pos];
+        this.pos := this.pos + 1;
+        token
+    end
+    fun peek() : Tokenizer.Token := this.tokens[this.pos];
+    fun consume(t : Tokenizer.TokenType, error : String) do 
+        val nxt := this.next();
+        if nxt.kind != t do
+            panic("Unexpected "+nxt.kind+": "+error);
+        end;
+    end
+    fun matches(t : Tokenizer.TokenType) : Bool do 
+        if this.peek().kind = t then do 
+            this.pos := this.pos + 1;
+            true
+        end else do 
+            false
+        end
+    end
+    fun previous() : Tokenizer.Token := this.tokens[this.pos - 1];
+end;
+
+
+fun literal(p : Parser) : Ast.Expression :=
+    if p.matches(Tokenizer.NUMBER_LITERAL()) then do 
+        val token := p.previous();
+        Ast.NumberLiteral(number(token.src))
+    end else if p.matches(Tokenizer.STRING_LITERAL()) then do 
+        val token := p.previous();
+        Ast.StringLiteral(token.src)
+    end else if p.matches(Tokenizer.TRUE()) then do 
+        Ast.Boolean(true)
+    end else if p.matches(Tokenizer.FALSE()) then do 
+        Ast.Boolean(false)
+    end else do 
+        panic("Invalid literal: "+p.peek().kind)
+    end;

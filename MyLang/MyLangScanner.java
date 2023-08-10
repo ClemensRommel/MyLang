@@ -235,8 +235,23 @@ public final class MyLangScanner {
 
     private Token stringLiteral() {
         StringBuilder builder = new StringBuilder();
-        while(!atEnd() && next() != '"') {
-            builder.append(previous());
+        while(!atEnd()) {
+            var next = next();
+            if(next == '\"') {
+                break;
+            } else if(next == '\\') {
+                switch(next()) {
+                    case '\\' -> builder.append("\\");
+                    case '\"' -> builder.append("\"");
+                    case 'n' -> builder.append('\n');
+                    case 't' -> builder.append('\t');
+                    case 'r' -> builder.append('\r');
+                    case '0' -> builder.append('\0');
+                    default -> builder.append(next());
+                }
+            } else {
+                builder.append(next);
+            }
         }
         if(atEnd() && previous() != '"') {
             return new Token(TokenType.ERROR, "Unterminated string literal", line);

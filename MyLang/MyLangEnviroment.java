@@ -24,12 +24,8 @@ public class MyLangEnviroment {
     }
 
     public void declareVariable(String name, Object value, boolean readable) {
-        if(!variables.containsKey(value)) {
-            variables.put(name, value);
-            readability.put(name, readable);
-        } else {
-            throw new InterpreterError("Variable '"+name+"' already declared");
-        }
+        variables.put(name, value);
+        readability.put(name, readable);
     }
 
     public boolean localVariableDeclared(String name) {

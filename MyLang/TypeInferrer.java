@@ -131,6 +131,8 @@ public class TypeInferrer
         var listType = infer(i.list());
         if(listType instanceof ListOfRep l) {
             return l.elements();
+        } else if(listType instanceof Builtin b && b.type().equals(BuiltinType.STRING)) {
+            return b;
         } else {
             return Typechecker.unknown();
         }
@@ -149,11 +151,11 @@ public class TypeInferrer
             //System.out.println("Inferring type of list method "+p.name().lexeme());
             return tc.listMethodType(p.name().lexeme(), l);
         } else if(classType instanceof MyLangAST.Module m) {
-            if(m.enviroment().valueExported(p.name().lexeme()) && m.enviroment().valueExists(p.name().lexeme())) {
+            //if(m.enviroment().valueExported(p.name().lexeme()) && m.enviroment().valueExists(p.name().lexeme())) {
                 return m.enviroment().getTypeOfValue(p.name().lexeme());
-            } else {
+            /*} else {
                 return Typechecker.unknown();
-            }
+            }*/
         } else if(classType instanceof EnumType e) {
             if(e.methods().containsKey(p.name().lexeme())) {
                 return e.methods().get(p.name().lexeme());

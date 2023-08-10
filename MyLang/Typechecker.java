@@ -91,6 +91,9 @@ public class Typechecker implements
     private void checkType(TypeRep target, Expression tested) {
         TypeRep previousTarget = checkTarget;
         checkTarget = target;
+        if(checkTarget instanceof UnknownType) {
+            throw new RuntimeException("Tried checking of unknown type");
+        }
 
         tested.accept(this);
 
@@ -115,6 +118,9 @@ public class Typechecker implements
     private void checkSetter(Setter s, TypeRep type) {
         var previousTarget = checkTarget;
         checkTarget = type;
+        if(type instanceof UnknownType) {
+            throw new RuntimeException("Tried checking of unknown type");
+        }
         s.accept(this);
         checkTarget = previousTarget;
     }
@@ -585,12 +591,17 @@ public class Typechecker implements
             hadError = true;
             return true;
         }
+        var toBefore = to;
+        var fromBefore = from;
         to = env.normalize(to, this);
         from = env.normalize(from, this);
         if(to.equals(unknown()) || from.equals(unknown())) {
             hadError = true;
-            System.out.println("Had unknown");
-            return true;
+            System.out.println(to);
+            System.out.println(toBefore);
+            System.out.println(from);
+            System.out.println(fromBefore);
+            throw new RuntimeException("Had unknown" + (to.equals(unknown()) ? " to" : " from"));
         }
         if(to.equals(voidType)) {
             return true;
@@ -805,6 +816,9 @@ public class Typechecker implements
                 checkType(namedParam.getValue(), c.named().get(namedParam.getKey()));
             }
         }
+        if(t.returnType() instanceof UnknownType) {
+            System.out.println(t);
+        }
 
         hasType(t.returnType(), p.prettyPrint(c));
     }
@@ -960,6 +974,9 @@ public class Typechecker implements
     }
 
     private void hasType(TypeRep t, String expr) {
+        if(checkTarget instanceof UnknownType || checkTarget == null || checkTarget.equals(unknown())) {
+            throw new RuntimeException("Tried checking of unknown type");
+        }
         if(!isAssigneableTo(checkTarget, t)) {
             typeMismatch(checkTarget, t, expr);
         }
@@ -968,6 +985,12 @@ public class Typechecker implements
     @Override
     public Void visitIndexExpression(IndexExpression i) {
         checkType(numberType, i.index());
+        if(inferType(i.list()) instanceof Builtin b) {
+            if(b.type().equals(BuiltinType.STRING)) {
+                hasType(stringType, p.prettyPrint(i));
+                return null;
+            }
+        }
         checkType(new ListOfRep(checkTarget), i.list());
 
         return null;
@@ -1088,7 +1111,7 @@ public class Typechecker implements
             }
         } else if(leftType instanceof MyLangAST.Module m) {
             var type = m.enviroment().getTypeOfValue(p.name().lexeme());
-            if(type instanceof UnknownType || (!m.enviroment().valueExported(p.name().lexeme()))) {
+            if(type instanceof UnknownType || /*(!m.enviroment().valueExported(p.name().lexeme()))*/ false) {
                 error("["+p.name().line()+"] Module "+m.name()+" does not export '"+p.name().lexeme()+"'");
             } else {
                 hasType(type, this.p.prettyPrint(p));
@@ -1334,6 +1357,9 @@ public class Typechecker implements
     private void checkPattern(TypeRep t, Pattern p, boolean isReassigneable) {
         var previousTarget = checkTarget;
         checkTarget = t;
+        if(checkTarget instanceof UnknownType) {
+            throw new RuntimeException("Tried checking of unknown type");
+        }
         var previousIsReassigneable = isMutable;
         isMutable = isReassigneable;
         p.accept(this);

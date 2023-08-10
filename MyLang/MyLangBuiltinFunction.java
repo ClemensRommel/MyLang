@@ -33,10 +33,60 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         )) {
         @Override
         public Object call(MyLangInterpreter i, List<Object> args, Map<String, Object> named) {
-            return ((String) args.get(0)).length();
+            return (double) ((String) args.get(0)).length();
         }
     };
+    public static final MyLangBuiltinFunction matches = new MyLangBuiltinFunction("matches",
+        new FunctionTypeRep(
+            List.of(Typechecker.stringType, Typechecker.stringType),
+            List.of(),
+            Map.of(),
+            Map.of(),
+            null,
+            Typechecker.booleanType,
+            new TypeEnv()
+        )) {
+            @Override
+            public Object call(MyLangInterpreter interpreter, List<Object> posArgs, Map<String, Object> namedArgs) {
+                return ((String) posArgs.get(0)).matches((String) posArgs.get(1));
+            }
 
+        };
+
+    public static final MyLangBuiltinFunction panic = new MyLangBuiltinFunction("panic",
+        new FunctionTypeRep(
+            List.of(Typechecker.stringType),
+            List.of(),
+            Map.of(),
+            Map.of(),
+            null,
+            Typechecker.neverType,
+            new TypeEnv()
+        )) {
+
+            @Override
+            public Object call(MyLangInterpreter interpreter, List<Object> posArgs, Map<String, Object> namedArgs) {
+                throw new InterpreterError((String) posArgs.get(0));
+            }
+
+        };
+
+    public static final MyLangBuiltinFunction replace = new MyLangBuiltinFunction("replace",
+        new FunctionTypeRep(
+            List.of(Typechecker.stringType, Typechecker.stringType, Typechecker.stringType),
+            List.of(),
+            Map.of(),
+            Map.of(),
+            null,
+            Typechecker.stringType,
+            new TypeEnv()
+        )) {
+            @Override
+            public Object call(MyLangInterpreter interpreter, List<Object> posArgs, Map<String, Object> namedArgs) {
+                return ((String) posArgs.get(0)).replace((String) posArgs.get(1), (String) posArgs.get(2));
+            }
+            
+    };
     public static final MyLangBuiltinFunction split = new MyLangBuiltinFunction("split",
         new FunctionTypeRep(
             List.of(Typechecker.stringType, Typechecker.stringType),

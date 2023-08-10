@@ -1,14 +1,9 @@
-class Wrap(A) where 
-    var wrapped : A;
-    new(x : A) do 
-        this.wrapped := x;
-    end;
-end;
+fun fib(n : Number) : Number := 
+    if n < 3 then 1
+    else fib(n-1) + fib(n-2);
 
 fun main() do 
-    val x : Wrap(Number) := Wrap.[Number](3);
-    print(x.wrapped);
-    x.wrapped := 4;
-    print(x.wrapped);
-    val y : Wrap(String) := Wrap.[String]("test");
+    val before := clock();
+    print(fib(40));
+    print(clock() - before);
 end
