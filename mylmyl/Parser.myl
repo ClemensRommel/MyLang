@@ -36,7 +36,7 @@ class Parser where
 end;
 
 
-fun literal(p : Parser) : Ast.Expression :=
+fun literal(p : Parser) : Ast.Expr :=
     if p.matches(Tokenizer.NUMBER_LITERAL()) then do 
         val token := p.previous();
         Ast.NumberLiteral(number(token.src))
