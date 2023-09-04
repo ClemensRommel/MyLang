@@ -1,0 +1,254 @@
+module Compiler;
+
+import Ast;
+
+class Compiler where 
+    var buf : String := "";
+    var indent_level : Number := 0;
+    var counter : Number := 0;
+
+    var is_global : Bool := true;
+
+    fun append(str : String) do
+        this.buf := this.buf + str;
+    end
+
+    fun newline() do 
+        this.append("\n");
+        for i in [0..this.indent_level] do 
+            this.append("    ");
+        end;
+    end
+
+    fun indent() do 
+        this.indent_level := this.indent_level + 1;
+    end
+    
+    fun dedent() do 
+        if this.indent_level <= 0 do 
+            panic("Error: Negative Indent impossible");
+        end;
+        this.indent_level := this.indent_level - 1; 
+    end
+
+    fun new_var() : String do 
+        val c := this.counter;
+        this.counter := this.counter + 1;
+        "__a" + c 
+    end
+end
+
+fun compile(ast : Ast.Program) : String do 
+    val c := Compiler();
+    c.append("class Main {");
+    c.indent(); c.newline();
+    for decl in ast.decls do 
+        compile_decl(c, decl);
+    end;
+    c.dedent(); c.newline();
+    c.append("}");
+    c.buf
+end
+
+fun compile_stmt(c : Compiler, stmt : Ast.Stmt) := match stmt do 
+    case ExprStmt(expr) := do 
+        val arg := compile_expr(c, expr);
+        c.append(arg); c.append(";");
+        c.newline();
+    end;
+    case PrintStmt(expr) := do 
+        val arg := compile_expr(c, expr);
+        c.append("System.out.println(");c.append(arg);c.append(");");
+        c.newline();
+    end;
+    case Declaration(decl) := compile_decl(c, decl);
+end;
+
+fun compile_decl(c : Compiler, decl : Ast.Decl) := match decl do 
+    case VarDecl(name, lt, init, mutable, ?) := compile_var_decl(c, name, lt, init, mutable);
+    case FunDecl(name, params, return_type, body, ?) := compile_fun_decl(c, name, params, return_type, body);
+end;
+
+fun compile_var_decl(c : Compiler, name : String, lt : Ast.LateInitialized(Ast.Type), init : Ast.Expr, mutable : Bool) do 
+    if c.is_global then do 
+        c.append("public static ");
+        if !mutable do 
+            c.append("final ");
+        end
+        c.append(compile_type(c, lt.get())); c.append(" "); c.append(name); c.append(";");
+        c.append("static {");
+        c.indent(); c.newline();
+        val initializer := compile_expr(c, init);
+        c.append(name); c.append(" = "); c.append(initializer); c.append(";");
+        c.dedent(); c.newline();
+        c.append("}");
+        c.newline();
+    end else do
+        val initializer := compile_expr(c, init);
+        val ty := compile_type(c, lt.get());
+        if !mutable do 
+            c.append("final ");
+        end;
+        c.append(ty); c.append(" "); c.append(name); c.append(" = "); c.append(initializer); c.append(";");
+        c.newline();
+    end;
+end
+
+fun compile_fun_decl(c : Compiler, name : String, params : Ast.Parameter[], return_type : Ast.Type, body : Ast.Expr) do 
+    val is_main := c.is_global and name = "main" and return_type = Ast.VoidT();
+    val previous_is_global := c.is_global;
+    c.append("public static "); 
+    if is_main then do 
+        c.append("void");
+    end else do
+        c.append(compile_type(c, return_type)); 
+    end;
+    c.append(" "); c.append(name);
+    c.append("(");
+    var needs_comma := false;
+    for param in params do 
+        if needs_comma do 
+            c.append(", ");
+        end;
+        match param do 
+            case NormalParam(name, ty) := do 
+                c.append(compile_type(c, ty)); c.append(" "); c.append(name);
+            end;
+        end;
+        needs_comma := true;
+    end;
+    c.append(")");
+    c.is_global := false;
+    c.append("{"); c.indent(); c.newline();
+    val body := compile_expr(c, body);
+    if !is_main then do 
+        c.append("return "); 
+    end else do 
+        c.append("Object "); c.append(c.new_var()); c.append(" = ");
+    end;
+    c.append(body); c.append(";"); c.dedent(); c.newline();
+    c.append("}");
+    c.newline();
+    c.is_global := previous_is_global;
+    if is_main do 
+        c.append("
+    public static void main(String[] args) {
+        main();
+    }");
+        c.newline();
+    end;
+end
+
+fun compile_expr(c : Compiler, expr : Ast.Expr) : String := match expr do 
+    case NumberLiteral(n) := n + "";
+    case StringLiteral(str) := do 
+        var resulting := str;
+        resulting := replace(resulting, "\\", "\\\\");
+        resulting := replace(resulting, "\n", "\\n");
+        resulting := replace(resulting, "\t", "\\t");
+        resulting := replace(resulting, "\r", "\\r");
+        resulting := replace(resulting, "\"", "\\\"");
+        resulting := replace(resulting, "\0", "\\0");
+        resulting := "\"" + resulting + "\"";
+        resulting
+    end;
+    case Boolean(b) := if b then "true" else "false";
+    case NullLiteral() := "null";
+    case Identifier(name) := name;
+    case BinaryOperation(op, left, right) := do 
+        val l := compile_expr(c, left);
+        val r := compile_expr(c, right);
+        val o := compile_bin_op(op);
+        "("+l+" "+o+" "+r+")"
+    end;
+    case UnaryOperation(op, operand) := do 
+        val operand_compiled := compile_expr(c, operand);
+        val o := compile_un_op(op);
+        "("+o+operand_compiled+")"
+    end;
+    case IfExpr(lt, cond, thenBr, elseBr) := compile_if(c, lt, cond, thenBr, elseBr);
+    case BlockExpr(stmts, end_expr, lt) := compile_block(c, stmts, end_expr, lt.get());
+    case FunctionCall(callee, args) := compile_call(c, callee, args);
+end;
+
+fun compile_call(c : Compiler, callee : Ast.Expr, args : Ast.Expr[]) : String do 
+    val callee_compiled := compile_expr(c, callee);
+    val args_compiled := for arg in args yield 
+        compile_expr(c, arg)
+    end;
+    var str := "";
+    str := str + callee_compiled + "(";
+    var needs_comma := false;
+    for arg in args_compiled do 
+        if needs_comma do 
+            str := str + ", ";
+        end;
+        str := str + arg;
+        needs_comma := true;
+    end;
+    str := str + ")";
+    str
+end
+
+fun compile_block(c : Compiler, stmts : Ast.Stmt[], end_expr : Ast.Optional(Ast.Expr), t : Ast.Type) : String do 
+    val var_name := c.new_var();
+    c.append("final "); c.append(compile_type(c, t)); c.append(" "); c.append(var_name); c.append(";");
+    c.newline(); c.append("{"); c.indent(); c.newline();
+    for stmt in stmts do 
+        compile_stmt(c, stmt);
+    end;
+    if val Some(e) := end_expr then do 
+        val result_expr := compile_expr(c, e);
+        c.append(var_name); c.append(" = "); c.append(result_expr); c.append(";");
+    end else do 
+        c.append(var_name); c.append(" = null;");
+    end;
+    c.dedent(); c.newline();
+    c.append("}");
+    c.newline();
+    var_name
+end
+
+fun compile_bin_op(op : Ast.BinOp) : String := match op do 
+    case Add() := "+";
+    case Sub() := "-";
+    case Mul() := "*";
+    case Div() := "/";
+    case Mod() := "%";
+    case LessThan() := "<";
+    case LessEqual() := "<=";
+    case Equals() := "==";
+    case NotEquals() := "!=";
+    case GreaterThan() := ">";
+    case GreaterEqual() := ">=";
+    case And() := "&&";
+    case Or() := "||";
+    case Xor() := "^";
+end;
+
+fun compile_un_op(op : Ast.UnOp) : String := match op do 
+    case Plus()  := "+";
+    case Minus() := "-";
+    case Not()   := "!";
+end;
+
+fun compile_if(c : Compiler, lt : Ast.LateInitialized(Ast.Type), cond : Ast.Expr, thenBr : Ast.Expr, elseBr : Ast.Expr) : String do 
+    val var_name := c.new_var();
+    c.append("final "); c.append(compile_type(c, lt.get())); c.append(" "); c.append(var_name); c.append(";"); c.newline();
+    val cond_expr := compile_expr(c, cond);
+    c.append("if("); c.append(cond_expr); c.append(") {"); c.indent(); c.newline();
+    val thenBrExpr := compile_expr(c, thenBr);
+    c.append(var_name); c.append(" = "); c.append(thenBrExpr); c.append(";");
+    c.dedent();c.newline(); c.append("} else {"); c.indent();c.newline();
+    val elseBrExpr := compile_expr(c, elseBr);
+    c.append(var_name); c.append(" = "); c.append(elseBrExpr); c.append(";");
+    c.dedent(); c.newline(); c.append("}"); c.newline();
+    var_name
+end
+
+fun compile_type(c : Compiler, t : Ast.Type) : String := match t do 
+    case NumberT() := "double";
+    case BooleanT() := "boolean";
+    case StringT() := "String";
+    case VoidT() := "Void";
+end;

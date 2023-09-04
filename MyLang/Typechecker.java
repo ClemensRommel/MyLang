@@ -92,7 +92,7 @@ public class Typechecker implements
         TypeRep previousTarget = checkTarget;
         checkTarget = target;
         if(checkTarget instanceof UnknownType) {
-            throw new RuntimeException("Tried checking of unknown type");
+            throw new RuntimeException("Tried checking of unknown type: "+p.prettyPrint(tested));
         }
 
         tested.accept(this);
@@ -102,10 +102,11 @@ public class Typechecker implements
 
     private TypeRep inferType(Expression e) {
         var resultType = ti.infer(e);
-        checkType(resultType, e);
         if(resultType instanceof UnknownType) {
             error("Could not infer type of expression "+p.prettyPrint(e));
         }
+        checkType(resultType, e);
+        
         //System.out.println("inferred type "+showType(resultType)+" of expression "+e);
         return env.normalize(resultType, this);
     }
@@ -783,7 +784,7 @@ public class Typechecker implements
                     || t.varargsType() == null ) {
                 error("Not enough arguments: got "+c.arguments().size()+
                         ", expected "+t.parameters().size()+
-                        " (type: "+showType(t)+")");
+                        " (type: "+showType(t)+")" + " in expression "+p.prettyPrint(c));
                 return;
             }
         }

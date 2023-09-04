@@ -1,0 +1,12 @@
+val helloWorld := "Hello world";
+
+fun plusThree(x : Number) :  Number := x + 3;
+
+fun printHelloWorld(): Void do 
+    print helloWorld;
+end
+
+fun main() : Void do 
+    printHelloWorld();    
+    print plusThree(4);
+end

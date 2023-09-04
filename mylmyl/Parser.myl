@@ -17,13 +17,17 @@ class Parser where
         this.pos := this.pos + 1;
         token
     end
+
     fun peek() : Tokenizer.Token := this.tokens[this.pos];
-    fun consume(t : Tokenizer.TokenType, error : String) do 
+
+    fun consume(t : Tokenizer.TokenType, error : String) : Tokenizer.Token do 
         val nxt := this.next();
         if nxt.kind != t do
             panic("Unexpected "+nxt.kind+": "+error);
         end;
+        nxt
     end
+
     fun matches(t : Tokenizer.TokenType) : Bool do 
         if this.peek().kind = t then do 
             this.pos := this.pos + 1;
@@ -32,9 +36,246 @@ class Parser where
             false
         end
     end
+
     fun previous() : Tokenizer.Token := this.tokens[this.pos - 1];
+    fun at_end() : Bool := this.peek().kind = Tokenizer.EOF();
 end;
 
+export fun parse(source : String) : Ast.Program do 
+    val parser := Parser(source);
+    program(parser)
+end
+
+fun program(p : Parser) : Ast.Program do 
+    val prgm := Ast.Program();
+    while !p.at_end() do 
+        prgm.decls.push(decl(p));
+    end;
+    prgm
+end
+
+fun stmt(p : Parser) : Ast.Stmt do 
+    val nxt := p.peek();
+    if is_decl_start(nxt.kind) do 
+        return Ast.Declaration(decl(p));
+    end;
+    if val PRINT() := nxt.kind then do 
+       p.next();
+       val arg := expr(p);
+       p.consume(Tokenizer.SEMICOLON(), "Expect ';' after print statement");
+       Ast.PrintStmt(arg)
+    end else do 
+        val arg := expr(p);
+        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after expression statement");
+        Ast.ExprStmt(arg)
+    end
+end
+
+fun is_decl_start(tk : Tokenizer.TokenType) : Bool := match tk do 
+    case VAL() := true;
+    case VAR() := true;
+    case FUN() := true;
+    case ? := false;
+end;
+
+fun decl(p : Parser) : Ast.Decl do 
+    val decl_kind := p.next().kind;
+    match decl_kind do 
+        case VAR() := var_decl(p, true);
+        case VAL() := var_decl(p, false);
+        case FUN() := fun_decl(p);
+    end
+end
+
+fun fun_decl(p : Parser) : Ast.Decl do 
+    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect name in function declaration");
+    p.consume(Tokenizer.LPAREN(), "Expect start of parameters in function declaration");
+    val params : Ast.Parameter[] := [];
+    while !p.matches(Tokenizer.RPAREN()) do 
+        params.push(parameter(p));
+        if p.peek().kind != Tokenizer.RPAREN() do 
+            p.consume(Tokenizer.COMMA(), "Expect ',' between parameters");
+        end;
+    end;
+    p.consume(Tokenizer.COLON(), "Expect ':' at start of function return type");
+    val return_type := type_literal(p);
+    val body := if p.matches(Tokenizer.ASSIGN()) then do
+        val b := expr(p);
+        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after function body");
+        b 
+    end else do 
+        p.consume(Tokenizer.DO(), "Expect ':=' or 'do' as start of function body");
+        block_expr(p)
+    end;
+    Ast.FunDecl(name.src, params, return_type, body, true)
+end
+
+fun parameter(p : Parser) : Ast.Parameter do 
+    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect parameter name");
+    p.consume(Tokenizer.COLON(), "Expect ':' before parameter type");
+    val param_type := type_literal(p);
+    Ast.NormalParam(name.src, param_type)
+end
+
+fun var_decl(p : Parser, mutable : Bool) : Ast.Decl do 
+    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect identifier in variable declaration").src;
+    val ty := Ast.LateInitialized.[Ast.Type]();
+    if p.matches(Tokenizer.COLON()) do 
+        ty.init(type_literal(p));
+    end;
+    p.consume(Tokenizer.ASSIGN(), "Expect ':=' in variable declaration");
+    val initializer := expr(p);
+    p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration");
+    Ast.VarDecl(name, ty, initializer, mutable, true)
+end
+
+fun expr(p : Parser) : Ast.Expr := boolean_combination(p);
+
+fun boolean_combination(p : Parser) : Ast.Expr do 
+    var lhs := comparison(p);
+    while p.matches(Tokenizer.AND()) or p.matches(Tokenizer.OR()) or p.matches(Tokenizer.XOR()) do 
+        val operator := p.previous();
+        val rhs := comparison(p);
+        val op := match operator.kind do 
+            case AND() := Ast.And();
+            case OR() := Ast.Or();
+            case XOR() := Ast.Xor();
+        end;
+        lhs := Ast.BinaryOperation(op, lhs, rhs); 
+    end;
+    lhs
+end
+
+fun comparison(p : Parser) : Ast.Expr do 
+    var result := addition(p);
+    if p.matches(Tokenizer.LESS()) or p.matches(Tokenizer.LESS_EQUAL()) or p.matches(Tokenizer.EQUAL())
+        or p.matches(Tokenizer.GREATER_EQUAL()) or p.matches(Tokenizer.GREATER()) or p.matches(Tokenizer.NOT_EQUAL()) do 
+        val operator := p.previous();
+        val rhs := addition(p);
+        val op := match operator.kind do 
+            case LESS() := Ast.LessThan();
+            case LESS_EQUAL() := Ast.LessEqual();
+            case EQUAL() := Ast.Equals();
+            case NOT_EQUAL() := Ast.NotEquals();
+            case GREATER_EQUAL() := Ast.GreaterEqual();
+            case GREATER() := Ast.GreaterThan();
+        end;
+        result := Ast.BinaryOperation(op, result, rhs);
+    end;
+    result
+end
+
+fun addition(p : Parser) : Ast.Expr do 
+    var lhs := multiplication(p);
+    while !p.at_end() and (p.matches(Tokenizer.PLUS()) or p.matches(Tokenizer.MINUS())) do 
+        val op := p.previous().kind;
+        val rhs := multiplication(p);
+        lhs := Ast.BinaryOperation(match op do 
+            case PLUS() := Ast.Add();
+            case MINUS() := Ast.Sub();
+        end, lhs, rhs);
+    end;
+    lhs
+end
+
+fun multiplication(p : Parser) : Ast.Expr do 
+    var lhs := unary(p);
+    while !p.at_end() and (p.matches(Tokenizer.STAR()) or p.matches(Tokenizer.SLASH())) do 
+        val op := p.previous().kind;
+        val rhs := unary(p);
+        lhs := Ast.BinaryOperation(match op do 
+            case STAR() := Ast.Mul();
+            case SLASH() := Ast.Div();
+        end, lhs, rhs);
+    end;
+    lhs
+end
+
+fun unary(p : Parser) : Ast.Expr := 
+    if p.matches(Tokenizer.MINUS()) then do 
+        val operand := unary(p);
+        Ast.UnaryOperation(Ast.Minus(), operand)
+    end else if p.matches(Tokenizer.PLUS()) then do 
+        val operand := unary(p);
+        Ast.UnaryOperation(Ast.Plus(), operand)
+    end else if p.matches(Tokenizer.BANG()) then do 
+        val operand := unary(p);
+        Ast.UnaryOperation(Ast.Not(), operand)
+    end else do 
+        call(p)
+    end;
+
+fun call(p : Parser) : Ast.Expr do 
+    var lhs := primary(p);
+    if p.peek().kind = Tokenizer.LPAREN() do 
+        while p.matches(Tokenizer.LPAREN()) do 
+            var args : Ast.Expr[] := [];
+            var needs_comma := false;
+            while !p.matches(Tokenizer.RPAREN()) do 
+                if needs_comma do 
+                    p.consume(Tokenizer.COMMA(), "Expect parameters to be separated by commas");
+                end;
+                args.push(expr(p));
+            end;
+            lhs := Ast.FunctionCall(lhs, args);
+        end;
+    end;
+    lhs
+end
+
+fun primary(p : Parser) : Ast.Expr := 
+    if p.matches(Tokenizer.IF()) then do 
+        if_expr(p)    
+    end else if p.matches(Tokenizer.DO()) then do 
+        block_expr(p)
+    end else do 
+        literal(p)
+    end;
+
+// Expects that starting do is already consumed
+fun block_expr(p : Parser) : Ast.Expr do 
+    val stmts : Ast.Stmt[] := [];
+    var end_expr := Ast.None.[Ast.Expr]();
+    var no_end_expr_found := true;
+    while !p.matches(Tokenizer.END()) and no_end_expr_found do 
+        match block_part(p) do 
+            case Statement(st) := do 
+                stmts.push(st);
+            end;
+            case Expression(e) := do 
+                end_expr := Ast.Some.[Ast.Expr](e);
+                p.consume(Tokenizer.END(), "Expect block to end with 'end'");
+                no_end_expr_found := false;
+            end;
+        end;
+    end;
+    Ast.BlockExpr(stmts, end_expr, Ast.LateInitialized.[Ast.Type]())
+end
+
+fun block_part(p : Parser) : Ast.BlockPart do 
+    if is_stmt_start(p.peek().kind) then do 
+        Ast.Statement(stmt(p))
+    end else do 
+        val expression := expr(p);
+        if p.matches(Tokenizer.SEMICOLON()) then do 
+            Ast.Statement(Ast.ExprStmt(expression))
+        end else do 
+            Ast.Expression(expression)
+        end
+    end
+end
+
+fun is_stmt_start(tk : Tokenizer.TokenType) : Bool := is_decl_start(tk) or tk = Tokenizer.PRINT();
+
+// Expects that if is already consumed
+fun if_expr(p : Parser) : Ast.Expr do 
+    val cond := expr(p);
+    p.consume(Tokenizer.THEN(), "Expect then branch after if condition");
+    val thenBranch := expr(p);
+    p.consume(Tokenizer.ELSE(), "Expect else branch in if expression");
+    val elseBranch := expr(p);
+    Ast.IfExpr(Ast.LateInitialized.[Ast.Type](), cond, thenBranch, elseBranch)
+end
 
 fun literal(p : Parser) : Ast.Expr :=
     if p.matches(Tokenizer.NUMBER_LITERAL()) then do 
@@ -47,6 +288,42 @@ fun literal(p : Parser) : Ast.Expr :=
         Ast.Boolean(true)
     end else if p.matches(Tokenizer.FALSE()) then do 
         Ast.Boolean(false)
+    end else if p.matches(Tokenizer.IDENTIFIER()) then do 
+        val token := p.previous();
+        Ast.Identifier(token.src)
+    end else if p.matches(Tokenizer.NULL()) then do 
+        Ast.NullLiteral()
+    end else if p.matches(Tokenizer.LPAREN()) then do 
+        val inner := expr(p);
+        p.consume(Tokenizer.RPAREN(), "Expect closing parenthesis");
+        inner
     end else do 
         panic("Invalid literal: "+p.peek().kind)
+    end;
+
+fun type_literal(p : Parser) : Ast.Type := 
+    if p.matches(Tokenizer.NUMBER()) then 
+        Ast.NumberT()
+    else if p.matches(Tokenizer.STRING()) then 
+        Ast.StringT()
+    else if p.matches(Tokenizer.BOOLEAN()) then 
+        Ast.BooleanT()
+    else if p.matches(Tokenizer.VOID()) then 
+        Ast.VoidT()
+    else if p.matches(Tokenizer.TYPE_FUN()) then do 
+        p.consume(Tokenizer.LPAREN(), "Expect '(' before parameter types of function type");
+        val arg_types : Ast.Type[] := [];
+        var needs_comma := false;
+        while !p.matches(Tokenizer.RPAREN()) do 
+            if needs_comma do 
+                p.consume(Tokenizer.COMMA(), "Expect parameter types to be separated by ','");
+            end;
+            arg_types.push(type_literal(p));
+            needs_comma := true;
+        end;
+        p.consume(Tokenizer.COLON(), "Expect ':' before function return type");
+        val ret_type := type_literal(p);
+        Ast.Function(arg_types, ret_type)
+    end else do         
+        panic("Invalid type: "+p.peek().kind)
     end;

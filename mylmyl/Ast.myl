@@ -7,32 +7,68 @@ enum Expr where
     NullLiteral(),
     Identifier(String),
     BinaryOperation(BinOp, Expr, Expr),
-    UnaryOperation(UnOp, Expr, Expr);
-//    FunctionCall(Expr, Expr[]),
-//    IfExpr(Expr, Expr, Expr),
+    UnaryOperation(UnOp, Expr),
+    FunctionCall(Expr, Expr[]),
+    IfExpr(LateInitialized(Type), Expr, Expr, Expr),
 //    ListExpr(Expr[]),
 //    IndexExpr(Expr, Expr),
     // PropertyExpr(Expr, String),
-    // BlockExpr(Stmt[], Expr),
+    BlockExpr(Stmt[], Optional(Expr), LateInitialized(Type));
     // WhileExpr(Expr, Stmt),
     // ForExpr(String, Expr, Expr),
 //    ThisExpr();
 end;
 
 enum BinOp where 
-    Add(), Sub(), Mul(), Div(), Mod();
+    Add(), Sub(), Mul(), Div(), Mod(), LessThan(), LessEqual(), GreaterEqual(), GreaterThan(), Equals(), NotEquals(), And(), Or(), Xor();
 end;
 enum UnOp where 
     Plus(), Minus(), Not();
 end; 
-/*
-enum Stmt where 
+
+export enum Stmt where 
     ExprStmt(Expr),
-    IfStmt(Expr, Stmt),
-    SetStmt(String, Expr);
+    PrintStmt(Expr),
+    Declaration(Decl);
 end;
 
-enum Decl where 
-    VarDecl(String, Type, Expr, Bool /* mut */, Bool /* export */),
+export enum BlockPart where 
+    Statement(Stmt),
+    Expression(Expr);
+end
+
+export enum Decl where 
+    VarDecl(String, LateInitialized(Type), Expr, Bool /* mut */, Bool /* export */),
+    FunDecl(String, Parameter[], Type, Expr, Bool /* export */);
 end; 
-*/
+
+enum Parameter where 
+    NormalParam(String, Type);
+end
+
+export class Program where 
+    val decls : Decl[] := [];
+end
+
+enum Type where 
+    NumberT(), BooleanT(), StringT(), VoidT(),
+    Function(Type[], Type);
+end
+
+export class LateInitialized(T) where 
+    var field : Optional(T) := None.[T]();
+
+    fun get() : T := match this.field do 
+        case Some(t) := t;
+        case None() := panic("Error: Attempted to access uninitialized field");
+    end;
+
+    fun init(t : T) do 
+        this.field := Some.[T](t);
+    end
+    fun is_init() : Bool := this.field != None.[T]();
+end
+
+export enum Optional(T) where
+    None(), Some(T);
+end;

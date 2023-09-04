@@ -355,7 +355,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         } else if(object instanceof EnumVariantObject e) {
             return e.getProperty(value.name().lexeme());
         } else if(object instanceof MyLangModule m) {
-            if(m.exports.contains(value.name().lexeme())) {
+            if(m.names.localVariableDeclared(value.name().lexeme())) {
                 return m.names.getVariable(value.name().lexeme());
             } else {
                 throw new InterpreterError("Module '"+m.name.toString()+"' does not export '"+value.name().lexeme()+"'");
@@ -695,7 +695,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     }
 
     private void declareEnumConstructor(EnumConstructor e, Map<String, MyLangCallable> methods) {
-        env.declareVariable(e.name().lexeme(), new EnumVariant(e.name(), e.parameters().size(), methods), false);
+        env.declareVariable(e.name().lexeme(), new EnumVariant(e.name(), e.parameters().size(), methods), true);
     }
 
     @Override

@@ -11,7 +11,8 @@ export enum TokenType where
     NULL(), TRUE(), FALSE(), STRING_LITERAL(), NUMBER_LITERAL(),
 
     AND(), OR(), XOR(),
-
+    
+    PRINT(),
 
     IDENTIFIER(),
 
@@ -181,6 +182,12 @@ class Tokenizer where
                     while !this.at_end() and matches(this.peek(), "[0-9]") do 
                         n := n + this.next();
                     end;
+                    if !this.at_end() and this.peek() = "." do 
+                        n := n + "."; this.next();
+                        while !this.at_end() and matches(this.peek(), "[0-9]") do 
+                            n := n + this.next();
+                        end;
+                    end;
                     ls.push(Token(NUMBER_LITERAL(), n));
                 end else do 
                     panic("Invalid character: "+c);
@@ -226,6 +233,7 @@ class Tokenizer where
         case "Bool" := BOOLEAN();
         case "String" := STRING();
         case "Void" := VOID();
+        case "print" := PRINT();
         case id := IDENTIFIER();
     end;
 
