@@ -1,5 +1,7 @@
 module Ast;
 
+import Env;
+
 enum Expr where 
     NumberLiteral(Number),
     StringLiteral(String),
@@ -9,11 +11,12 @@ enum Expr where
     BinaryOperation(BinOp, Expr, Expr),
     UnaryOperation(UnOp, Expr),
     FunctionCall(Expr, Expr[]),
+    FunctionExpr(Parameter[], Type, Expr, LateInitialized(Env.Env(VarInfo))),
     IfExpr(LateInitialized(Type), Expr, Expr, Expr),
 //    ListExpr(Expr[]),
 //    IndexExpr(Expr, Expr),
     // PropertyExpr(Expr, String),
-    BlockExpr(Stmt[], Optional(Expr), LateInitialized(Type));
+    BlockExpr(Stmt[], Optional(Expr), LateInitialized(Type), LateInitialized(Env.Env(VarInfo)));
     // WhileExpr(Expr, Stmt),
     // ForExpr(String, Expr, Expr),
 //    ThisExpr();
@@ -29,7 +32,13 @@ end;
 export enum Stmt where 
     ExprStmt(Expr),
     PrintStmt(Expr),
-    Declaration(Decl);
+    SetStatement(Setter, Expr),
+    Declaration(Decl),
+    EmptyStmt();
+end;
+
+export enum Setter where 
+    Variable(String);
 end;
 
 export enum BlockPart where 
@@ -39,8 +48,16 @@ end
 
 export enum Decl where 
     VarDecl(String, LateInitialized(Type), Expr, Bool /* mut */, Bool /* export */),
-    FunDecl(String, Parameter[], Type, Expr, Bool /* export */);
+    FunDecl(String, Parameter[], Type, Expr, Bool /* export */, LateInitialized(Env.Env(VarInfo)));
 end; 
+
+class VarInfo where 
+    val ty : Type;
+    val is_mutable : Bool;
+    new(m : Bool, t : Type) do 
+        this.is_mutable := m; this.ty := t;
+    end
+end
 
 enum Parameter where 
     NormalParam(String, Type);
@@ -72,3 +89,6 @@ end
 export enum Optional(T) where
     None(), Some(T);
 end;
+
+export fun late_env() : LateInitialized(Env.Env(VarInfo)) := LateInitialized.[Env.Env(VarInfo)]();
+export fun late_type() : LateInitialized(Type) := LateInitialized.[Type]();

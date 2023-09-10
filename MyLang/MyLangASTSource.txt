@@ -5,7 +5,7 @@ Expression < MyLangAST = NumericLiteral: double value
                        | Identifier: Token value
                        | BinaryOperation: Token operator, Expression left, Expression right
                        | UnaryOperation: Token operator, Expression operand
-                       | FunctionCall: Expression callee, List<Parameter> arguments, Map<String, Expression> named
+                       | FunctionCall: Expression callee, Token dot, List<Parameter> arguments, Map<String, Expression> named
                        | InstExpression: Expression instantiated, List<Type> args
                        | FunctionExpression: String optionalName, ParameterInformation parameters, Expression body, Type retType
                        | IfExpression: Expression condition, Expression thenBranch, Expression elseBranch

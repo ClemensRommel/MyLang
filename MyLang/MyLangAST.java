@@ -62,7 +62,7 @@ public static record UnaryOperation(Token operator, Expression operand) implemen
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitUnaryOperation(this);
 }}
-public static record FunctionCall(Expression callee, List<Parameter> arguments, Map<String, Expression> named) implements Expression {
+public static record FunctionCall(Expression callee, Token dot, List<Parameter> arguments, Map<String, Expression> named) implements Expression {
 public <T> T accept(ExpressionVisitor<T> visitor) {
     return visitor.visitFunctionCall(this);
 }}
@@ -450,10 +450,7 @@ public <T> T accept(TypeRepVisitor<T> visitor) {
 public static record TypeVar(Token name, TypeEnv env) implements TypeRep {
 public <T> T accept(TypeRepVisitor<T> visitor) {
     return visitor.visitTypeVar(this);
-}
-    public String toString() {
-            return name.lexeme();
-        }}
+}}
 public static record ClassType(Token name, 
             Map<String, TypeRep> accessors, 
             Map<String, Boolean> readability, 

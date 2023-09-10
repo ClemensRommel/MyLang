@@ -66,7 +66,14 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
 
             @Override
             public Object call(MyLangInterpreter interpreter, List<Object> posArgs, Map<String, Object> namedArgs) {
-                throw new InterpreterError((String) posArgs.get(0));
+                System.out.println(posArgs.get(0));
+                System.out.println("Panicked at:");
+                while(!interpreter.callStack.isEmpty()) {
+                    System.out.print("  ");
+                    System.out.println(interpreter.callStack.pop());
+                }
+                System.exit(0);
+                return null;
             }
 
         };

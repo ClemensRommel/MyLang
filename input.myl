@@ -1,12 +1,17 @@
-val helloWorld := "Hello world";
-
-fun plusThree(x : Number) :  Number := x + 3;
-
-fun printHelloWorld(): Void do 
-    print helloWorld;
+fun error_right_now() : Fun() : Number do 
+    var counter := 0;
+    fun () : Number do 
+        val x := counter;
+        counter := counter + 1;
+        x
+    end
 end
 
 fun main() : Void do 
-    printHelloWorld();    
-    print plusThree(4);
+    val f := error_right_now();
+    print f();
+    print f();
+    print f();
+    print f();
 end
+

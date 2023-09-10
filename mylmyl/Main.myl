@@ -10,7 +10,7 @@ fun main() do
         panic("Could not open file");
     end;
     val ast := Parser.parse(source);
-    Typechecker.typecheck(ast);
-    val compiled := Compiler.compile(ast);
+    val globals := Typechecker.typecheck(ast);
+    val compiled := Compiler.compile(ast, globals);
     print(compiled);
 end

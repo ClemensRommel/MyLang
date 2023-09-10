@@ -1,55 +1,40 @@
 module Typechecker;
 
 import Ast;
-import AList;
+import Env;
 
-fun typecheck(ast : Ast.Program) do 
+fun typecheck(ast : Ast.Program) : Env.Env(Ast.VarInfo) do 
     val tc := new Typechecker();
     for decl in ast.decls do 
         check_decl(tc, decl);
     end;
-end
-
-class Env where 
-    var bindings : AList.List(Ast.Type)[] := [AList.List.[Ast.Type]()];
-    
-    fun get(name : String) : Ast.Type do 
-        var i := this.bindings.length - 1;
-        while i >= 0 do 
-            if this.bindings[i].has(name) do 
-                return this.bindings[i].get(name);
-            end;
-            i := i - 1;
-        end;
-        panic("Unknown variable: '"+name+"'")
-    end;
-    fun has(name : String) : Bool do 
-        var i := this.bindings.length - 1;
-        while i >= 0 do 
-            if this.bindings[i].has(name) do 
-                return true;
-            end;
-            i := i - 1;
-        end; 
-        false
-    end;
-    fun insert(name : String, t : Ast.Type) := this.bindings.last.insert(name, t);
-    fun open_scope() do 
-        this.bindings.push(AList.List.[Ast.Type]());
-    end
-    fun close_scope() do 
-        this.bindings.pop();
-    end
+    tc.env
 end
 
 class Typechecker where 
-    var env : Env := Env();
+    var env : Env.Env(Ast.VarInfo) := Env.Env.[Ast.VarInfo]();
     fun error[A](message : String) : A := panic(message);
     fun require_assigneable(to : Ast.Type, from : Ast.Type, violating : Ast.Expr) do 
         if to != from do 
             this.error.[Void](from+" is not assigneable to "+to+" in expression "+violating);
         end;
     end
+
+    fun open_scope() do 
+        this.env := this.env.open_scope();
+    end
+    fun close_scope() do 
+        this.env := this.env.close_scope();
+    end
+
+    fun type_of_var(name : String) : Ast.Type := this.env.get(name).ty;
+    fun is_var_mutable(name : String) : Bool := this.env.get(name).is_mutable;
+
+    fun var_declared(name : String) : Bool := this.env.has(name);
+
+    fun declare(name : String, ty : Ast.Type, m : Bool) := this.env.insert(name, Ast.VarInfo(m, ty));
+
+    fun is_global() : Bool := this.env.outer = Env.None.[Ast.VarInfo]();
 end
 
 fun check_stmt(tc : Typechecker, stmt : Ast.Stmt) := match stmt do 
@@ -60,6 +45,25 @@ fun check_stmt(tc : Typechecker, stmt : Ast.Stmt) := match stmt do
         infer(tc, arg);
     end;
     case Declaration(decl) := check_decl(tc, decl);
+    case SetStatement(setter, value) := check_set_stmt(tc, setter, value);
+end;
+
+fun check_set_stmt(tc : Typechecker, setter : Ast.Setter, value : Ast.Expr) do 
+    val expected_type := infer_setter(tc, setter);
+    check(tc, value, expected_type);
+    check_mutability(tc, setter);
+end
+
+fun check_mutability(tc : Typechecker, setter : Ast.Setter) := match setter do 
+    case Variable(name) := do 
+        if !tc.is_var_mutable(name) do 
+            panic("Error: '"+name+"' is not mutable");
+        end;
+    end;
+end;
+
+fun infer_setter(tc : Typechecker, s : Ast.Setter) : Ast.Type := match s do 
+    case Variable(name) := tc.type_of_var(name);
 end;
 
 fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do 
@@ -72,43 +76,44 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
         end else do
             lt.init(infer(tc, init));
         end;
-        if tc.env.has(name) then do 
+        if tc.var_declared(name) then do 
             panic("Variable already declared: '"+name+"'");
         end else do 
-            tc.env.insert(name, lt.get());
+            tc.declare(name, lt.get(), mutable);
         end;
     end;
-    case FunDecl(name, params, return_type, body, ?) := do 
+    case FunDecl(name, params, return_type, body, ?, lenv) := do 
         if matches(name, "__.*") do 
             panic("Names may not start with __: '"+name+"'")
         end
         val fun_type := Ast.Function(param_types(params), return_type);
-        if tc.env.has(name) then do 
+        if tc.var_declared(name) then do 
             panic("Function already declared: '"+name+"'");
         end else do 
-            tc.env.insert(name, fun_type);
+            tc.declare(name, fun_type, false);
         end;
-        tc.env.open_scope();
+        tc.open_scope();
             for param in params do 
                 match param do 
                     case NormalParam(name, ty) := do 
                         if matches(name, "__.*") do 
                             panic("Names may not start with __: '"+name+"'")
                         end
-                        if tc.env.has(name) then do 
+                        if tc.var_declared(name) then do 
                             panic("Parameter already declared: '"+name+"'");
                         end else do 
-                            tc.env.insert(name, ty);
+                            tc.declare(name, ty, false);
                         end
                     end;
                 end;
             end;
             check(tc, body, return_type);
-        tc.env.close_scope();
-        if tc.env.bindings.length = 1 and name = "main" and return_type != Ast.VoidT() do 
+            lenv.init(tc.env);
+        tc.close_scope();
+        if tc.is_global() and name = "main" and return_type != Ast.VoidT() do 
             panic("Main may not return anything other than Void");
         end
-        if tc.env.bindings.length = 1 and name = "main" and params != [] do 
+        if tc.is_global() and name = "main" and params != [] do 
             panic("Main may not define any parameters");
         end;
     end;
@@ -127,13 +132,10 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
     case StringLiteral(?) := tc.require_assigneable(t, Ast.StringT(), e);
     case NullLiteral() := tc.require_assigneable(t, Ast.VoidT(), e);
     case Identifier(name) := do 
-        tc.require_assigneable(t, tc.env.get(name), e);
+        tc.require_assigneable(t, tc.type_of_var(name), e);
         if matches(name, "__.*") do 
             panic("Names may not start with __: '"+name+"'")
         end;
-        if val Function(?, ?) := tc.env.get(name) then do 
-            panic("Error: First class functions are not implemented yet: "+name);
-        end else null;
     end;
     case BinaryOperation(op, lhs, rhs) := tc.require_assigneable(t, infer_binary(tc, op, lhs, rhs), e);
     case UnaryOperation(op, operand) := tc.require_assigneable(t, infer_unary(tc, op, operand), e);
@@ -143,32 +145,44 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
         check(tc, thenBr, t);
         check(tc, elseBr, t);
     end;
-    case BlockExpr(stmts, end_expr, lt) := do 
-        check_block(tc, t, stmts, end_expr, e);
+    case BlockExpr(stmts, end_expr, lt, lenv) := do 
+        check_block(tc, t, stmts, end_expr, e, lenv);
         lt.init(t);
     end;
     case FunctionCall(callee, args) := do 
-        if val Identifier(name) := callee then do 
-            val callee_type := tc.env.get(name);
-            val Function(param_types, ret_type) := callee_type else do 
-                panic("Cannot call non-function-type "+callee_type+" in "+e)
-            end;
-            tc.require_assigneable(t, ret_type, e);
-            if param_types.length != args.length do 
-                panic("Error: tried to call function "+name+" with "+args.length+
-                    " parameters, but "+name+" expects "+param_types.length+" parameters");
-            end;
-            for i in [0..args.length] do 
-                check(tc, args[i], param_types[i]);
-            end
-        end else do 
-            panic("Error: Cannot call things other than identifiers: "+e);
+        val callee_type := infer(tc, callee);
+        val Function(param_types, ret_type) := callee_type else do 
+            panic("Cannot call non-function-type "+callee_type+" in "+e)
+        end;
+        tc.require_assigneable(t, ret_type, e);
+        if param_types.length != args.length do 
+            panic("Error: tried to call function "+callee+" with "+args.length+
+                " parameters, but "+callee+" expects "+param_types.length+" parameters");
+        end;
+        for i in [0..args.length] do 
+            check(tc, args[i], param_types[i]);
         end
     end;
+    case FunctionExpr(params, return_type, body, lenv) := tc.require_assigneable(
+        t, 
+        infer_function(
+            tc, 
+            params, 
+            return_type, 
+            body, 
+            lenv), 
+        e);
 end;
 
-fun check_block(tc : Typechecker, t : Ast.Type, stmts : Ast.Stmt[], end_expr : Ast.Optional(Ast.Expr), total : Ast.Expr) do 
-    tc.env.open_scope();
+fun check_block(
+    tc : Typechecker, 
+    t : Ast.Type, 
+    stmts : Ast.Stmt[], 
+    end_expr : Ast.Optional(Ast.Expr), 
+    total : Ast.Expr, 
+    lenv : Ast.LateInitialized(Env.Env(Ast.VarInfo)))
+do 
+    tc.open_scope();
         for stmt in stmts do 
             check_stmt(tc, stmt);
         end;
@@ -177,7 +191,8 @@ fun check_block(tc : Typechecker, t : Ast.Type, stmts : Ast.Stmt[], end_expr : A
         end else do 
             tc.require_assigneable(t, Ast.VoidT(), total);
         end;
-    tc.env.close_scope();
+        lenv.init(tc.env);
+    tc.close_scope();
 end
 
 fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do 
@@ -189,10 +204,8 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         if matches(name, "__.*") do 
             panic("Names may not start with __: '"+name+"'")
         end;
-        val res := t.env.get(name);
-        if val Function(? ,?) := res then do 
-            panic("Error: First class functions are not implemented yet: "+name)
-        end else res
+        val res := t.type_of_var(name);
+        res
     end;
     case BinaryOperation(op, lhs, rhs) := infer_binary(t, op, lhs, rhs);
     case UnaryOperation(op, operand) := infer_unary(t, op, operand);
@@ -203,27 +216,57 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         linit.init(ret_type);
         ret_type
     end;
-    case BlockExpr(stmts, end_expr, lt) := infer_block(t, stmts, end_expr, lt);
-    case FunctionCall(callee, args) := if val Identifier(name) := callee then do 
-        val callee_type := t.env.get(name);
+    case FunctionExpr(params, return_type, body, lenv) := infer_function(t, params, return_type, body, lenv);
+    case BlockExpr(stmts, end_expr, lt, lenv) := infer_block(t, stmts, end_expr, lt, lenv);
+    case FunctionCall(callee, args) := do 
+        val callee_type := infer(t, callee);
         val Function(param_types, ret_type) := callee_type else do 
             panic("Cannot call non-function-type "+callee_type+" in "+e)
         end;
         if param_types.length != args.length do 
-            panic("Error: tried to call function "+name+" with "+args.length+
-                " parameters, but "+name+" expects "+param_types.length+" parameters");
+            panic("Error: tried to call function "+callee+" with "+args.length+
+                " parameters, but "+callee+" expects "+param_types.length+" parameters");
         end;
         for i in [0..args.length] do 
             check(t, args[i], param_types[i]);
         end
         ret_type
-    end else do 
-        panic("Error: Cannot call things other than identifiers: "+e)
     end;
 end;
 
-fun infer_block(t : Typechecker, stmts : Ast.Stmt[], end_expr : Ast.Optional(Ast.Expr), lt : Ast.LateInitialized(Ast.Type)) : Ast.Type do 
-    t.env.open_scope();
+fun infer_function(
+    t : Typechecker,
+    params : Ast.Parameter[], 
+    return_type : Ast.Type,
+    body : Ast.Expr,
+    lenv : Ast.LateInitialized(Env.Env(Ast.VarInfo))) : Ast.Type 
+do 
+    t.open_scope();
+        for param in params do 
+            match param do 
+                case NormalParam(name, ty) := do 
+                    if t.var_declared(name) then do 
+                        panic("Error: Function parameter "+name+" is already declared")
+                    end else do 
+                        t.declare(name, ty, false);
+                    end
+                end;
+            end;
+        end;
+        check(t, body, return_type);
+        lenv.init(t.env);
+    t.close_scope();
+    Ast.Function(param_types(params), return_type)
+end
+
+fun infer_block(
+    t : Typechecker, 
+    stmts : Ast.Stmt[], 
+    end_expr : Ast.Optional(Ast.Expr), 
+    lt : Ast.LateInitialized(Ast.Type),
+    lenv : Ast.LateInitialized(Env.Env(Ast.VarInfo))) : Ast.Type 
+do 
+    t.open_scope();
         for stmt in stmts do 
             check_stmt(t, stmt);
         end
@@ -231,7 +274,8 @@ fun infer_block(t : Typechecker, stmts : Ast.Stmt[], end_expr : Ast.Optional(Ast
         if val Some(e) := end_expr then do 
             result_type := infer(t, e);
         end else do end;
-    t.env.close_scope();
+        lenv.init(t.env);
+    t.close_scope();
     lt.init(result_type);
     result_type
 end

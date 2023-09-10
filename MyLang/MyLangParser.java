@@ -777,6 +777,7 @@ public class MyLangParser {
     }
 
     private Expression finalizeFunctionCall(Expression left) {
+        var dot = previous();
         var parameters = parseCommaSeparated(TokenType.RPAREN);
         var positional = parameters.stream()
             .filter(p -> !(p instanceof NamedParameter))
@@ -785,7 +786,7 @@ public class MyLangParser {
             .filter(p -> p instanceof NamedParameter)
             .map(p -> (NamedParameter) p)
             .collect(Collectors.toMap(p -> p.name().lexeme(), p -> p.parameter()));
-        return new FunctionCall(left, positional, named);
+        return new FunctionCall(left, dot, positional, named);
     }
 
     private Expression primary() {

@@ -1,6 +1,8 @@
 module Compiler;
 
 import Ast;
+import Env;
+import Analyze;
 
 class Compiler where 
     var buf : String := "";
@@ -8,6 +10,17 @@ class Compiler where
     var counter : Number := 0;
 
     var is_global : Bool := true;
+
+    val types_to_compile : CompilationTask[] := [];
+    val compiled_types : (String, Ast.Type)[] := [];
+
+    var current_env : Env.Env(Ast.VarInfo);
+
+    var env : Env.Env(VariableInfo) := Env.Env.[VariableInfo]();
+
+    new(globals : Env.Env(Ast.VarInfo)) do 
+        this.current_env := globals;
+    end
 
     fun append(str : String) do
         this.buf := this.buf + str;
@@ -31,15 +44,57 @@ class Compiler where
         this.indent_level := this.indent_level - 1; 
     end
 
+    fun strip_trailing() do 
+        this.buf := strip(this.buf);
+    end
+
     fun new_var() : String do 
         val c := this.counter;
         this.counter := this.counter + 1;
         "__a" + c 
     end
+
+    fun enqueue_type(t : Ast.Type, type_name : String) do 
+        val (args, ret) :=  if val Function(args, ret) := t then (args, ret) else panic("Invalid task: "+t);
+        this.types_to_compile.push(CreateFunctionalInterface(args, ret, type_name));
+    end
+    
+    fun get_enqueued_type(t : Ast.Type) : Ast.Optional(String) do 
+        for task in this.types_to_compile do 
+            match task do 
+                case CreateFunctionalInterface(args, ret, name) := do
+                    if t = Ast.Function(args, ret) do 
+                        return Ast.Some.[String](name);
+                    end;
+                end;
+                case ? := do end;
+            end;
+        end;
+        for (name, ty) in this.compiled_types do 
+            if ty = t do 
+                return Ast.Some.[String](name);
+            end;
+        end;
+        Ast.None.[String]()
+    end
 end
 
-fun compile(ast : Ast.Program) : String do 
-    val c := Compiler();
+enum CompilationTask where 
+    CreateFunctionalInterface(Ast.Type[], Ast.Type, String);
+end;
+
+enum Target where 
+    Ignore(), UsedDirectly(), Return(), AssignTo(Ast.Setter);
+end
+
+class VariableInfo where 
+    var is_no_fc_fn : Bool := false;
+    var is_upvalue : Bool := false;
+end
+
+fun compile(ast : Ast.Program, globals : Env.Env(Ast.VarInfo)) : String do 
+    val c := Compiler(globals);
+    import_implicits(c);
     c.append("class Main {");
     c.indent(); c.newline();
     for decl in ast.decls do 
@@ -47,26 +102,34 @@ fun compile(ast : Ast.Program) : String do
     end;
     c.dedent(); c.newline();
     c.append("}");
+    c.newline();
+    compile_function_types(c);
     c.buf
+end
+
+fun import_implicits(c : Compiler) do 
+    c.append("import static std.codegen.Functions.*;");
+
+    c.newline();
+    c.newline();
 end
 
 fun compile_stmt(c : Compiler, stmt : Ast.Stmt) := match stmt do 
     case ExprStmt(expr) := do 
-        val arg := compile_expr(c, expr);
-        c.append(arg); c.append(";");
-        c.newline();
+        val arg := compile_expr(c, expr, Ignore());
     end;
     case PrintStmt(expr) := do 
-        val arg := compile_expr(c, expr);
+        val arg := compile_expr(c, expr, UsedDirectly());
         c.append("System.out.println(");c.append(arg);c.append(");");
         c.newline();
     end;
     case Declaration(decl) := compile_decl(c, decl);
+    case SetStatement(setter, expr) := compile_expr(c, expr, AssignTo(setter));
 end;
 
 fun compile_decl(c : Compiler, decl : Ast.Decl) := match decl do 
     case VarDecl(name, lt, init, mutable, ?) := compile_var_decl(c, name, lt, init, mutable);
-    case FunDecl(name, params, return_type, body, ?) := compile_fun_decl(c, name, params, return_type, body);
+    case FunDecl(name, params, return_type, body, ?, lenv) := compile_fun_decl(c, name, params, return_type, body, lenv);
 end;
 
 fun compile_var_decl(c : Compiler, name : String, lt : Ast.LateInitialized(Ast.Type), init : Ast.Expr, mutable : Bool) do 
@@ -76,34 +139,58 @@ fun compile_var_decl(c : Compiler, name : String, lt : Ast.LateInitialized(Ast.T
             c.append("final ");
         end
         c.append(compile_type(c, lt.get())); c.append(" "); c.append(name); c.append(";");
+        c.newline();
         c.append("static {");
         c.indent(); c.newline();
-        val initializer := compile_expr(c, init);
-        c.append(name); c.append(" = "); c.append(initializer); c.append(";");
+        val initializer := compile_expr(c, init, AssignTo(Ast.Variable(name)));
+        c.strip_trailing();
         c.dedent(); c.newline();
         c.append("}");
         c.newline();
+        // Global variables are not pre-analyzed for captures, because they cannot be captured
+        c.env.insert(name, VariableInfo());
     end else do
-        val initializer := compile_expr(c, init);
         val ty := compile_type(c, lt.get());
         if !mutable do 
             c.append("final ");
         end;
-        c.append(ty); c.append(" "); c.append(name); c.append(" = "); c.append(initializer); c.append(";");
-        c.newline();
+        c.append(ty); c.append(" "); c.append(name); c.append(";");
+        compile_expr(c, init, AssignTo(Ast.Variable(name)));
     end;
 end
 
-fun compile_fun_decl(c : Compiler, name : String, params : Ast.Parameter[], return_type : Ast.Type, body : Ast.Expr) do 
+fun compile_fun_decl(
+    c : Compiler, 
+    name : String, 
+    params : Ast.Parameter[], 
+    return_type : Ast.Type, 
+    body : Ast.Expr,
+    lenv : Ast.LateInitialized(Env.Env(Ast.VarInfo))) 
+do 
+    val info := VariableInfo();
+    info.is_no_fc_fn := c.is_global; // Local functions cannot be compiled directly but to lambdas
+    c.env.insert(name, info);
     val is_main := c.is_global and name = "main" and return_type = Ast.VoidT();
     val previous_is_global := c.is_global;
-    c.append("public static "); 
-    if is_main then do 
-        c.append("void");
-    end else do
-        c.append(compile_type(c, return_type)); 
+    val previous_env := c.current_env;
+    c.current_env := lenv.get();
+    c.env := c.env.open_scope();
+    if c.is_global then do 
+        c.append("public static "); 
+        if is_main then do 
+            c.append("void");
+        end else do
+            c.append(compile_type(c, return_type)); 
+        end;
+    end else do 
+        val ty := c.current_env.get(name).ty;
+        if val Function(?, ?) := ty then do end else panic("Unreachable: Function is being compiled that has non-function-type");
+        c.append(compile_type(c, ty)); 
     end;
     c.append(" "); c.append(name);
+    if !c.is_global do 
+        c.append(" = ");
+    end
     c.append("(");
     var needs_comma := false;
     for param in params do 
@@ -112,22 +199,22 @@ fun compile_fun_decl(c : Compiler, name : String, params : Ast.Parameter[], retu
         end;
         match param do 
             case NormalParam(name, ty) := do 
+                c.env.insert(name, VariableInfo());
                 c.append(compile_type(c, ty)); c.append(" "); c.append(name);
             end;
         end;
         needs_comma := true;
     end;
     c.append(")");
+    if !c.is_global do 
+        c.append(" -> ");
+    end
     c.is_global := false;
-    c.append("{"); c.indent(); c.newline();
-    val body := compile_expr(c, body);
-    if !is_main then do 
-        c.append("return "); 
-    end else do 
-        c.append("Object "); c.append(c.new_var()); c.append(" = ");
-    end;
-    c.append(body); c.append(";"); c.dedent(); c.newline();
-    c.append("}");
+    val body_is_block := if val BlockExpr(?, ?, ?, ?) := body then true else false;
+    if !body_is_block do c.append(" {"); c.indent(); c.newline(); end;
+    val body := compile_expr(c, body, if is_main then Ignore() else Return());
+    c.strip_trailing();
+    if !body_is_block do c.dedent(); c.newline(); c.append("}"); end;
     c.newline();
     c.is_global := previous_is_global;
     if is_main do 
@@ -137,10 +224,28 @@ fun compile_fun_decl(c : Compiler, name : String, params : Ast.Parameter[], retu
     }");
         c.newline();
     end;
+    if !c.is_global do 
+        c.append(";");
+        c.newline();
+    end;
 end
 
-fun compile_expr(c : Compiler, expr : Ast.Expr) : String := match expr do 
-    case NumberLiteral(n) := n + "";
+// For side-effect-free expressions that dont write to the compiler but only return strings
+fun use_with_target(c : Compiler, expr : String, target : Target) : String do 
+    match target do 
+        case Ignore() := ""; 
+        case UsedDirectly() := expr;
+        case AssignTo(setter) := do 
+            assign(c, setter, expr)
+        end;
+        case Return() := do 
+            return_stmt(c, expr)
+        end;
+    end
+end
+
+fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := match expr do 
+    case NumberLiteral(n) := use_with_target(c, n + "", target);
     case StringLiteral(str) := do 
         var resulting := str;
         resulting := replace(resulting, "\\", "\\\\");
@@ -150,31 +255,223 @@ fun compile_expr(c : Compiler, expr : Ast.Expr) : String := match expr do
         resulting := replace(resulting, "\"", "\\\"");
         resulting := replace(resulting, "\0", "\\0");
         resulting := "\"" + resulting + "\"";
-        resulting
+        use_with_target(c, resulting, target)
     end;
-    case Boolean(b) := if b then "true" else "false";
-    case NullLiteral() := "null";
-    case Identifier(name) := name;
-    case BinaryOperation(op, left, right) := do 
-        val l := compile_expr(c, left);
-        val r := compile_expr(c, right);
-        val o := compile_bin_op(op);
-        "("+l+" "+o+" "+r+")"
-    end;
-    case UnaryOperation(op, operand) := do 
-        val operand_compiled := compile_expr(c, operand);
-        val o := compile_un_op(op);
-        "("+o+operand_compiled+")"
-    end;
-    case IfExpr(lt, cond, thenBr, elseBr) := compile_if(c, lt, cond, thenBr, elseBr);
-    case BlockExpr(stmts, end_expr, lt) := compile_block(c, stmts, end_expr, lt.get());
-    case FunctionCall(callee, args) := compile_call(c, callee, args);
+    case Boolean(b) := use_with_target(c, if b then "true" else "false", target);
+    case NullLiteral() := use_with_target(c, "null", target);
+    case Identifier(name) := compile_identifier(c, name, target);
+    case BinaryOperation(op, left, right) := compile_binary(c, op, left, right, target);
+    case UnaryOperation(op, operand) := compile_unary(c, op, operand, target);
+    case IfExpr(lt, cond, thenBr, elseBr) := compile_if(c, lt, cond, thenBr, elseBr, target);
+    case BlockExpr(stmts, end_expr, lt, lenv) := compile_block(c, stmts, end_expr, lt.get(), lenv, target);
+    case FunctionCall(callee, args) := compile_call(c, callee, args, target);
+    case FunctionExpr(params, return_type, body, lenv) := compile_function_expr(c, params, return_type, body, lenv.get(), target);
 end;
 
-fun compile_call(c : Compiler, callee : Ast.Expr, args : Ast.Expr[]) : String do 
-    val callee_compiled := compile_expr(c, callee);
+fun compile_binary(
+    c : Compiler, 
+    op : Ast.BinOp, 
+    left : Ast.Expr,
+    right : Ast.Expr,
+    target : Target
+) : String 
+do 
+    if Ignore() = target do // Don't need to compile the operation 
+        compile_expr(c, left, Ignore());
+        compile_expr(c, right, Ignore());
+        return "";
+    end;
+    val operation := do 
+        val lhs := compile_expr(c, left, UsedDirectly());
+        val rhs := compile_expr(c, right, UsedDirectly());
+        val op := compile_bin_op(op);
+        "" + lhs + " " + op + " " + rhs
+    end;
+    match target do 
+        case Return() := do 
+            return_stmt(c, operation)
+        end;
+        case AssignTo(setter) := do 
+            assign(c, setter, operation)
+        end;
+        case UsedDirectly() := "(" + operation + ")";
+    end
+end
+
+fun compile_unary(c : Compiler, op : Ast.UnOp, operand : Ast.Expr, target : Target) : String do 
+    if target = Ignore() do 
+        compile_expr(c, operand, Ignore());
+        return "";
+    end;
+    val operation := do 
+        val operand_comp := compile_expr(c, operand, UsedDirectly());
+        val op_c := compile_un_op(op);
+        "op_c" + operand_comp
+    end;
+    match target do 
+        case UsedDirectly() := "(" + operation + ")";
+        case Return() := do 
+            return_stmt(c, operation)
+        end;
+        case AssignTo(setter) := do 
+            assign(c, setter, operation)
+        end;
+    end
+end
+
+fun compile_function_expr(
+    c : Compiler,
+    params : Ast.Parameter[],
+    return_type : Ast.Type,
+    body : Ast.Expr,
+    env : Env.Env(Ast.VarInfo),
+    target : Target) : String
+do 
+    if Ignore() = target do return ""; end;
+    val complete_ty := Ast.Function(param_types(params), return_type);
+    var name := "";
+    val temp_var := match target do 
+        case UsedDirectly() := do 
+            name := c.new_var();
+            Ast.Variable(name)
+        end;
+        case Return() := Ast.Variable("");
+        case AssignTo(setter) := setter;
+    end;
+    match target do 
+        case UsedDirectly() := do 
+            c.append("final "); c.append(compile_type(c, complete_ty)); c.append(" "); compile_setter(c, temp_var); c.append(" = (");
+        end;
+        case AssignTo(setter) := do 
+            compile_setter(c, setter); c.append(" = (");
+        end;
+        case Return() := do 
+            c.append("return (");
+        end;
+    end;
+    val previous_env := c.current_env;
+    val previous_is_global := c.is_global;
+    c.current_env := env;
+    c.env := c.env.open_scope();
+    var needs_comma := false;
+    for param in params do 
+        if needs_comma do 
+            c.append(", ");
+        end;
+        match param do 
+            case NormalParam(name, ty) := do 
+                c.env.insert(name, VariableInfo());
+                c.append(compile_type(c, ty)); c.append(" "); c.append(name);
+            end;
+        end;
+        needs_comma := true;
+    end; 
+
+    val body_is_block := if val BlockExpr(?, ?, ?, ?) := body then true else false;
+
+    c.append(") -> ");
+    if !body_is_block do 
+        c.append("{");
+        c.indent(); c.newline();
+    end
+    
+    compile_expr(c, body, Return());
+    c.strip_trailing();
+    if !body_is_block do
+        c.dedent(); c.newline();
+        c.append("};"); c.newline();
+    end
+
+    c.current_env := previous_env;
+    c.env := c.env.close_scope();
+    c.is_global := previous_is_global;
+    name
+end
+
+fun param_types(params : Ast.Parameter[]) : Ast.Type[] := for param in params yield 
+    match param do 
+        case NormalParam(name, ty) := ty;
+    end
+end;
+
+fun compile_identifier(c : Compiler, name : String, target : Target) : String do 
+    if Ignore() = target do // Identifier has no side effects, so ignore means nothing has to be compiled
+        return "";
+    end;
+    if val Function(args, ret_type) := c.current_env.get(name).ty then do 
+        if !c.env.get(name).is_no_fc_fn do // Value is a first class function already 
+            return use_with_target(c, name, target); // No lambda has to be created
+        end;
+        val ty := compile_type(c, c.current_env.get(name).ty);
+        var name := "";
+        val temp_var := match target do 
+            case Return() := Ast.Variable("");
+            case UsedDirectly() := do 
+                name := c.new_var();
+                Ast.Variable(name)
+            end;
+            case AssignTo(setter) := setter;
+        end;
+        match target do 
+            case Return() := do 
+                c.append("return ");
+            end;
+            case UsedDirectly() := do 
+                c.append(ty); c.append(" "); compile_setter(c, temp_var); c.append(" = ");
+            end;
+            case AssignTo(setter) := do 
+                compile_setter(c, setter); c.append(" = ");
+            end;
+        end;
+        c.append("(");
+        val params : String[] := [];
+        var needs_comma := false;
+        for param in args do 
+            if needs_comma do 
+                c.append(", ");
+            end;
+            val arg_name := c.new_var();
+            c.append(compile_type(c, param)); c.append(" "); c.append(arg_name);
+            params.push(arg_name);
+            needs_comma := true;
+        end;
+        c.append(") -> "); c.append(name); c.append("(");
+        needs_comma := false;
+        for param in params do 
+            if needs_comma do 
+                c.append(", ");
+            end
+            c.append(param);
+        end;
+        c.append(");");
+        c.newline();
+        name
+    end else do 
+        use_with_target(c, name, target)
+    end
+end
+
+fun create_function_type(c : Compiler, ty : Ast.Type) : String do 
+    if val Some(name) := c.get_enqueued_type(ty) then do 
+        name 
+    end else do 
+        val type_name := c.new_var();
+        c.enqueue_type(ty, type_name);
+        type_name
+    end
+end
+
+fun compile_call(c : Compiler, callee : Ast.Expr, args : Ast.Expr[], target : Target) : String do 
+    val callee_compiled := if val Identifier(name) := callee then do 
+        if c.env.get(name).is_no_fc_fn then 
+            name 
+        else 
+            compile_expr(c, callee, UsedDirectly()) + ".call"
+    end else do 
+        compile_expr(c, callee, UsedDirectly()) + ".call"
+    end;
     val args_compiled := for arg in args yield 
-        compile_expr(c, arg)
+        compile_expr(c, arg, UsedDirectly())
     end;
     var str := "";
     str := str + callee_compiled + "(";
@@ -187,26 +484,78 @@ fun compile_call(c : Compiler, callee : Ast.Expr, args : Ast.Expr[]) : String do
         needs_comma := true;
     end;
     str := str + ")";
-    str
+    match target do 
+        case Ignore() := do c.append("ignore("); c.append(str); c.append(");"); c.newline(); "" end;
+        case Return() := do 
+            return_stmt(c, str)
+        end;
+        case UsedDirectly() := str;
+        case AssignTo(setter) := do 
+            assign(c, setter, str)
+        end;
+    end
 end
 
-fun compile_block(c : Compiler, stmts : Ast.Stmt[], end_expr : Ast.Optional(Ast.Expr), t : Ast.Type) : String do 
-    val var_name := c.new_var();
-    c.append("final "); c.append(compile_type(c, t)); c.append(" "); c.append(var_name); c.append(";");
-    c.newline(); c.append("{"); c.indent(); c.newline();
+fun compile_block(
+    c : Compiler, 
+    stmts : Ast.Stmt[], 
+    end_expr : Ast.Optional(Ast.Expr), 
+    t : Ast.Type,
+    lenv : Ast.LateInitialized(Env.Env(Ast.VarInfo)),
+    target : Target) : String 
+do 
+    var name := "";
+    var var_name := match target do 
+        case Ignore() := Ast.Variable("");
+        case Return() := Ast.Variable("");
+        case UsedDirectly() := do 
+            name := c.new_var();
+            Ast.Variable(name)
+        end;
+        case AssignTo(setter) := setter; 
+    end;
+    if target = UsedDirectly() do 
+        c.append("final "); 
+        c.append(compile_type(c, t)); 
+        c.append(" "); 
+        compile_setter(c, var_name);
+        c.append(";"); 
+        c.newline(); 
+    end;
+    c.append("{"); c.indent(); c.newline();
+    val previous_env := c.current_env;
+    c.current_env := lenv.get();
+    c.env := c.env.open_scope();
+    Analyze.analyze_captures(c, stmts);
     for stmt in stmts do 
         compile_stmt(c, stmt);
     end;
     if val Some(e) := end_expr then do 
-        val result_expr := compile_expr(c, e);
-        c.append(var_name); c.append(" = "); c.append(result_expr); c.append(";");
+        val resulting_target := match target do 
+            case Ignore() := Ignore();
+            case Return() := Return();
+            case UsedDirectly() := AssignTo(var_name);
+            case AssignTo(?) := AssignTo(var_name);
+        end;
+        val ? := compile_expr(c, e, target);
     end else do 
-        c.append(var_name); c.append(" = null;");
+        match target do 
+            case Ignore() := Ignore();
+            case Return() := c.append("return null;");
+            case UsedDirectly() := do 
+                name := "null"; // Just user null as inline expression 
+            end; 
+            case AssignTo(setter) := do 
+                assign(c, setter, "null");
+            end;
+        end;
     end;
+    c.strip_trailing();
     c.dedent(); c.newline();
     c.append("}");
-    c.newline();
-    var_name
+    c.current_env := previous_env;
+    c.env := c.env.close_scope();
+    name
 end
 
 fun compile_bin_op(op : Ast.BinOp) : String := match op do 
@@ -232,18 +581,56 @@ fun compile_un_op(op : Ast.UnOp) : String := match op do
     case Not()   := "!";
 end;
 
-fun compile_if(c : Compiler, lt : Ast.LateInitialized(Ast.Type), cond : Ast.Expr, thenBr : Ast.Expr, elseBr : Ast.Expr) : String do 
-    val var_name := c.new_var();
-    c.append("final "); c.append(compile_type(c, lt.get())); c.append(" "); c.append(var_name); c.append(";"); c.newline();
-    val cond_expr := compile_expr(c, cond);
+fun compile_if(
+    c : Compiler, 
+    lt : Ast.LateInitialized(Ast.Type), 
+    cond : Ast.Expr, 
+    thenBr : Ast.Expr, 
+    elseBr : Ast.Expr,
+    target : Target) : String do 
+    var name := "";
+    val var_name := match target do 
+        case Ignore() := Ast.Variable("");
+        case Return() := Ast.Variable("");
+        case UsedDirectly() := do 
+            name := c.new_var();
+            Ast.Variable(name)
+        end;
+        case AssignTo(setter) := setter;
+    end;
+    if target = UsedDirectly() do
+        c.append("final "); c.append(compile_type(c, lt.get())); c.append(" "); compile_setter(c, var_name); c.append(";"); c.newline();
+    end;
+    val prev_buf := c.buf; // Safe buffer before if to backtrack in case the if is not necessare
+    c.buf := "";
+    val branch_target := match target do 
+        case Ignore() := Ignore();
+        case Return() := Return();
+        case ? := AssignTo(var_name);
+    end;
+    val cond_expr := compile_expr(c, cond, UsedDirectly());
+    val cond_buf := c.buf;
+    c.buf := "";
     c.append("if("); c.append(cond_expr); c.append(") {"); c.indent(); c.newline();
-    val thenBrExpr := compile_expr(c, thenBr);
-    c.append(var_name); c.append(" = "); c.append(thenBrExpr); c.append(";");
-    c.dedent();c.newline(); c.append("} else {"); c.indent();c.newline();
-    val elseBrExpr := compile_expr(c, elseBr);
-    c.append(var_name); c.append(" = "); c.append(elseBrExpr); c.append(";");
-    c.dedent(); c.newline(); c.append("}"); c.newline();
-    var_name
+    val if_buf := c.buf;
+    c.buf := "";
+    val thenBrExpr := compile_expr(c, thenBr, branch_target);
+    val thenIsIgnored := thenBrExpr = "" and c.buf = "";
+    c.strip_trailing();c.dedent();c.newline(); c.append("} else {"); c.indent();c.newline();
+    val else_buf := c.buf;
+    c.buf := "";
+    val elseBrExpr := compile_expr(c, elseBr, branch_target);
+    val elseIsIgnored := elseBrExpr = "" and c.buf = "";
+    c.strip_trailing();c.dedent(); c.newline(); c.append("}"); c.newline();
+    val end_buf := c.buf;
+    c.buf := prev_buf; // Restore previous buffer
+    if thenIsIgnored and elseIsIgnored and Ignore() = target then do // Both branches can be ignored
+        c.append(compile_expr(c, cond, Ignore())); // Recompile condition as ignored
+        c.newline();
+    end else do 
+        c.append(cond_buf + if_buf + else_buf + end_buf); // Create whole branch in buffer
+    end;
+    name
 end
 
 fun compile_type(c : Compiler, t : Ast.Type) : String := match t do 
@@ -251,4 +638,50 @@ fun compile_type(c : Compiler, t : Ast.Type) : String := match t do
     case BooleanT() := "boolean";
     case StringT() := "String";
     case VoidT() := "Void";
+    case Function(?, ?) := create_function_type(c, t);
 end;
+
+fun compile_function_types(c : Compiler) do 
+    while c.types_to_compile != [] do 
+        val task := c.types_to_compile.pop();
+        val CreateFunctionalInterface(args, ret_ty, name) := task else panic("Cannot do tasks other than creating functional interfaces");
+        val ty := Ast.Function(args, ret_ty);
+        c.append("@FunctionalInterface interface "); c.append(name); c.append(" {");
+        c.indent(); c.newline();
+        c.append(compile_type(c, ret_ty));
+        c.append(" call(");
+        var needs_comma := false;
+        for arg in args do 
+            if needs_comma do 
+                c.append(", ");
+            end
+            c.append(compile_type(c, arg)); c.append(" ");c.append(c.new_var());
+            needs_comma := true;
+        end
+        c.append(");");
+        c.dedent(); c.newline();
+        c.append("}");
+        c.newline();
+        c.compiled_types.push((name, ty));
+    end
+end
+
+fun assign(c : Compiler, to : Ast.Setter, from : String) : String do 
+    compile_setter(c, to);
+    c.append(" = ");
+    c.append(from);
+    c.append(";");
+    c.newline();
+    ""
+end
+
+fun compile_setter(c : Compiler, setter : Ast.Setter) := match setter do 
+    case Variable(name) := do 
+        c.append(name);
+    end;
+end;
+
+fun return_stmt(c : Compiler, expr : String) : String do 
+    c.append("return "); c.append(expr); c.append(";"); c.newline();
+    ""
+end 

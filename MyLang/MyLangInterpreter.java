@@ -5,6 +5,7 @@ import static MyLang.MyLangAST.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
@@ -37,6 +38,11 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     private MyLangClass listClass = new MyLangClass("List", listMethods, List.of(), null, new MyLangEnviroment());
 
     private boolean exportCurrentPatterns;
+
+    LinkedList<String> callStack = new LinkedList<>();
+    {
+        callStack.push("main");
+    }
     
 
     MyLangEnviroment env = currentModule.names;
@@ -262,7 +268,10 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             value.named().forEach((var name, var param) -> {
                 namedArgs.put(name, interpretExpression(param));
             });
-            return theFunction.call(this, arguments, namedArgs);
+            callStack.push(theFunction.getName()+"() at line "+value.dot().line());
+            var result = theFunction.call(this, arguments, namedArgs);
+            callStack.pop();
+            return result;
         } else {
             throw new InterpreterError("Cannot call non-Function: " + function.getClass());
         }

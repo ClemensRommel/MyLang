@@ -19,6 +19,7 @@ class Parser where
     end
 
     fun peek() : Tokenizer.Token := this.tokens[this.pos];
+    fun peekNext() : Tokenizer.Token := this.tokens[this.pos+1];
 
     fun consume(t : Tokenizer.TokenType, error : String) : Tokenizer.Token do 
         val nxt := this.next();
@@ -56,7 +57,7 @@ end
 
 fun stmt(p : Parser) : Ast.Stmt do 
     val nxt := p.peek();
-    if is_decl_start(nxt.kind) do 
+    if is_decl_start(p) do 
         return Ast.Declaration(decl(p));
     end;
     if val PRINT() := nxt.kind then do 
@@ -64,17 +65,23 @@ fun stmt(p : Parser) : Ast.Stmt do
        val arg := expr(p);
        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after print statement");
        Ast.PrintStmt(arg)
+    end else if val SEMICOLON() := nxt.kind then do 
+        Ast.EmptyStmt()
     end else do 
         val arg := expr(p);
-        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after expression statement");
-        Ast.ExprStmt(arg)
+        if p.matches(Tokenizer.ASSIGN()) then do 
+            assign_stmt_to(p, arg)
+        end else do 
+            p.consume(Tokenizer.SEMICOLON(), "Expect ';' after expression statement");
+            Ast.ExprStmt(arg)
+        end
     end
 end
 
-fun is_decl_start(tk : Tokenizer.TokenType) : Bool := match tk do 
+fun is_decl_start(p : Parser) : Bool := match p.peek().kind do 
     case VAL() := true;
     case VAR() := true;
-    case FUN() := true;
+    case FUN() := p.peekNext().kind = Tokenizer.IDENTIFIER();
     case ? := false;
 end;
 
@@ -89,6 +96,11 @@ end
 
 fun fun_decl(p : Parser) : Ast.Decl do 
     val name := p.consume(Tokenizer.IDENTIFIER(), "Expect name in function declaration");
+    val (params, return_type, body) := end_of_function(p, true);
+    Ast.FunDecl(name.src, params, return_type, body, true, Ast.late_env())
+end
+
+fun end_of_function(p : Parser, consume_semi : Bool) : (Ast.Parameter[], Ast.Type, Ast.Expr) do
     p.consume(Tokenizer.LPAREN(), "Expect start of parameters in function declaration");
     val params : Ast.Parameter[] := [];
     while !p.matches(Tokenizer.RPAREN()) do 
@@ -101,13 +113,15 @@ fun fun_decl(p : Parser) : Ast.Decl do
     val return_type := type_literal(p);
     val body := if p.matches(Tokenizer.ASSIGN()) then do
         val b := expr(p);
-        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after function body");
+        if consume_semi do 
+            p.consume(Tokenizer.SEMICOLON(), "Expect ';' after function body");
+        end
         b 
     end else do 
         p.consume(Tokenizer.DO(), "Expect ':=' or 'do' as start of function body");
         block_expr(p)
     end;
-    Ast.FunDecl(name.src, params, return_type, body, true)
+    (params, return_type, body)
 end
 
 fun parameter(p : Parser) : Ast.Parameter do 
@@ -119,7 +133,7 @@ end
 
 fun var_decl(p : Parser, mutable : Bool) : Ast.Decl do 
     val name := p.consume(Tokenizer.IDENTIFIER(), "Expect identifier in variable declaration").src;
-    val ty := Ast.LateInitialized.[Ast.Type]();
+    val ty := Ast.late_type();
     if p.matches(Tokenizer.COLON()) do 
         ty.init(type_literal(p));
     end;
@@ -237,7 +251,7 @@ fun block_expr(p : Parser) : Ast.Expr do
     val stmts : Ast.Stmt[] := [];
     var end_expr := Ast.None.[Ast.Expr]();
     var no_end_expr_found := true;
-    while !p.matches(Tokenizer.END()) and no_end_expr_found do 
+    while no_end_expr_found and !p.matches(Tokenizer.END()) do 
         match block_part(p) do 
             case Statement(st) := do 
                 stmts.push(st);
@@ -249,23 +263,37 @@ fun block_expr(p : Parser) : Ast.Expr do
             end;
         end;
     end;
-    Ast.BlockExpr(stmts, end_expr, Ast.LateInitialized.[Ast.Type]())
+    Ast.BlockExpr(stmts, end_expr, Ast.late_type(), Ast.late_env())
 end
 
 fun block_part(p : Parser) : Ast.BlockPart do 
-    if is_stmt_start(p.peek().kind) then do 
+    if is_stmt_start(p) then do 
         Ast.Statement(stmt(p))
     end else do 
         val expression := expr(p);
         if p.matches(Tokenizer.SEMICOLON()) then do 
             Ast.Statement(Ast.ExprStmt(expression))
+        end else if p.matches(Tokenizer.ASSIGN()) then do 
+            Ast.Statement(assign_stmt_to(p, expression))
         end else do 
             Ast.Expression(expression)
         end
     end
 end
 
-fun is_stmt_start(tk : Tokenizer.TokenType) : Bool := is_decl_start(tk) or tk = Tokenizer.PRINT();
+fun assign_stmt_to(p : Parser, unconverted_setter : Ast.Expr) : Ast.Stmt do 
+    val value := expr(p);
+    p.consume(Tokenizer.SEMICOLON(), "Expect ':' after assignment");
+    val setter := convert_setter(unconverted_setter);
+    Ast.SetStatement(setter, value)
+end
+
+fun convert_setter(s : Ast.Expr) : Ast.Setter := match s do 
+    case Identifier(name) := Ast.Variable(name);
+    case ? := panic("Invalid setter: "+s);
+end;
+
+fun is_stmt_start(p : Parser) : Bool := is_decl_start(p) or p.peek().kind = Tokenizer.PRINT() or p.peek().kind = Tokenizer.SEMICOLON();
 
 // Expects that if is already consumed
 fun if_expr(p : Parser) : Ast.Expr do 
@@ -274,7 +302,7 @@ fun if_expr(p : Parser) : Ast.Expr do
     val thenBranch := expr(p);
     p.consume(Tokenizer.ELSE(), "Expect else branch in if expression");
     val elseBranch := expr(p);
-    Ast.IfExpr(Ast.LateInitialized.[Ast.Type](), cond, thenBranch, elseBranch)
+    Ast.IfExpr(Ast.late_type(), cond, thenBranch, elseBranch)
 end
 
 fun literal(p : Parser) : Ast.Expr :=
@@ -297,6 +325,9 @@ fun literal(p : Parser) : Ast.Expr :=
         val inner := expr(p);
         p.consume(Tokenizer.RPAREN(), "Expect closing parenthesis");
         inner
+    end else if p.matches(Tokenizer.FUN()) then do 
+        val (params, return_type, body) := end_of_function(p, false);
+        Ast.FunctionExpr(params, return_type, body, Ast.late_env())
     end else do 
         panic("Invalid literal: "+p.peek().kind)
     end;

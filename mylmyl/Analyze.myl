@@ -1,0 +1,143 @@
+module Analyze;
+
+import Ast;
+import Env;
+
+// Search for mutable variables that are captured by functions in this block
+fun analyze_captures(c : Compiler, stmts : Ast.Stmt[], last : Ast.Option(Ast.Expr)) do 
+    val scan_env : Env.AList(Bool) := Env.AList.[Bool]();
+    for stmt in stmts do 
+        analyze_stmt(scan_env, stmt);   
+    end
+    if val Some(e) := last then do 
+        analyze_expr(scan_env, e);
+    end else do end;
+
+    for (name, is_captured) in scan_env.bindings do 
+
+    end
+end
+
+fun analyze_stmt(scan_env : Env.AList(Bool), stmt : Ast.Stmt) do 
+    match stmt do
+        case ExprStmt(expr) := analyze_expr(scan_env, stmts);
+        case PrintStmt(arg) := analyze_expr(scan_env, arg);
+        case SetStatement(setter, arg) := analyze_expr(scan_env, arg);
+        case Declaration(decl) := analyze_decl(scan_env, arg);
+        case EmptyStmt() := null;
+    end;
+end
+
+// Search for possible captures in this declaration
+fun analyze_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do 
+    match decl do 
+        case VarDecl(name, ty, init, mut, ?) := do 
+            if mut do 
+                scan_env.insert(name, false); // Possible mutable variable that is captured
+            end
+        end;
+        case FunDecl(name, parameters, ret_type, body, ?, ?) := scan_expr(scan_env, body);
+    end;
+end
+
+// Search for possible captures in this function
+fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do 
+    match expr do 
+        case BinaryOperation(?, left, right) := do 
+            analyze_expr(scan_env, left);
+            analyze_expr(scan_env, right);
+        end;
+        case UnaryOperation(?, operand) := analyze_expr(scan_env, operand);
+        case FunctionCall(callee, args) := do 
+            analyze_expr(scan_env, callee);
+            for arg in args do 
+                analyze_expr(scan_env, arg);
+            end;
+        end;
+        case IfExpr(?, thenBranch, elseBranch) := do 
+            analyze_expr(scan_env, thenBranch);
+            analyze_expr(scan_env, elseBranch);
+        end;
+        case BlockExpr(stmts, last, ?, ?) := do 
+            for stmt in stmts do 
+                analyze_stmt(scan_env, stmt);
+            end;        
+            if val Some(e) := last then do 
+                analyze_expr(scan_env, e);
+            end else do end;
+        end;
+        case FunctionExpr(?, ?, body, ?) := do 
+            scan_expr(scan_env, body); // Important part : Switch to scan mode
+        end;
+        case ? := null; // Non-recursive expressions that can't capture
+    end;
+end
+
+fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do 
+    match expr do 
+        case BinaryOperation(?, left, right) := do 
+            scan_expr(scan_env, left);
+            scan_expr(scan_env, right);
+        end;
+        case UnaryOperation(?, operand) := scan_expr(scan_env, operand);
+        case FunctionCall(callee, args) := do 
+            scan_expr(scan_env, callee);
+            for arg in args do 
+                scan_expr(scan_env, arg);
+            end;
+        end;
+        case IfExpr(?, thenBranch, elseBranch) := do 
+            scan_expr(scan_env, thenBranch);
+            scan_expr(scan_env, elseBranch);
+        end;
+        case BlockExpr(stmts, last, ?, ?) := do 
+            for stmt in stmts do 
+                scan_stmt(scan_env, stmt);
+            end;        
+            if val Some(e) := last then do 
+                scan_expr(scan_env, e);
+            end else do end;
+        end;
+        case FunctionExpr(?, ?, body, ?) := do 
+            scan_expr(scan_env, body); // Important part : Switch to scan mode
+        end;
+        case Identifier(name) := do 
+            mark(scan_env, name);
+        end;
+        case ? := null; // Non-recursive expressions that can't capture
+    end;
+end
+
+fun mark(scan_env : Env.AList(Bool), name : String) do 
+    if scan_env.has(name) do // Variable is searched for
+        scan_env.update(name, true); // Variable is captured and must be compiled differently
+    end;
+end
+
+fun scan_stmt(scan_env : Env.AList(Bool), stmt : Ast.Stmt) do 
+    match stmt do
+        case ExprStmt(expr) := scan_expr(scan_env, stmts);
+        case PrintStmt(arg) := scan_expr(scan_env, arg);
+        case SetStatement(setter, arg) := do 
+            scan_expr(scan_env, arg);
+            scan_setter(scan_env, setter);
+        end;
+        case Declaration(decl) := scan_decl(scan_env, arg);
+        case EmptyStmt() := null;
+    end;
+end
+
+fun scan_setter(scan_env : Env.AList(Bool), setter : Ast.Setter) do 
+    match setter do 
+        case Variable(name) := do 
+            mark(scan_env, name);
+        end;
+    end
+end
+
+fun scan_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do 
+    match decl do 
+        case VarDecl(?, ?, init, ?, ?) := scan_expr(scan_env, init);
+        case FunDecl(?, ?, ?, body, ?, ?) := scan_expr(scan_env, body);
+    end;
+end

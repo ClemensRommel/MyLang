@@ -92,7 +92,7 @@ public class Typechecker implements
         TypeRep previousTarget = checkTarget;
         checkTarget = target;
         if(checkTarget instanceof UnknownType) {
-            throw new RuntimeException("Tried checking of unknown type: "+p.prettyPrint(tested));
+            throw new RuntimeException("Tried checking of unknown type: "+p.prettyPrint(tested)+" or: "+tested);
         }
 
         tested.accept(this);
