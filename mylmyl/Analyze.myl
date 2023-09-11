@@ -4,7 +4,7 @@ import Ast;
 import Env;
 
 // Search for mutable variables that are captured by functions in this block
-fun analyze_captures(c : Compiler, stmts : Ast.Stmt[], last : Ast.Option(Ast.Expr)) do 
+fun analyze_captures(stmts : Ast.Stmt[], last : Ast.Optional(Ast.Expr)) : Env.AList(Bool) do 
     val scan_env : Env.AList(Bool) := Env.AList.[Bool]();
     for stmt in stmts do 
         analyze_stmt(scan_env, stmt);   
@@ -12,18 +12,16 @@ fun analyze_captures(c : Compiler, stmts : Ast.Stmt[], last : Ast.Option(Ast.Exp
     if val Some(e) := last then do 
         analyze_expr(scan_env, e);
     end else do end;
-
-    for (name, is_captured) in scan_env.bindings do 
-
-    end
+    scan_env
 end
+    
 
 fun analyze_stmt(scan_env : Env.AList(Bool), stmt : Ast.Stmt) do 
     match stmt do
-        case ExprStmt(expr) := analyze_expr(scan_env, stmts);
+        case ExprStmt(expr) := analyze_expr(scan_env, expr);
         case PrintStmt(arg) := analyze_expr(scan_env, arg);
         case SetStatement(setter, arg) := analyze_expr(scan_env, arg);
-        case Declaration(decl) := analyze_decl(scan_env, arg);
+        case Declaration(decl) := analyze_decl(scan_env, decl);
         case EmptyStmt() := null;
     end;
 end
@@ -35,6 +33,7 @@ fun analyze_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do
             if mut do 
                 scan_env.insert(name, false); // Possible mutable variable that is captured
             end
+            analyze_expr(scan_env, init);
         end;
         case FunDecl(name, parameters, ret_type, body, ?, ?) := scan_expr(scan_env, body);
     end;
@@ -54,7 +53,8 @@ fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
                 analyze_expr(scan_env, arg);
             end;
         end;
-        case IfExpr(?, thenBranch, elseBranch) := do 
+        case IfExpr(?, thenBranch, elseBranch, cond) := do 
+            analyze_expr(scan_env, cond);
             analyze_expr(scan_env, thenBranch);
             analyze_expr(scan_env, elseBranch);
         end;
@@ -86,7 +86,8 @@ fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
                 scan_expr(scan_env, arg);
             end;
         end;
-        case IfExpr(?, thenBranch, elseBranch) := do 
+        case IfExpr(?, thenBranch, elseBranch, cond) := do 
+            scan_expr(scan_env, cond);
             scan_expr(scan_env, thenBranch);
             scan_expr(scan_env, elseBranch);
         end;
@@ -116,13 +117,13 @@ end
 
 fun scan_stmt(scan_env : Env.AList(Bool), stmt : Ast.Stmt) do 
     match stmt do
-        case ExprStmt(expr) := scan_expr(scan_env, stmts);
+        case ExprStmt(expr) := scan_expr(scan_env, expr);
         case PrintStmt(arg) := scan_expr(scan_env, arg);
         case SetStatement(setter, arg) := do 
             scan_expr(scan_env, arg);
             scan_setter(scan_env, setter);
         end;
-        case Declaration(decl) := scan_decl(scan_env, arg);
+        case Declaration(decl) := scan_decl(scan_env, decl);
         case EmptyStmt() := null;
     end;
 end

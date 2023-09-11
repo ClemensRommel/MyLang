@@ -141,6 +141,17 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             }
             builder.append(")");
             return builder.toString();
+        } else if(obj instanceof List<?> ls) {
+            StringBuilder builder = new StringBuilder();
+            builder.append("[");
+            boolean needComma = false;
+            for(var x : ls) {
+                if(needComma) builder.append(", ");
+                builder.append(stringify(x));
+                needComma = true;
+            }
+            builder.append("]");
+            return builder.toString();
         } else {
             return obj.toString();
         }

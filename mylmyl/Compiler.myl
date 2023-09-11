@@ -109,8 +109,10 @@ end
 
 fun import_implicits(c : Compiler) do 
     c.append("import static std.codegen.Functions.*;");
-
     c.newline();
+    c.append("import std.codegen.*;");
+    c.newline();
+
     c.newline();
 end
 
@@ -148,15 +150,20 @@ fun compile_var_decl(c : Compiler, name : String, lt : Ast.LateInitialized(Ast.T
         c.append("}");
         c.newline();
         // Global variables are not pre-analyzed for captures, because they cannot be captured
-        c.env.insert(name, VariableInfo());
     end else do
-        val ty := compile_type(c, lt.get());
+        val is_upvalue := c.env.has(name) and c.env.get(name).is_upvalue;
+        val ty := if is_upvalue then compile_upvalue_type(c, lt.get()) else compile_type(c, lt.get());
         if !mutable do 
             c.append("final ");
         end;
-        c.append(ty); c.append(" "); c.append(name); c.append(";");
+        c.append(ty); c.append(" "); c.append(name);
+        if is_upvalue do 
+            c.append(" = new "); c.append(ty); c.append("()");
+        end;
+        c.append(";");
         compile_expr(c, init, AssignTo(Ast.Variable(name)));
     end;
+    c.env.insert_if_missing(name, VariableInfo()); // Might already be described if it is a upvalue
 end
 
 fun compile_fun_decl(
@@ -169,7 +176,7 @@ fun compile_fun_decl(
 do 
     val info := VariableInfo();
     info.is_no_fc_fn := c.is_global; // Local functions cannot be compiled directly but to lambdas
-    c.env.insert(name, info);
+    c.env.insert(name, info); // Functions can never be captured, so unconditionally insert info
     val is_main := c.is_global and name = "main" and return_type = Ast.VoidT();
     val previous_is_global := c.is_global;
     val previous_env := c.current_env;
@@ -205,9 +212,9 @@ do
         end;
         needs_comma := true;
     end;
-    c.append(")");
+    c.append(") ");
     if !c.is_global do 
-        c.append(" -> ");
+        c.append("-> ");
     end
     c.is_global := false;
     val body_is_block := if val BlockExpr(?, ?, ?, ?) := body then true else false;
@@ -377,10 +384,13 @@ do
     
     compile_expr(c, body, Return());
     c.strip_trailing();
-    if !body_is_block do
+    if !body_is_block then do
         c.dedent(); c.newline();
         c.append("};"); c.newline();
-    end
+    end else do 
+        c.strip_trailing();
+        c.append(";"); c.newline();
+    end;
 
     c.current_env := previous_env;
     c.env := c.env.close_scope();
@@ -394,14 +404,22 @@ fun param_types(params : Ast.Parameter[]) : Ast.Type[] := for param in params yi
     end
 end;
 
+fun maybe_upvalue(c : Compiler, name : String) : String := 
+    if c.env.has(name) and c.env.get(name).is_upvalue then 
+        name + ".value"
+    else 
+        name;
+
 fun compile_identifier(c : Compiler, name : String, target : Target) : String do 
     if Ignore() = target do // Identifier has no side effects, so ignore means nothing has to be compiled
         return "";
     end;
     if val Function(args, ret_type) := c.current_env.get(name).ty then do 
         if !c.env.get(name).is_no_fc_fn do // Value is a first class function already 
-            return use_with_target(c, name, target); // No lambda has to be created
+            // Value might be an upvalue
+            return use_with_target(c, maybe_upvalue(c, name), target); // No lambda has to be created
         end;
+        // Value is a first class function and therefore cannot be an upvalue
         val ty := compile_type(c, c.current_env.get(name).ty);
         var name := "";
         val temp_var := match target do 
@@ -447,7 +465,8 @@ fun compile_identifier(c : Compiler, name : String, target : Target) : String do
         c.newline();
         name
     end else do 
-        use_with_target(c, name, target)
+        // Normal variable, might be an upvalue
+        use_with_target(c, maybe_upvalue(c, name), target)
     end
 end
 
@@ -526,7 +545,14 @@ do
     val previous_env := c.current_env;
     c.current_env := lenv.get();
     c.env := c.env.open_scope();
-    Analyze.analyze_captures(c, stmts);
+    val captures := Analyze.analyze_captures(stmts, end_expr);
+    for (name, is_captured) in captures.bindings do 
+        if is_captured do 
+            val info := VariableInfo();
+            info.is_upvalue := true;
+            c.env.insert(name, info); // Mark as upvalue
+        end
+    end;
     for stmt in stmts do 
         compile_stmt(c, stmt);
     end;
@@ -640,6 +666,11 @@ fun compile_type(c : Compiler, t : Ast.Type) : String := match t do
     case VoidT() := "Void";
     case Function(?, ?) := create_function_type(c, t);
 end;
+fun compile_upvalue_type(c : Compiler, t : Ast.Type) : String := match t do 
+    case NumberT() := "NumberUpvalue";
+    case BooleanT() := "BooleanUpvalue";
+    case ? := "Upvalue<"+compile_type(c, t)+">";
+end;
 
 fun compile_function_types(c : Compiler) do 
     while c.types_to_compile != [] do 
@@ -677,7 +708,7 @@ end
 
 fun compile_setter(c : Compiler, setter : Ast.Setter) := match setter do 
     case Variable(name) := do 
-        c.append(name);
+        c.append(maybe_upvalue(c, name));
     end;
 end;
 
