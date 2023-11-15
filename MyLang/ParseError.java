@@ -1,8 +1,8 @@
 package MyLang;
 
 public class ParseError extends RuntimeException {
-    public ParseError(String message, int line) {
-        super("["+line+"]: "+message);
+    public ParseError(String message, int line, String fileName) {
+        super(fileName+"["+line+"]: "+message);
         System.out.println(getMessage());
     }
 }

@@ -29,13 +29,24 @@ end
 // Search for possible captures in this declaration
 fun analyze_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do 
     match decl do 
-        case VarDecl(name, ty, init, mut, ?) := do 
+        case VarDecl(setter, ty, init, mut, ?) := do 
             if mut do 
-                scan_env.insert(name, false); // Possible mutable variable that is captured
+                insert_vars(scan_env, setter); // Possible mutable variable that is captured
             end
             analyze_expr(scan_env, init);
         end;
         case FunDecl(name, parameters, ret_type, body, ?, ?) := scan_expr(scan_env, body);
+    end;
+end
+
+fun insert_vars(scan_env : Env.AList(Bool), setter : Ast.Setter) do 
+    match setter do 
+        case Variable(name) := scan_env.insert(name, false);
+        case TupleSetter(parts, ?) := do 
+            for part in parts do 
+                insert_vars(scan_env, part);
+            end; 
+        end;
     end;
 end
 

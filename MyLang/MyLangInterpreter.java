@@ -17,6 +17,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
 
     public MyLangModule currentModule = new MyLangModule();
 
+    String currentFileName;
+
     private MyLangRunner runner;
 
     public Scanner inScanner = new Scanner(System.in);
@@ -35,7 +37,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         Map.entry("prepend", MyLangBuiltinFunction.listPrepend),
         Map.entry("append", MyLangBuiltinFunction.listAppend)
     );
-    private MyLangClass listClass = new MyLangClass("List", listMethods, List.of(), null, new MyLangEnviroment());
+    private MyLangClass listClass = new MyLangClass("List", listMethods, List.of(), null, new MyLangEnviroment(), "builtins");
 
     private boolean exportCurrentPatterns;
 
@@ -86,6 +88,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
 
     public void interpretFile(MyLangRunner r, MyLangFile file, boolean isMainFile) {
         this.runner = r;
+        this.currentFileName = file.fileName();
         for(var i: file.imports()) {
             visitImport(i);
         }
@@ -279,7 +282,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             value.named().forEach((var name, var param) -> {
                 namedArgs.put(name, interpretExpression(param));
             });
-            callStack.push(theFunction.getName()+"() at line "+value.dot().line());
+            callStack.push(theFunction.getName()+"() at line "+value.dot().line()+" in file "+theFunction.getFileName());
             var result = theFunction.call(this, arguments, namedArgs);
             callStack.pop();
             return result;
@@ -297,7 +300,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
                 value.parameters().optionals(),
                 value.parameters().optionalNamed(),
                 env, 
-                value.body());
+                value.body(),
+                currentFileName);
     }
 
     @Override
@@ -443,7 +447,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
                 value.parameters().optionals(),
                 value.parameters().optionalNamed(),
                 env, 
-                value.body());
+                value.body(), currentFileName);
         env.declareVariable(value.Name().lexeme(), function, false);
         if(value.export()) {
             if(currentModule.names != env) {
@@ -565,7 +569,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
                                      methods,
                                      fields,
                                      constructor,
-                                     env);
+                                     env, currentFileName);
         env.declareVariable(value.Name().lexeme(), result, false);
         if(value.export()) {
             if(currentModule.names != env) {
@@ -596,7 +600,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
                         declaration.parameters().optionals(),
                         declaration.parameters().optionalNamed(),
                         env,
-                        declaration.body());
+                        declaration.body(), currentFileName);
             }).collect(Collectors.toMap((MyLangCallable method) -> (method.getName()),
                     (MyLangCallable method) -> (method)));
     }
@@ -610,7 +614,8 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
                 constructor.parameters().optionals(),
                 constructor.parameters().optionalNamed(),
                 env, 
-                constructor.body());
+                constructor.body(),
+                currentFileName);
     }
 
     @Override
@@ -715,7 +720,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     }
 
     private void declareEnumConstructor(EnumConstructor e, Map<String, MyLangCallable> methods) {
-        env.declareVariable(e.name().lexeme(), new EnumVariant(e.name(), e.parameters().size(), methods), true);
+        env.declareVariable(e.name().lexeme(), new EnumVariant(e.name(), e.parameters().size(), methods, currentFileName), true);
     }
 
     @Override

@@ -82,6 +82,7 @@ fun is_decl_start(p : Parser) : Bool := match p.peek().kind do
     case VAL() := true;
     case VAR() := true;
     case FUN() := p.peekNext().kind = Tokenizer.IDENTIFIER();
+    case CLASS() := true;
     case ? := false;
 end;
 
@@ -91,7 +92,34 @@ fun decl(p : Parser) : Ast.Decl do
         case VAR() := var_decl(p, true);
         case VAL() := var_decl(p, false);
         case FUN() := fun_decl(p);
+        case CLASS() := class_decl(p);
     end
+end
+
+fun class_decl(p : Parser) : Ast.Decl do 
+    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect class name after 'class' keyword");
+    p.consume(Tokenizer.WHERE(), "Expect start of class body after class name: 'where'");
+    val members : Ast.Decl[] := [];
+    var constr : Ast.Optional(Ast.Constructor) := Ast.None.[Ast.Constructor]();
+    while !p.matches(Tokenizer.END()) do 
+        if p.matches(Tokenizer.NEW()) then do 
+            if val Some(?) := constr then do 
+                panic("Error: Class '"+name.src+"' can only have on constructor");
+            end else do end;
+            constr := Ast.Some.[Ast.Constructor](constructor(p));
+        end else do 
+            val member : Ast.Decl := decl(p);
+            members.push(member);
+        end;
+    end;
+    Ast.ClassDecl(name.src, members, constr, true, Ast.late_env())
+end
+
+fun constructor(p : Parser) : Ast.Constructor do 
+    val params := parse_parameters(p);
+    p.consume(Tokenizer.DO(), "Expect do after end of constructor parameter declaration");
+    val body := block_expr(p);
+    Ast.Constructor(params, body)
 end
 
 fun fun_decl(p : Parser) : Ast.Decl do 
@@ -100,7 +128,7 @@ fun fun_decl(p : Parser) : Ast.Decl do
     Ast.FunDecl(name.src, params, return_type, body, true, Ast.late_env())
 end
 
-fun end_of_function(p : Parser, consume_semi : Bool) : (Ast.Parameter[], Ast.Type, Ast.Expr) do
+fun parse_parameters(p : Parser) : Ast.Parameter[] do 
     p.consume(Tokenizer.LPAREN(), "Expect start of parameters in function declaration");
     val params : Ast.Parameter[] := [];
     while !p.matches(Tokenizer.RPAREN()) do 
@@ -109,6 +137,11 @@ fun end_of_function(p : Parser, consume_semi : Bool) : (Ast.Parameter[], Ast.Typ
             p.consume(Tokenizer.COMMA(), "Expect ',' between parameters");
         end;
     end;
+    params
+end
+
+fun end_of_function(p : Parser, consume_semi : Bool) : (Ast.Parameter[], Ast.Type, Ast.Expr) do
+    val params := parse_parameters(p);
     p.consume(Tokenizer.COLON(), "Expect ':' at start of function return type");
     val return_type := type_literal(p);
     val body := if p.matches(Tokenizer.ASSIGN()) then do
@@ -132,7 +165,7 @@ fun parameter(p : Parser) : Ast.Parameter do
 end
 
 fun var_decl(p : Parser, mutable : Bool) : Ast.Decl do 
-    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect identifier in variable declaration").src;
+    val setter := convert_setter(expr(p));
     val ty := Ast.late_type();
     if p.matches(Tokenizer.COLON()) do 
         ty.init(type_literal(p));
@@ -140,7 +173,7 @@ fun var_decl(p : Parser, mutable : Bool) : Ast.Decl do
     p.consume(Tokenizer.ASSIGN(), "Expect ':=' in variable declaration");
     val initializer := expr(p);
     p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration");
-    Ast.VarDecl(name, ty, initializer, mutable, true)
+    Ast.VarDecl(setter, ty, initializer, mutable, true)
 end
 
 fun expr(p : Parser) : Ast.Expr := boolean_combination(p);
@@ -216,13 +249,13 @@ fun unary(p : Parser) : Ast.Expr :=
         val operand := unary(p);
         Ast.UnaryOperation(Ast.Not(), operand)
     end else do 
-        call(p)
+        use_expr(p)
     end;
 
-fun call(p : Parser) : Ast.Expr do 
+fun use_expr(p : Parser) : Ast.Expr do 
     var lhs := primary(p);
-    if p.peek().kind = Tokenizer.LPAREN() do 
-        while p.matches(Tokenizer.LPAREN()) do 
+    while p.peek().kind = Tokenizer.LPAREN() or p.peek().kind = Tokenizer.DOT() do 
+        if p.next().kind = Tokenizer.LPAREN() then do // Consume and test next token
             var args : Ast.Expr[] := [];
             var needs_comma := false;
             while !p.matches(Tokenizer.RPAREN()) do 
@@ -230,9 +263,13 @@ fun call(p : Parser) : Ast.Expr do
                     p.consume(Tokenizer.COMMA(), "Expect parameters to be separated by commas");
                 end;
                 args.push(expr(p));
+                needs_comma := true;
             end;
             lhs := Ast.FunctionCall(lhs, args);
-        end;
+        end else do
+            val property := p.consume(Tokenizer.IDENTIFIER(), "Expect property name after .");
+            lhs := Ast.PropertyExpr(lhs, property.src);
+        end
     end;
     lhs
 end
@@ -290,6 +327,7 @@ end
 
 fun convert_setter(s : Ast.Expr) : Ast.Setter := match s do 
     case Identifier(name) := Ast.Variable(name);
+    case TupleExpr(subexprs, lt) := Ast.TupleSetter(for expr in subexprs yield convert_setter(expr) end, lt);
     case ? := panic("Invalid setter: "+s);
 end;
 
@@ -322,15 +360,29 @@ fun literal(p : Parser) : Ast.Expr :=
     end else if p.matches(Tokenizer.NULL()) then do 
         Ast.NullLiteral()
     end else if p.matches(Tokenizer.LPAREN()) then do 
-        val inner := expr(p);
-        p.consume(Tokenizer.RPAREN(), "Expect closing parenthesis");
-        inner
+        tuple(p)
     end else if p.matches(Tokenizer.FUN()) then do 
         val (params, return_type, body) := end_of_function(p, false);
         Ast.FunctionExpr(params, return_type, body, Ast.late_env())
     end else do 
         panic("Invalid literal: "+p.peek().kind)
     end;
+
+fun tuple(p : Parser) : Ast.Expr do 
+    val exprs : Ast.Expr[] := [];
+    var needs_comma := false;
+    while !p.matches(Tokenizer.RPAREN()) do 
+        if needs_comma do 
+            p.consume(Tokenizer.COMMA(), "Expect ',' to separate tuple parts");
+        end
+        exprs.push(expr(p));
+        needs_comma := true;
+    end;
+    if exprs.length = 1 then 
+        exprs[0]
+    else 
+        Ast.TupleExpr(exprs, Ast.late_type())
+end
 
 fun type_literal(p : Parser) : Ast.Type := 
     if p.matches(Tokenizer.NUMBER()) then 
@@ -355,6 +407,22 @@ fun type_literal(p : Parser) : Ast.Type :=
         p.consume(Tokenizer.COLON(), "Expect ':' before function return type");
         val ret_type := type_literal(p);
         Ast.Function(arg_types, ret_type)
+    end else if p.matches(Tokenizer.LPAREN()) then do 
+        val types : Ast.Type[] := [];
+        var needs_comma := false;
+        while !p.matches(Tokenizer.RPAREN()) do 
+            if needs_comma do 
+                p.consume(Tokenizer.COMMA(), "Expect tuple type parts to be separated by ','");
+            end
+            types.push(type_literal(p));
+            needs_comma := true;
+        end;
+        if types.length = 1 then 
+            types[0]
+        else 
+            Ast.Tuple(types)
+    end else if p.matches(Tokenizer.IDENTIFIER()) then do 
+        Ast.Name(p.previous().src)
     end else do         
         panic("Invalid type: "+p.peek().kind)
     end;

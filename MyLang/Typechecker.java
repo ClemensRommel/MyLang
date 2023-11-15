@@ -120,7 +120,7 @@ public class Typechecker implements
         var previousTarget = checkTarget;
         checkTarget = type;
         if(type instanceof UnknownType) {
-            throw new RuntimeException("Tried checking of unknown type");
+            throw new RuntimeException("Tried checking of unknown type in "+p.prettyPrint(s)+" or: "+s);
         }
         s.accept(this);
         checkTarget = previousTarget;

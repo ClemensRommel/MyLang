@@ -16,18 +16,22 @@ public class MyLangParser {
     private int current = 0;
     private int length;
     private boolean inClass = false;
+    
+    private String fileName;
 
     private boolean defaultVisibility = false;
 
     private PrettyPrinter p = new PrettyPrinter();
 
-    public MyLangParser(String source) {
+    public MyLangParser(String source, String fileName) {
         tokens = MyLangScanner.tokenize(source);
         length = tokens.size();
+        this.fileName = fileName;
     }
-    public MyLangParser(List<Token> tokens) {
+    public MyLangParser(List<Token> tokens, String fileName) {
         this.tokens = tokens;
         length = tokens.size();
+        this.fileName = fileName;
     }
 
     private boolean atEnd() {
@@ -55,7 +59,7 @@ public class MyLangParser {
     }
     private Token previous() {
         if(current == 0) {
-            throw new ParseError("no previous token", tokens.get(0).line());
+            throw new ParseError("no previous token", tokens.get(0).line(), fileName);
         }
         return tokens.get(current - 1);
     }
@@ -65,10 +69,10 @@ public class MyLangParser {
             if(type == TokenType.EOF) {
                 return tokens.get(length-1);
             }
-            throw new ParseError("Expected " + type + " but got EOF", tokens.get(length - 1).line());
+            throw new ParseError("Expected " + type + " but got EOF", tokens.get(length - 1).line(), fileName);
         }
         if(peek().type() != type) {
-            throw new ParseError("Expected " + type + ", got " + peek().type() + (peek().type() != TokenType.ERROR ? "" : peek()), peek().line());
+            throw new ParseError("Expected " + type + ", got " + peek().type() + (peek().type() != TokenType.ERROR ? "" : peek()), peek().line(), fileName);
         }
         return next();
     }
@@ -84,18 +88,18 @@ public class MyLangParser {
         return true;
     }
 
-    public static Optional<MyLangAST> parse(String source) {
-        var parser = new MyLangParser(source);
+    public static Optional<MyLangAST> parse(String source, String fileName) {
+        var parser = new MyLangParser(source, fileName);
         return parser.parse();
     }
 
-    public static Optional<MyLangAST> parse(List<Token> tokens) {
-        var parser = new MyLangParser(tokens);
+    public static Optional<MyLangAST> parse(List<Token> tokens, String fileName) {
+        var parser = new MyLangParser(tokens, fileName);
         return parser.parse();
     }
 
-    public static Optional<MyLangFile> parseFile(String source) {
-        var parser = new MyLangParser(source);
+    public static Optional<MyLangFile> parseFile(String source, String fileName) {
+        var parser = new MyLangParser(source, fileName);
         
         try {
             List<Declaration> program = new ArrayList<>();
@@ -107,7 +111,7 @@ public class MyLangParser {
             while(!parser.atEnd()) {
                 program.add(parser.parseDeclaration());
             }
-            var file = new MyLangFile(program, imports);
+            var file = new MyLangFile(program, imports, fileName);
             return Optional.of(file);
         } catch(ParseError error) {
             error.printStackTrace();
@@ -205,7 +209,7 @@ public class MyLangParser {
             return finalizeClassConstructor(typeName);
         } else {
             throw new ParseError("Invalid constructor declaration start: "+declarationType.type(), 
-                    declarationType.line());
+                    declarationType.line(), fileName);
         }
     }
 
@@ -347,7 +351,7 @@ public class MyLangParser {
                 export = false;
             } else {
                 throw new ParseError("Unknown visibility declaration: " + peek().type(), 
-                        peek().line());
+                        peek().line(), fileName);
             }
         }
         var declarationType = next();
@@ -360,7 +364,7 @@ public class MyLangParser {
             case TYPE -> finalizeTypeDefDeclaration(export);
             case SEMICOLON -> new EmptyDeclaration(declarationType);
             default -> throw new ParseError("Unknown declaration type: " + declarationType.type(), 
-                    declarationType.line());
+                    declarationType.line(), fileName);
         };
     }
     private Declaration finalizeEnumDeclaration(boolean export) {
@@ -449,11 +453,11 @@ public class MyLangParser {
                 var elseBranch = parseExpression();
                 consume(TokenType.SEMICOLON);
                 if(type != null) {
-                    throw new ParseError("Type Annotations are not allowed in val-else", previous().line());
+                    throw new ParseError("Type Annotations are not allowed in val-else", previous().line(), fileName);
                 }
                 if(isReassignable) {
                     throw new ParseError("Val-Else is not allowed to be reassigneable, use val instead of var", 
-                        previous().line());
+                        previous().line(), fileName);
                 }
                 return new ValElseDeclaration(pat, initializer, elseBranch);
             }
@@ -551,14 +555,14 @@ public class MyLangParser {
             ConstructorOrDeclaration declaration = parseDeclarationOrConstructor(name.lexeme());
             if(declaration instanceof ClassConstructor c) {
                 if(constructor != null) {
-                    throw new ParseError("Already had an Constructor for class "+name.lexeme(), previous().line());
+                    throw new ParseError("Already had an Constructor for class "+name.lexeme(), previous().line(), fileName);
                 }
                 constructor = c;
             } else if(declaration instanceof Declaration d) {
                 members.add(d);
             } else {
                 throw new ParseError("Invalid Constructor type for Class Declaration: " + declaration.getClass(), 
-                        line);
+                        line, fileName);
             }
         }
         inClass = prevInClass;
@@ -658,7 +662,7 @@ public class MyLangParser {
         } else if(from instanceof TupleExpression t) {
             return new TupleSetter(t.elements().stream().map(this::makeSetter).toList());
         } else {
-            throw new ParseError("Invalid Setter: "+p.prettyPrint(from), previous().line());
+            throw new ParseError("Invalid Setter: "+p.prettyPrint(from), previous().line(), fileName);
         }
     }
 
@@ -770,7 +774,7 @@ public class MyLangParser {
                 consume(TokenType.RBRACKET);
                 left = new IndexExpression(left, index);
             } else {
-                throw new ParseError("Invalid call operator", previous().line());
+                throw new ParseError("Invalid call operator", previous().line(), fileName);
             }
         }
         return left;
@@ -955,7 +959,7 @@ public class MyLangParser {
 
     private void verifyNoNamedParameters(List<Parameter> parameters) {
         if(parameters.stream().anyMatch(p -> p instanceof NamedParameter)) {
-            throw new ParseError("Named Parameters are not allowed in lists", previous().line());
+            throw new ParseError("Named Parameters are not allowed in lists", previous().line(), fileName);
         }
     }
 
@@ -1057,7 +1061,7 @@ public class MyLangParser {
         } else if(match(TokenType.QUESTION_MARK)) {
             return new WildcardExpression(previous());
         } else {
-            throw new ParseError("Expected literal, got "+next().type(), next().line());
+            throw new ParseError("Expected literal, got "+next().type(), next().line(), fileName);
         }
     }
 
@@ -1098,7 +1102,7 @@ public class MyLangParser {
             }
             return new TuplePattern(subPatterns);
         }
-        throw new ParseError("Invalid Pattern start: "+peek().type(), peek().line());
+        throw new ParseError("Invalid Pattern start: "+peek().type(), peek().line(), fileName);
     }
 
 }

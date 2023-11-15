@@ -2,7 +2,7 @@ package MyLang;
 
 import java.util.*;
 
-public record EnumVariant(Token Name, int argCount, Map<String, MyLangCallable> methods) implements MyLangCallable {
+public record EnumVariant(Token Name, int argCount, Map<String, MyLangCallable> methods, String fileName) implements MyLangCallable {
     public String getName() {
         return Name.lexeme();
     }
@@ -21,5 +21,8 @@ public record EnumVariant(Token Name, int argCount, Map<String, MyLangCallable> 
     @Override
     public String toString() {
         return "<enum constructor '"+Name.lexeme()+"'>";
+    }
+    public String getFileName() {
+        return fileName;
     }
 }

@@ -13,8 +13,11 @@ end
 
 class Typechecker where 
     var env : Env.Env(Ast.VarInfo) := Env.Env.[Ast.VarInfo]();
+    var ty_env : Env.Env(Ast.TyInfo) := Env.Env.[Ast.TyInfo]();
     fun error[A](message : String) : A := panic(message);
     fun require_assigneable(to : Ast.Type, from : Ast.Type, violating : Ast.Expr) do 
+        require_types_exist(this, to);
+        require_types_exist(this, from);
         if to != from do 
             this.error.[Void](from+" is not assigneable to "+to+" in expression "+violating);
         end;
@@ -22,20 +25,44 @@ class Typechecker where
 
     fun open_scope() do 
         this.env := this.env.open_scope();
+        this.ty_env := this.ty_env.open_scope();
     end
     fun close_scope() do 
         this.env := this.env.close_scope();
+        this.ty_env := this.ty_env.close_scope();
     end
 
     fun type_of_var(name : String) : Ast.Type := this.env.get(name).ty;
     fun is_var_mutable(name : String) : Bool := this.env.get(name).is_mutable;
 
     fun var_declared(name : String) : Bool := this.env.has(name);
+    fun type_declared(name : String) : Bool := this.ty_env.has(name);
 
-    fun declare(name : String, ty : Ast.Type, m : Bool) := this.env.insert(name, Ast.VarInfo(m, ty));
+    fun declare(name : String, ty : Ast.Type, m : Bool) := this.env.insert(name, Ast.VarInfo(m, ty, name));
+    fun declare_type(name : String, ty_info : Ast.TyInfo) := this.ty_env.insert(name, ty_info);
 
     fun is_global() : Bool := this.env.outer = Env.None.[Ast.VarInfo]();
 end
+
+fun require_types_exist(tc : Typechecker, ty : Ast.Type) := match ty do 
+    case Tuple(parts) := do 
+        for part in parts do 
+            require_types_exist(tc, part);
+        end
+    end;
+    case Function(params, ret_type) := do 
+        for param in params do 
+            require_types_exist(tc, param);
+        end
+        require_types_exist(tc, ret_type);
+    end;
+    case Name(str) := do 
+        if !tc.type_declared(str) do 
+            panic("Unknown type "+str);
+        end
+    end;
+    case ? := do end;
+end;
 
 fun check_stmt(tc : Typechecker, stmt : Ast.Stmt) := match stmt do 
     case PrintStmt(arg) := do 
@@ -60,27 +87,55 @@ fun check_mutability(tc : Typechecker, setter : Ast.Setter) := match setter do
             panic("Error: '"+name+"' is not mutable");
         end;
     end;
+    case TupleSetter(parts, ?) := do 
+        for part in parts do 
+            check_mutability(tc, part);
+        end;
+    end; 
 end;
 
 fun infer_setter(tc : Typechecker, s : Ast.Setter) : Ast.Type := match s do 
     case Variable(name) := tc.type_of_var(name);
+    case TupleSetter(subsetters, lt) := do 
+        val parts : Ast.Type[] := [];
+        for setter in subsetters do 
+            parts.push(infer_setter(tc, setter));
+        end;
+        val ty := Ast.Tuple(parts);
+        lt.init(ty);
+        ty
+    end;
 end;
 
+fun check_declaration_setter(tc : Typechecker, setter : Ast.Setter, ty : Ast.Type, mut : Bool) do 
+    match setter do 
+        case Variable(name) := do 
+            if tc.env.has(name) do 
+                panic("Variable '"+name+"' is already declared");
+            end
+            tc.declare(name, ty, mut);
+        end;
+        case TupleSetter(setters, lt) := do 
+            lt.init(ty);
+            val Tuple(parts) := ty else panic("Require type "+ty+" to be a tuple in declaration of "+setter);
+            if parts.length != setters.length do 
+                panic("Expected tuple of length "+parts.length+" in declaration of "+setter);
+            end;
+            for i in [0..setters.length] do 
+                check_declaration_setter(tc, setters[i], parts[i], mut);
+            end;
+        end;
+    end;
+end
+
 fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do 
-    case VarDecl(name, lt, init, mutable, ?) := do 
-        if matches(name, "__.*") do 
-            panic("Names may not start with __: '"+name+"'")
-        end
+    case VarDecl(setter, lt, init, mutable, ?) := do 
         if lt.is_init() then do 
             check(tc, init, lt.get());
         end else do
             lt.init(infer(tc, init));
         end;
-        if tc.var_declared(name) then do 
-            panic("Variable already declared: '"+name+"'");
-        end else do 
-            tc.declare(name, lt.get(), mutable);
-        end;
+        check_declaration_setter(tc, setter, lt.get(), mutable);
     end;
     case FunDecl(name, params, return_type, body, ?, lenv) := do 
         if matches(name, "__.*") do 
@@ -94,18 +149,7 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
         end;
         tc.open_scope();
             for param in params do 
-                match param do 
-                    case NormalParam(name, ty) := do 
-                        if matches(name, "__.*") do 
-                            panic("Names may not start with __: '"+name+"'")
-                        end
-                        if tc.var_declared(name) then do 
-                            panic("Parameter already declared: '"+name+"'");
-                        end else do 
-                            tc.declare(name, ty, false);
-                        end
-                    end;
-                end;
+                declare_param(tc, param);
             end;
             check(tc, body, return_type);
             lenv.init(tc.env);
@@ -116,6 +160,97 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
         if tc.is_global() and name = "main" and params != [] do 
             panic("Main may not define any parameters");
         end;
+    end;
+    case ClassDecl(name, members, constructor, exported, lenv) := do 
+        val body_env := check_body(tc, members);
+        val constr_type := check_constructor(tc, constructor, name);
+        lenv.init(body_env);
+        tc.declare_type(name, Ast.ClassInfo(
+            name, 
+            fields_in_class(tc, members),
+            methods_in_class(tc, members)
+        ));
+    end;
+end;
+
+fun fields_in_class(tc : Typechecker, members : Ast.Decl[]) : Env.AList(Ast.VarInfo) do 
+    val types : Env.AList(Ast.VarInfo) := Env.AList.[Ast.VarInfo]();
+    for member in members do 
+        match member do 
+            case VarDecl(setter, ty, ?, m, ?) := do 
+                gather_types(setter, ty.get(), m, types);
+            end;
+            case ? := do end;
+        end;
+    end;
+    types
+end
+fun gather_types(setter : Ast.Setter, ty : Ast.Type, mutable : Bool, list : Env.AList(Ast.VarInfo)) do 
+    match setter do 
+        case Variable(name) := list.insert(name, Ast.VarInfo(mutable, ty, name));
+        case TupleSetter(setters, lt) := do 
+            lt.init(ty);
+            val Tuple(parts) := ty else panic("Require type "+ty+" to be a tuple in declaration of "+setter);
+            if parts.length != setters.length do 
+                panic("Expected tuple of length "+parts.length+" in declaration of field "+setter);
+            end;
+            for i in [0..setters.length] do 
+                gather_types(setters[i], parts[i], mutable, list);
+            end;
+        end;
+    end
+end
+
+fun methods_in_class(tc : Typechecker, members : Ast.Decl[]) : Env.AList(Ast.VarInfo) do 
+    val types : Env.AList(Ast.VarInfo) := Env.AList.[Ast.VarInfo]();
+    for member in members do 
+        match member do 
+            case FunDecl(name, params, ret_ty, body, ?, lenv) := do 
+                val fun_ty := Ast.Function(param_types(params), ret_ty);
+                types.insert(name, Ast.VarInfo(false, fun_ty, name));
+            end;
+            case ClassDecl(name, ?, ?, ?, ?) := panic("Error: Do not allow class as member of another class: "+name);
+            case ? := do end;
+        end;
+    end
+    types
+end
+
+fun check_body(tc : Typechecker, body : Ast.Decl[]) : Env.Env(Ast.VarInfo) do 
+    tc.open_scope();
+        for member in body do 
+            check_decl(tc, member);
+        end;
+        val result := tc.env;
+    tc.close_scope();
+    tc.env
+end
+
+fun check_constructor(tc : Typechecker, constructor : Ast.Optional(Ast.Constructor), className : String) : Ast.Type do 
+    if val Some(constr) := constructor then do 
+        tc.open_scope();
+            for param in constr.params do 
+                declare_param(tc, param);
+            end;
+            check(tc, constr.body, Ast.VoidT());
+            constr.lenv.init(tc.env);
+        tc.close_scope();
+        Ast.Function(param_types(constr.params), Ast.Name(className))
+    end else do 
+        Ast.Function([], Ast.Name(className))
+    end
+end
+
+fun declare_param(tc : Typechecker, param : Ast.Parameter) := match param do 
+    case NormalParam(name, ty) := do 
+        if matches(name, "__.*") do 
+            panic("Names may not start with __: '"+name+"'")
+        end
+        if tc.var_declared(name) then do 
+            panic("Parameter already declared: '"+name+"'");
+        end else do 
+            tc.declare(name, ty, false);
+        end
     end;
 end;
 
@@ -172,6 +307,16 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
             body, 
             lenv), 
         e);
+    case TupleExpr(subexprs, lt) := do 
+        val Tuple(subtypes) := t else panic("Cannot use expression "+e+" with non-tuple-type "+t);
+        lt.init(t);
+        if subexprs.length != subtypes.length do 
+            panic("Expected tuple of length "+subtypes.length+" in "+e);
+        end
+        for i in [0..subexprs.length] do 
+            check(tc, subexprs[i], subtypes[i]);
+        end;
+    end;
 end;
 
 fun check_block(
@@ -232,6 +377,15 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         end
         ret_type
     end;
+    case TupleExpr(subexprs, lt) := do 
+        val types : Ast.Type[] := [];
+        for expr in subexprs do 
+            types.push(infer(t, expr));
+        end;
+        val resulting := Ast.Tuple(types);
+        lt.init(resulting);
+        resulting
+    end;
 end;
 
 fun infer_function(
@@ -243,15 +397,7 @@ fun infer_function(
 do 
     t.open_scope();
         for param in params do 
-            match param do 
-                case NormalParam(name, ty) := do 
-                    if t.var_declared(name) then do 
-                        panic("Error: Function parameter "+name+" is already declared")
-                    end else do 
-                        t.declare(name, ty, false);
-                    end
-                end;
-            end;
+            declare_param(t, param);
         end;
         check(t, body, return_type);
         lenv.init(t.env);

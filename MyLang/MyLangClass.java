@@ -9,10 +9,14 @@ public record MyLangClass(
         Map<String, MyLangCallable> methods, 
         List<VariableDeclaration> fields, 
         MyLangCallable constructor, 
-        MyLangEnviroment env) implements MyLangCallable {
+        MyLangEnviroment env,
+        String fileName) implements MyLangCallable {
 
     public String getName() {
         return name;
+    }
+    public String getFileName() {
+        return fileName;
     }
 
     public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> namedArgs) {

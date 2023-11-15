@@ -45,8 +45,11 @@ public class MyLangRunner {
 
     private boolean gatherImportsIn(String fileName, boolean isMainModule) throws IOException {
         //System.out.println("Opening file "+fileName);
-        var fileContent = Files.readString(Paths.get(fileName));
-        Optional<MyLangFile> optionalFile = MyLangParser.parseFile(fileContent);
+        Path pathToFile = Paths.get(fileName);
+        var fileContent = Files.readString(pathToFile);
+        var moduleName = pathToFile.getFileName().toString();
+        moduleName = moduleName.substring(0, moduleName.lastIndexOf('.'));
+        Optional<MyLangFile> optionalFile = MyLangParser.parseFile(fileContent, moduleName);
         if(!optionalFile.isPresent()) {
             return false;
         }

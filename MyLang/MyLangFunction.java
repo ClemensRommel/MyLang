@@ -11,10 +11,14 @@ public record MyLangFunction(
         List<OptionalParam> optionals,
         Map<String, OptionalParam> optionalNamed,
         MyLangEnviroment env, 
-        Expression body) implements MyLangCallable {
+        Expression body,
+        String fileName) implements MyLangCallable {
 
     public String getName() {
         return name;
+    }
+    public String getFileName() {
+        return fileName;
     }
 
     @Override
@@ -54,6 +58,8 @@ public record MyLangFunction(
                 interpreter.env.declareVariable(name, interpreter.interpretExpression(value.defaultValue()), false);
             }
         });
+        String prevFileName = interpreter.currentFileName;
+        interpreter.currentFileName = fileName;
         Object result;
         try {
             result = interpreter.interpretExpression(body);

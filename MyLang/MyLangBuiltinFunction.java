@@ -438,6 +438,9 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
     public String getName() {
         return name;
     }
+    public String getFileName() {
+        return "builtins";
+    }
 
     @Override
     public String toString() {

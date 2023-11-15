@@ -1,17 +1,16 @@
-fun error_right_now() : Fun() : Number do 
-    var counter := 0;
-    fun () : Number do 
-        val x := counter;
-        counter := counter + 1;
-        x
+fun make_var(init : Number) : (Fun() : Number, Fun(Number) : Void) do 
+    var hidden := init;
+    fun get() : Number := hidden;
+    fun set(x : Number) : Void do 
+        hidden := x;
     end
+    (get, set)
 end
 
 fun main() : Void do 
-    val f := error_right_now();
-    print f();
-    print f();
-    print f();
-    print f();
+    val test := Test();
+    print test.smthg;
 end
-
+class Test where 
+    val smthg : Number := 3;
+end
