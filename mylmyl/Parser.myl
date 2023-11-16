@@ -170,8 +170,9 @@ fun var_decl(p : Parser, mutable : Bool) : Ast.Decl do
     if p.matches(Tokenizer.COLON()) do 
         ty.init(type_literal(p));
     end;
-    p.consume(Tokenizer.ASSIGN(), "Expect ':=' in variable declaration");
-    val initializer := expr(p);
+    val initializer := if p.matches(Tokenizer.ASSIGN()) then do 
+        Ast.Some.[Ast.Expr](expr(p))
+    end else Ast.None.[Ast.Expr]();
     p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration");
     Ast.VarDecl(setter, ty, initializer, mutable, true)
 end

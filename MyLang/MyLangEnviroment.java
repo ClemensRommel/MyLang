@@ -43,7 +43,7 @@ public class MyLangEnviroment {
     }
 
     public void setVariable(String name, Object value) {
-        if(variables.containsKey(name) && readability.get(name)) {
+       if(variables.containsKey(name) && readability.get(name)) {
             variables.put(name, value);
         } else if(outer != null) {
             outer.setVariable(name, value);

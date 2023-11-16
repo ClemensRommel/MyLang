@@ -44,7 +44,7 @@ end;
 
 export enum Setter where 
     TupleSetter(Setter[], LateInitialized(Type)),
-    Variable(String);
+    Variable(String), Property(Expr, String);
 end;
 
 export enum BlockPart where 
@@ -53,7 +53,7 @@ export enum BlockPart where
 end
 
 export enum Decl where 
-    VarDecl(Setter, LateInitialized(Type), Expr, Bool /* mut */, Bool /* export */),
+    VarDecl(Setter, LateInitialized(Type), Optional(Expr), Bool /* mut */, Bool /* export */),
     FunDecl(String, Parameter[], Type, Expr, Bool /* export */, LateInitialized(Env.Env(VarInfo))),
     ClassDecl(String, Decl[], Optional(Constructor), Bool /* export */, LateInitialized(Env.Env(VarInfo)));
 end; 

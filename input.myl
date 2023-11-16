@@ -1,5 +1,8 @@
 class Test where 
-    var smthg : Number := 0;
+    var smthg : Number;
+    new() do 
+        smthg := 0;
+    end
     fun test() : Void do 
         print "Test";
     end

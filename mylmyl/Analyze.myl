@@ -33,7 +33,9 @@ fun analyze_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do
             if mut do 
                 insert_vars(scan_env, setter); // Possible mutable variable that is captured
             end
-            analyze_expr(scan_env, init);
+            if val Some(e) := init then do 
+                analyze_expr(scan_env, e);
+            end else do end;
         end;
         case FunDecl(name, parameters, ret_type, body, ?, ?) := scan_expr(scan_env, body);
     end;
@@ -149,7 +151,7 @@ end
 
 fun scan_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do 
     match decl do 
-        case VarDecl(?, ?, init, ?, ?) := scan_expr(scan_env, init);
+        case VarDecl(?, ?, init, ?, ?) := if val Some(e) := init then scan_expr(scan_env, e) else do end;
         case FunDecl(?, ?, ?, body, ?, ?) := scan_expr(scan_env, body);
     end;
 end

@@ -14,6 +14,7 @@ end
 class Typechecker where 
     var env : Env.Env(Ast.VarInfo) := Env.Env.[Ast.VarInfo]();
     var ty_env : Env.Env(Ast.TyInfo) := Env.Env.[Ast.TyInfo]();
+    var is_in_class : Bool := false;
     fun error[A](message : String) : A := panic(message);
     fun require_assigneable(to : Ast.Type, from : Ast.Type, violating : Ast.Expr) do 
         require_types_exist(this, to);
@@ -133,9 +134,24 @@ end
 fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do 
     case VarDecl(setter, lt, init, mutable, ?) := do 
         if lt.is_init() then do 
-            check(tc, init, lt.get());
+            if val Some(e) := init then do 
+                check(tc, e, lt.get());
+            end else do
+                if not mutable do 
+                    panic("Immutable variable requires initializer: "+setter);
+                end
+                if not tc.is_in_class do 
+                    panic("Variables outside of classes require a initializer: "+setter);
+                end
+            end;
         end else do
-            lt.init(infer(tc, init));
+            if val Some(e) := init then do  
+                lt.init(infer(tc, e));
+            end else do 
+                panic("Require either an initializer or a type annotation for variable "+setter+"\n"
+                    + (if not mutable then "Immutable variable requires initializer: "+setter else "")
+                    + (if not tc.is_in_class then "Variables outside of classes require a initializer: "+setter else ""));
+            end;
         end;
         check_declaration_setter(tc, setter, lt.get(), mutable);
     end;
@@ -164,14 +180,17 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
         end;
     end;
     case ClassDecl(name, members, constructor, exported, lenv) := do 
-        val body_env := check_body(tc, members);
-        val constr_type := check_constructor(tc, constructor, name);
-        lenv.init(body_env);
         tc.declare_type(name, Ast.ClassInfo(
             name, 
             fields_in_class(tc, members),
             methods_in_class(tc, members)
         ));
+        val body_env := check_body(tc, members);
+        tc.open_scope();
+            val constr_type := check_constructor(tc, constructor, name);
+        tc.close_scope();
+        lenv.init(body_env);
+        
         tc.declare(name, constr_type, false);
     end;
 end;
@@ -221,12 +240,15 @@ end
 
 fun check_body(tc : Typechecker, body : Ast.Decl[]) : Env.Env(Ast.VarInfo) do 
     tc.open_scope();
+        val prev_in_class := tc.is_in_class;
+        tc.is_in_class := true;
         for member in body do 
             check_decl(tc, member);
         end;
+        tc.is_in_class := prev_in_class;
         val result := tc.env;
     tc.close_scope();
-    tc.env
+    result
 end
 
 fun check_constructor(tc : Typechecker, constructor : Ast.Optional(Ast.Constructor), className : String) : Ast.Type do 
