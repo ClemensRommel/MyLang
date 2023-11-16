@@ -35,6 +35,8 @@ class Typechecker where
     fun type_of_var(name : String) : Ast.Type := this.env.get(name).ty;
     fun is_var_mutable(name : String) : Bool := this.env.get(name).is_mutable;
 
+    fun type_info_for(name : String) : Ast.TyInfo := this.ty_env.get(name);
+
     fun var_declared(name : String) : Bool := this.env.has(name);
     fun type_declared(name : String) : Bool := this.ty_env.has(name);
 
@@ -170,6 +172,7 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
             fields_in_class(tc, members),
             methods_in_class(tc, members)
         ));
+        tc.declare(name, constr_type, false);
     end;
 end;
 
@@ -317,6 +320,24 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
             check(tc, subexprs[i], subtypes[i]);
         end;
     end;
+    case PropertyExpr(obj, name, la, lt, lft) := do 
+        val obj_ty := infer(tc, obj);
+        lt.init(obj_ty);
+        val Name(class_name) := obj_ty else panic("Cannot read property of non-class-type "+obj_ty+"in expression "+e);
+        val class_info := tc.type_info_for(class_name);
+        val ClassInfo(?, fields, methods) := class_info else panic("Unimplemented type information in property expression");
+        if fields.has(name) then do // Read field#
+            val ty := fields.get(name).ty;
+            tc.require_assigneable(t, ty, e);
+            lft.init(ty);
+            la.init(Ast.FieldAccess());
+        end else if methods.has(name) then do 
+            val ty := methods.get(name).ty;
+            lft.init(ty);
+            tc.require_assigneable(t, ty, e);
+            la.init(Ast.MethodAccess());
+        end else panic("Class "+class_name+" has no field or method called "+name);
+    end;
 end;
 
 fun check_block(
@@ -385,6 +406,24 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         val resulting := Ast.Tuple(types);
         lt.init(resulting);
         resulting
+    end;
+    case PropertyExpr(obj, name, la, lt, lft) := do 
+        val obj_ty := infer(t, obj);
+        lt.init(obj_ty);
+        val Name(class_name) := obj_ty else panic("Cannot read property of non-class-type "+obj_ty);
+        val class_info := t.type_info_for(class_name);
+        val ClassInfo(?, fields, methods) := class_info else panic("Unimplemented: Not class info in property expr");
+        if fields.has(name) then do
+            la.init(Ast.FieldAccess());
+            val ty := fields.get(name).ty;
+            lft.init(ty);
+            ty
+        end else if methods.has(name) then do
+            la.init(Ast.MethodAccess());
+            val ty := methods.get(name).ty;
+            lft.init(ty);
+            ty
+        end else panic("Class "+class_name+" does not have field or method called "+name)
     end;
 end;
 

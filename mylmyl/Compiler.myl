@@ -131,6 +131,7 @@ end
 
 class VariableInfo where 
     var is_no_fc_fn : Bool := false;
+    var is_constructor : Bool := false;
     var is_upvalue : Bool := false;
 end
 
@@ -198,6 +199,9 @@ fun compile_class_decl(c : Compiler, name : String, members : Ast.Decl[], constr
     c.append("}");
     c.newline();
     c.close_scope(prv);
+    val info := VariableInfo();
+    info.is_constructor := true;
+    c.env.insert(name, info);
 end
 
 fun compile_constructor(c : Compiler, constr : Ast.Optional(Ast.Constructor), name : String) do
@@ -394,7 +398,37 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case BlockExpr(stmts, end_expr, lt, lenv) := compile_block(c, stmts, end_expr, lt.get(), lenv, target);
     case FunctionCall(callee, args) := compile_call(c, callee, args, target);
     case FunctionExpr(params, return_type, body, lenv) := compile_function_expr(c, params, return_type, body, lenv.get(), target);
+    case PropertyExpr(obj, name, la, lt, lft) := compile_property(c, obj, name, la.get(), lt.get(), lft.get(), target);
 end;
+
+fun compile_property(c : Compiler, obj : Ast.Expr, name : String, at : Ast.AccessType, obj_ty : Ast.Type, field_ty : Ast.Type, target : Target) : String do 
+    if target = Ignore() then do 
+        compile_expr(c, obj, target)
+    end else do // Target cannot be Ignore
+        match at do 
+            case FieldAccess() := do 
+                val subexpr := compile_expr(c, obj, UsedDirectly());
+                val fieldAccess := subexpr + "." + name;
+                use_with_target(c, fieldAccess, target)
+            end;
+            case MethodAccess() := do 
+                val temp_var := c.new_var();
+                c.append("final "); c.append(compile_type(c, obj_ty)); c.append(" "); c.append(temp_var); c.append(";"); c.newline();
+                compile_expr(c, obj, AssignTo(Ast.Variable(temp_var)));
+                val methodAccess := temp_var + "::"+name; // Create method reference. Let java create lambda
+                match target do 
+                    case AssignTo(s) := assign(c, s, methodAccess);
+                    case Return() := return_stmt(c, methodAccess);
+                    case UsedDirectly() := do 
+                        val resulting_var := c.new_var();
+                        c.append("final "); c.append(compile_type(c, field_ty)); c.append(" "); c.append(resulting_var); c.append(" = "); c.append(methodAccess); c.append(";"); c.newline();
+                        resulting_var
+                    end;
+                end
+            end;
+        end
+    end
+end
 
 fun compile_tuple(c : Compiler, subexprs : Ast.Expr[], ty : Ast.Type, target : Target) : String do 
     val subexpr_target := match target do 
@@ -631,10 +665,16 @@ end
 
 fun compile_call(c : Compiler, callee : Ast.Expr, args : Ast.Expr[], target : Target) : String do 
     val callee_compiled := if val Identifier(name) := callee then do 
-        if c.env.get(name).is_no_fc_fn then 
+        val info := c.env.get(name);
+        if info.is_no_fc_fn then 
             name 
-        else 
+        else if info.is_constructor then 
+            "new " + name
+        else
             compile_expr(c, callee, UsedDirectly()) + ".call"
+    end else if val PropertyExpr(obj, name, la, lt, lft) := callee then do 
+        val obj_expr := compile_expr(c, obj, UsedDirectly());
+        if val MethodAccess() := la.get() then obj_expr + "." + name else obj_expr + "." + name  + ".call"
     end else do 
         compile_expr(c, callee, UsedDirectly()) + ".call"
     end;
@@ -812,6 +852,7 @@ fun compile_type(c : Compiler, t : Ast.Type) : String := match t do
     case VoidT() := "Void";
     case Function(?, ?) := create_enqueued_type(c, t);
     case Tuple(?) := create_enqueued_type(c, t);
+    case Name(name) := name; // Classes are compiled with their name
 end;
 
 fun compile_upvalue_type(c : Compiler, t : Ast.Type) : String := match t do 

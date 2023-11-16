@@ -268,7 +268,7 @@ fun use_expr(p : Parser) : Ast.Expr do
             lhs := Ast.FunctionCall(lhs, args);
         end else do
             val property := p.consume(Tokenizer.IDENTIFIER(), "Expect property name after .");
-            lhs := Ast.PropertyExpr(lhs, property.src);
+            lhs := Ast.PropertyExpr(lhs, property.src, Ast.LateInitialized.[Ast.AccessType](), Ast.late_type(), Ast.late_type());
         end
     end;
     lhs

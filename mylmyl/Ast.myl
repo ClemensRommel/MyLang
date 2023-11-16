@@ -15,13 +15,17 @@ enum Expr where
     IfExpr(LateInitialized(Type), Expr, Expr, Expr),
 //    ListExpr(Expr[]),
 //    IndexExpr(Expr, Expr),
-    PropertyExpr(Expr, String),
+    PropertyExpr(Expr, String, LateInitialized(AccessType), LateInitialized(Type), LateInitialized(Type)),
     TupleExpr(Expr[], LateInitialized(Type)),
     BlockExpr(Stmt[], Optional(Expr), LateInitialized(Type), LateInitialized(Env.Env(VarInfo)));
     // WhileExpr(Expr, Stmt),
     // ForExpr(String, Expr, Expr),
 //    ThisExpr();
 end;
+
+enum AccessType where 
+    FieldAccess(), MethodAccess();
+end
 
 enum BinOp where 
     Add(), Sub(), Mul(), Div(), Mod(), LessThan(), LessEqual(), GreaterEqual(), GreaterThan(), Equals(), NotEquals(), And(), Or(), Xor();
@@ -69,6 +73,7 @@ class VarInfo where
     val ty : Type;
     val is_mutable : Bool;
     val name : String;
+    var is_constructor : Bool := false;
     new(m : Bool, t : Type, n : String) do 
         this.is_mutable := m; this.ty := t; this.name := n;
     end

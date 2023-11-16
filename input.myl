@@ -1,16 +1,11 @@
-fun make_var(init : Number) : (Fun() : Number, Fun(Number) : Void) do 
-    var hidden := init;
-    fun get() : Number := hidden;
-    fun set(x : Number) : Void do 
-        hidden := x;
+class Test where 
+    var smthg : Number := 0;
+    fun test() : Void do 
+        print "Test";
     end
-    (get, set)
 end
 
 fun main() : Void do 
     val test := Test();
-    print test.smthg;
-end
-class Test where 
-    val smthg : Number := 3;
+    test.test();
 end
