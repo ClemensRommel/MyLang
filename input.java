@@ -5,7 +5,7 @@ class Main {
     public static double A(double k, __a0 x1, __a0 x2, __a0 x3, __a0 x4, __a0 x5) {
         NumberUpvalue m = new NumberUpvalue();
         m.value = k;
-        final Upvalue<__a0> B = new Upvalue<>();
+        final Upvalue<__a0>B = new Upvalue<>();
         B.value = () -> {
             m.value = m.value - 1;
             return A(m.value, B.value, x1, x2, x3, x4);

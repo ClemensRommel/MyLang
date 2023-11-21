@@ -1,0 +1,26 @@
+module Util;
+
+export enum Optional(T) where
+    None(), Some(T);
+end;
+
+export class LateInitialized(T) where
+    var field : Optional(T) := None.[T]();
+
+    fun get() : T := match this.field do
+        case Some(t) := t;
+        case None() := panic("Error: Attempted to access uninitialized field");
+    end;
+
+    fun init(t : T) do
+        this.field := Some.[T](t);
+    end
+    fun is_init() : Bool := this.field != None.[T]();
+end
+
+fun any[T](list : T[], pred : Fun(T) : Bool) : Bool do
+    for t in list do
+        if pred(t) do return true; end;
+    end;
+    false
+end

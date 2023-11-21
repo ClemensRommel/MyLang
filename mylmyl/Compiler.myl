@@ -3,6 +3,7 @@ module Compiler;
 import Ast;
 import Env;
 import Analyze;
+import Util;
 
 class Compiler where 
     var buf : String := "";
@@ -66,17 +67,17 @@ class Compiler where
         end;
     end
     
-    fun get_enqueued_type(t : Ast.Type) : Ast.Optional(String) do 
+    fun get_enqueued_type(t : Ast.Type) : Util.Optional(String) do
         for task in this.types_to_compile do 
             match task do 
                 case CreateFunctionalInterface(args, ret, name) := do
                     if t = Ast.Function(args, ret) do 
-                        return Ast.Some.[String](name);
+                        return Util.Some.[String](name);
                     end;
                 end;
                 case CreateTupleType(parts, name) := do 
                     if t = Ast.Tuple(parts) do 
-                        return Ast.Some.[String](name);
+                        return Util.Some.[String](name);
                     end;
                 end;
                 case ? := do end;
@@ -84,10 +85,10 @@ class Compiler where
         end;
         for (name, ty) in this.compiled_types do 
             if ty = t do 
-                return Ast.Some.[String](name);
+                return Util.Some.[String](name);
             end;
         end;
-        Ast.None.[String]()
+        Util.None.[String]()
     end
 
     fun open_scope(env : Env.Env(Ast.VarInfo)) : ScopeInfo do 
@@ -180,7 +181,7 @@ end;
 
 
 
-fun compile_class_decl(c : Compiler, name : String, members : Ast.Decl[], constr : Ast.Optional(Ast.Constructor), env : Env.Env(Ast.VarInfo)) do 
+fun compile_class_decl(c : Compiler, name : String, members : Ast.Decl[], constr : Util.Optional(Ast.Constructor), env : Env.Env(Ast.VarInfo)) do
     if c.is_class do 
         c.append("public ");
     end;
@@ -204,7 +205,7 @@ fun compile_class_decl(c : Compiler, name : String, members : Ast.Decl[], constr
     c.env.insert(name, info);
 end
 
-fun compile_constructor(c : Compiler, constr : Ast.Optional(Ast.Constructor), name : String) do
+fun compile_constructor(c : Compiler, constr : Util.Optional(Ast.Constructor), name : String) do
     val Some(construct) := constr else return null;
     c.append("public "+name);
     c.append("(");
@@ -250,7 +251,7 @@ fun compile_variables(c : Compiler, setter : Ast.Setter, ty : Ast.Type, is_globa
     end;
 end
 
-fun compile_var_decl(c : Compiler, setter : Ast.Setter, lt : Ast.LateInitialized(Ast.Type), init : Ast.Optional(Ast.Expr), mutable : Bool) do 
+fun compile_var_decl(c : Compiler, setter : Ast.Setter, lt : Util.LateInitialized(Ast.Type), init : Util.Optional(Ast.Expr), mutable : Bool) do
     if c.is_class then do
         compile_variables(c, setter, lt.get(), true, mutable, false);
         if val Some(e) := init then do 
@@ -304,7 +305,7 @@ fun compile_fun_decl(
     params : Ast.Parameter[], 
     return_type : Ast.Type, 
     body : Ast.Expr,
-    lenv : Ast.LateInitialized(Env.Env(Ast.VarInfo))) 
+    lenv : Util.LateInitialized(Env.Env(Ast.VarInfo)))
 do 
     val info := VariableInfo();
     info.is_no_fc_fn := c.is_class; // Local functions cannot be compiled directly but to lambdas
@@ -318,12 +319,18 @@ do
         end else do
             c.append(compile_type(c, return_type)); 
         end;
-    end else do 
+        c.append(" ");
+    end else do
         val ty := c.current_env.get(name).ty;
         if val Function(?, ?) := ty then do end else panic("Unreachable: Function is being compiled that has non-function-type");
-        c.append("final " + compile_type(c, ty)); 
+        if Analyze.mentions_var(body, name) then do // Check if body mentions name (means its recursive)
+            info.is_upvalue := true; // Recursive local functions have to be compiled as upvalues due to being compiled as lambdas
+            c.append("final "); c.append(compile_upvalue_type(c, ty)); c.append(name); c.append(" = "); c.append("new Upvalue<>();"); c.newline();
+        end else do
+            c.append("final " + compile_type(c, ty) + " ");
+        end;
     end;
-    c.append(" "); c.append(name);
+    c.append(maybe_upvalue(c, name));
     if !c.is_class do 
         c.append(" = ");
     end
@@ -715,9 +722,9 @@ end
 fun compile_block(
     c : Compiler, 
     stmts : Ast.Stmt[], 
-    end_expr : Ast.Optional(Ast.Expr), 
+    end_expr : Util.Optional(Ast.Expr),
     t : Ast.Type,
-    lenv : Ast.LateInitialized(Env.Env(Ast.VarInfo)),
+    lenv : Util.LateInitialized(Env.Env(Ast.VarInfo)),
     target : Target) : String 
 do 
     var name := "";
@@ -803,7 +810,7 @@ end;
 
 fun compile_if(
     c : Compiler, 
-    lt : Ast.LateInitialized(Ast.Type), 
+    lt : Util.LateInitialized(Ast.Type),
     cond : Ast.Expr, 
     thenBr : Ast.Expr, 
     elseBr : Ast.Expr,

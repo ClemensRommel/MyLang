@@ -2,6 +2,7 @@ module Parser;
 
 import Tokenizer;
 import Ast;
+import Util;
 
 class Parser where 
     val tokens : Tokenizer.Token[];
@@ -100,13 +101,13 @@ fun class_decl(p : Parser) : Ast.Decl do
     val name := p.consume(Tokenizer.IDENTIFIER(), "Expect class name after 'class' keyword");
     p.consume(Tokenizer.WHERE(), "Expect start of class body after class name: 'where'");
     val members : Ast.Decl[] := [];
-    var constr : Ast.Optional(Ast.Constructor) := Ast.None.[Ast.Constructor]();
+    var constr : Util.Optional(Ast.Constructor) := Util.None.[Ast.Constructor]();
     while !p.matches(Tokenizer.END()) do 
         if p.matches(Tokenizer.NEW()) then do 
             if val Some(?) := constr then do 
                 panic("Error: Class '"+name.src+"' can only have on constructor");
             end else do end;
-            constr := Ast.Some.[Ast.Constructor](constructor(p));
+            constr := Util.Some.[Ast.Constructor](constructor(p));
         end else do 
             val member : Ast.Decl := decl(p);
             members.push(member);
@@ -171,8 +172,8 @@ fun var_decl(p : Parser, mutable : Bool) : Ast.Decl do
         ty.init(type_literal(p));
     end;
     val initializer := if p.matches(Tokenizer.ASSIGN()) then do 
-        Ast.Some.[Ast.Expr](expr(p))
-    end else Ast.None.[Ast.Expr]();
+        Util.Some.[Ast.Expr](expr(p))
+    end else Util.None.[Ast.Expr]();
     p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration");
     Ast.VarDecl(setter, ty, initializer, mutable, true)
 end
@@ -269,7 +270,7 @@ fun use_expr(p : Parser) : Ast.Expr do
             lhs := Ast.FunctionCall(lhs, args);
         end else do
             val property := p.consume(Tokenizer.IDENTIFIER(), "Expect property name after .");
-            lhs := Ast.PropertyExpr(lhs, property.src, Ast.LateInitialized.[Ast.AccessType](), Ast.late_type(), Ast.late_type());
+            lhs := Ast.PropertyExpr(lhs, property.src, Util.LateInitialized.[Ast.AccessType](), Ast.late_type(), Ast.late_type());
         end
     end;
     lhs
@@ -287,7 +288,7 @@ fun primary(p : Parser) : Ast.Expr :=
 // Expects that starting do is already consumed
 fun block_expr(p : Parser) : Ast.Expr do 
     val stmts : Ast.Stmt[] := [];
-    var end_expr := Ast.None.[Ast.Expr]();
+    var end_expr := Util.None.[Ast.Expr]();
     var no_end_expr_found := true;
     while no_end_expr_found and !p.matches(Tokenizer.END()) do 
         match block_part(p) do 
@@ -295,7 +296,7 @@ fun block_expr(p : Parser) : Ast.Expr do
                 stmts.push(st);
             end;
             case Expression(e) := do 
-                end_expr := Ast.Some.[Ast.Expr](e);
+                end_expr := Util.Some.[Ast.Expr](e);
                 p.consume(Tokenizer.END(), "Expect block to end with 'end'");
                 no_end_expr_found := false;
             end;

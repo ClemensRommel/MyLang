@@ -1,5 +1,7 @@
 module Tokenizer;
 
+import Util;
+
 export enum TokenType where
     LPAREN(), RPAREN(), LBRACKET(), RBRACKET(), LBRACE(), RBRACE(), SEMICOLON(),
     DOT(), DOTS(), COMMA(), COLON(), ASSIGN(), PLUS(), MINUS(), STAR(), SLASH(), PERCENT(), BANG(), EXPO(),
@@ -259,15 +261,11 @@ class Tokenizer where
     end
 end;
 
-fun getContent(content: String): OptionalString do 
+fun getContent(content: String): Util.Optional(String) do
     val fileContent := openFile(content);
-    if isNull(fileContent) then None() else Some(fileContent)
+    if isNull(fileContent) then Util.None.[String]() else Util.Some.[String](fileContent)
 end
 
-enum OptionalString where
-    Some(String),
-    None();
-end
 
 fun main() do 
     val Some(input) := getContent("mylmyl/Tokenizer.myl") else do 

@@ -2,6 +2,7 @@ module Typechecker;
 
 import Ast;
 import Env;
+import Util;
 
 fun typecheck(ast : Ast.Program) : Env.Env(Ast.VarInfo) do 
     val tc := new Typechecker();
@@ -44,7 +45,7 @@ class Typechecker where
     fun declare(name : String, ty : Ast.Type, m : Bool) := this.env.insert(name, Ast.VarInfo(m, ty, name));
     fun declare_type(name : String, ty_info : Ast.TyInfo) := this.ty_env.insert(name, ty_info);
 
-    fun is_global() : Bool := this.env.outer = Env.None.[Ast.VarInfo]();
+    fun is_global() : Bool := this.env.outer = Util.None.[Env.Env(Ast.VarInfo)]();
 end
 
 fun require_types_exist(tc : Typechecker, ty : Ast.Type) := match ty do 
@@ -275,7 +276,7 @@ fun check_body(tc : Typechecker, body : Ast.Decl[]) do
 
 end
 
-fun check_constructor(tc : Typechecker, constructor : Ast.Optional(Ast.Constructor), className : String) : Ast.Type do 
+fun check_constructor(tc : Typechecker, constructor : Util.Optional(Ast.Constructor), className : String) : Ast.Type do
     val prev_in_class := tc.is_in_class;
     tc.is_in_class := true;
     val result := if val Some(constr) := constructor then do 
@@ -400,9 +401,9 @@ fun check_block(
     tc : Typechecker, 
     t : Ast.Type, 
     stmts : Ast.Stmt[], 
-    end_expr : Ast.Optional(Ast.Expr), 
+    end_expr : Util.Optional(Ast.Expr),
     total : Ast.Expr, 
-    lenv : Ast.LateInitialized(Env.Env(Ast.VarInfo)))
+    lenv : Util.LateInitialized(Env.Env(Ast.VarInfo)))
 do 
     tc.open_scope();
         for stmt in stmts do 
@@ -494,7 +495,7 @@ fun infer_function(
     params : Ast.Parameter[], 
     return_type : Ast.Type,
     body : Ast.Expr,
-    lenv : Ast.LateInitialized(Env.Env(Ast.VarInfo))) : Ast.Type 
+    lenv : Util.LateInitialized(Env.Env(Ast.VarInfo))) : Ast.Type
 do 
     t.open_scope();
         for param in params do 
@@ -509,9 +510,9 @@ end
 fun infer_block(
     t : Typechecker, 
     stmts : Ast.Stmt[], 
-    end_expr : Ast.Optional(Ast.Expr), 
-    lt : Ast.LateInitialized(Ast.Type),
-    lenv : Ast.LateInitialized(Env.Env(Ast.VarInfo))) : Ast.Type 
+    end_expr : Util.Optional(Ast.Expr),
+    lt : Util.LateInitialized(Ast.Type),
+    lenv : Util.LateInitialized(Env.Env(Ast.VarInfo))) : Ast.Type
 do 
     t.open_scope();
         for stmt in stmts do 

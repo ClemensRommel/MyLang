@@ -1,6 +1,4 @@
-
-
-fun A(k : Number, x1 : Fun() : Number, x2 : Fun() : Number, x3 : Fun() : Number, x4 : Fun() : Number, x5 : Fun() : Number) : Number do 
+fun A(k : Number, x1 : Fun() : Number, x2 : Fun() : Number, x3 : Fun() : Number, x4 : Fun() : Number, x5 : Fun() : Number) : Number do
     var m : Number := k;
     fun B() : Number do 
         m := m - 1;
@@ -10,6 +8,6 @@ fun A(k : Number, x1 : Fun() : Number, x2 : Fun() : Number, x3 : Fun() : Number,
     if k <= 0 then x4() + x5() else B()
 end
 
-fun main() : Void do 
-    A(10, fun() : Number := 1, fun() : Number := -1, fun() : Number := -1, fun() : Number := 1, fun() : Number := 0);
+fun main() : Void do
+    print A(10, fun() : Number := 1, fun() : Number := -1, fun() : Number := -1, fun() : Number := 1, fun() : Number := 0);
 end

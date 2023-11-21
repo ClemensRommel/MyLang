@@ -1,6 +1,7 @@
 module Ast;
 
 import Env;
+import Util;
 
 enum Expr where 
     NumberLiteral(Number),
@@ -11,13 +12,13 @@ enum Expr where
     BinaryOperation(BinOp, Expr, Expr),
     UnaryOperation(UnOp, Expr),
     FunctionCall(Expr, Expr[]),
-    FunctionExpr(Parameter[], Type, Expr, LateInitialized(Env.Env(VarInfo))),
-    IfExpr(LateInitialized(Type), Expr, Expr, Expr),
+    FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Env.Env(VarInfo))),
+    IfExpr(Util.LateInitialized(Type), Expr, Expr, Expr),
 //    ListExpr(Expr[]),
 //    IndexExpr(Expr, Expr),
-    PropertyExpr(Expr, String, LateInitialized(AccessType), LateInitialized(Type), LateInitialized(Type)),
-    TupleExpr(Expr[], LateInitialized(Type)),
-    BlockExpr(Stmt[], Optional(Expr), LateInitialized(Type), LateInitialized(Env.Env(VarInfo))),
+    PropertyExpr(Expr, String, Util.LateInitialized(AccessType), Util.LateInitialized(Type), Util.LateInitialized(Type)),
+    TupleExpr(Expr[], Util.LateInitialized(Type)),
+    BlockExpr(Stmt[], Util.Optional(Expr), Util.LateInitialized(Type), Util.LateInitialized(Env.Env(VarInfo))),
     // WhileExpr(Expr, Stmt),
     // ForExpr(String, Expr, Expr),
     ThisExpr();
@@ -43,9 +44,9 @@ export enum Stmt where
 end;
 
 export enum Setter where 
-    TupleSetter(Setter[], LateInitialized(Type)),
+    TupleSetter(Setter[], Util.LateInitialized(Type)),
     Variable(String), 
-    Property(Expr, String, LateInitialized(Type)/* Should always be the Name of the Class */);
+    Property(Expr, String, Util.LateInitialized(Type)/* Should always be the Name of the Class */);
 end;
 
 export enum BlockPart where 
@@ -54,15 +55,15 @@ export enum BlockPart where
 end
 
 export enum Decl where 
-    VarDecl(Setter, LateInitialized(Type), Optional(Expr), Bool /* mut */, Bool /* export */),
-    FunDecl(String, Parameter[], Type, Expr, Bool /* export */, LateInitialized(Env.Env(VarInfo))),
-    ClassDecl(String, Decl[], Optional(Constructor), Bool /* export */, LateInitialized(Env.Env(VarInfo)));
+    VarDecl(Setter, Util.LateInitialized(Type), Util.Optional(Expr), Bool /* mut */, Bool /* export */),
+    FunDecl(String, Parameter[], Type, Expr, Bool /* export */, Util.LateInitialized(Env.Env(VarInfo))),
+    ClassDecl(String, Decl[], Util.Optional(Constructor), Bool /* export */, Util.LateInitialized(Env.Env(VarInfo)));
 end; 
 
 export class Constructor where 
     val params : Parameter[];
     val body : Expr;
-    val lenv : LateInitialized(Env.Env(VarInfo)) := late_env();
+    val lenv : Util.LateInitialized(Env.Env(VarInfo)) := late_env();
 
     new(p : Parameter[], b : Expr) do 
         this.params := p;
@@ -98,23 +99,6 @@ enum Type where
     Function(Type[], Type);
 end
 
-export class LateInitialized(T) where 
-    var field : Optional(T) := None.[T]();
 
-    fun get() : T := match this.field do 
-        case Some(t) := t;
-        case None() := panic("Error: Attempted to access uninitialized field");
-    end;
-
-    fun init(t : T) do 
-        this.field := Some.[T](t);
-    end
-    fun is_init() : Bool := this.field != None.[T]();
-end
-
-export enum Optional(T) where
-    None(), Some(T);
-end;
-
-export fun late_env() : LateInitialized(Env.Env(VarInfo)) := LateInitialized.[Env.Env(VarInfo)]();
-export fun late_type() : LateInitialized(Type) := LateInitialized.[Type]();
+export fun late_env() : Util.LateInitialized(Env.Env(VarInfo)) := Util.LateInitialized.[Env.Env(VarInfo)]();
+export fun late_type() : Util.LateInitialized(Type) := Util.LateInitialized.[Type]();

@@ -2,9 +2,10 @@ module Analyze;
 
 import Ast;
 import Env;
+import Util;
 
 // Search for mutable variables that are captured by functions in this block
-fun analyze_captures(stmts : Ast.Stmt[], last : Ast.Optional(Ast.Expr)) : Env.AList(Bool) do 
+fun analyze_captures(stmts : Ast.Stmt[], last : Util.Optional(Ast.Expr)) : Env.AList(Bool) do
     val scan_env : Env.AList(Bool) := Env.AList.[Bool]();
     for stmt in stmts do 
         analyze_stmt(scan_env, stmt);   
@@ -14,6 +15,47 @@ fun analyze_captures(stmts : Ast.Stmt[], last : Ast.Optional(Ast.Expr)) : Env.AL
     end else do end;
     scan_env
 end
+
+fun mentions_var(expr : Ast.Expr, name : String) : Bool := match expr do
+    case NumberLiteral(?) := false;
+    case StringLiteral(?) := false;
+    case Boolean(?) := false;
+    case NullLiteral() := false;
+    case Identifier(n) := n = name;
+    case BinaryOperation(?, left, right) := mentions_var(left, name) or mentions_var(right, name);
+    case UnaryOperation(?, part) := mentions_var(part, name);
+    case FunctionCall(callee, called) := mentions_var(callee, name) or Util.any.[Ast.Expr](called, fun(t) := mentions_var(t, name));
+    case FunctionExpr(?, ?, body, ?) := mentions_var(body, name); // Name shadowing is not allowed. If it will be, this has to change
+    case IfExpr(?, cond, th, el) := mentions_var(cond, name) or mentions_var(th, name) or mentions_var(el, name);
+    case PropertyExpr(obj, ?, ?, ?, ?) := mentions_var(obj, name);
+    case TupleExpr(parts, ?) := Util.any.[Ast.Expr](parts, fun(t) := mentions_var(t, name));
+    case BlockExpr(parts, last, ?, ?) := Util.any.[Ast.Stmt](parts, fun(t) := stmt_mentions_var(t, name)) or if val Some(l) := last then mentions_var(l, name) else false;
+    case ThisExpr() := false;
+end;
+
+fun stmt_mentions_var(stmt : Ast.Stmt, name : String) : Bool := match stmt do
+    case ExprStmt(expr) := mentions_var(expr, name);
+    case PrintStmt(expr) := mentions_var(expr, name);
+    case SetStatement(setter, expr) := setter_mentions_var(setter, name) or mentions_var(expr, name);
+    case Declaration(decl) := decl_mentions_var(decl, name);
+    case EmptyStmt() := false;
+end;
+
+fun setter_mentions_var(setter : Ast.Setter, name : String) : Bool := match setter do
+    case Variable(n) := n = name;
+    case TupleSetter(parts, ?) := Util.any.[Ast.Setter](parts, fun(t) := setter_mentions_var(t, name));
+    case Property(obj, ?, ?) := mentions_var(obj, name);
+end;
+
+fun decl_mentions_var(decl : Ast.Decl, name : String) : Bool := match decl do
+    case VarDecl(?, ?, init, ?, ?) := if val Some(e) := init then mentions_var(e, name) else false;
+    case FunDecl(?, ?, ?, body, ?, ?) := mentions_var(body, name);
+    case ClassDecl(?, members, constr, ?, ?) := Util.any.[Ast.Decl](members, fun(t) := decl_mentions_var(t, name))
+                                                or (if val Some(c) := constr
+                                                then constr_mentions_var(c, name) else false);
+end;
+
+fun constr_mentions_var(constr : Ast.Constructor, name : String) : Bool := mentions_var(constr.body, name);
     
 
 fun analyze_stmt(scan_env : Env.AList(Bool), stmt : Ast.Stmt) do 
