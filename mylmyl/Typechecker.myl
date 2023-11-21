@@ -94,7 +94,16 @@ fun check_mutability(tc : Typechecker, setter : Ast.Setter) := match setter do
         for part in parts do 
             check_mutability(tc, part);
         end;
-    end; 
+    end;
+    case Property(obj, name, lt) := do 
+        val Name(class_name) := lt.get() else panic("Should be unreachable: Property with non-class-type");
+        val ClassInfo(?, fields, methods) := tc.type_info_for(class_name) else panic("Should be unreachable: Non-class info in setter");
+        print(name);
+        val field_info := fields.get(name);
+        if not field_info.is_mutable do 
+            panic("Cannot change immutable field "+name+" of class "+class_name);
+        end
+    end;
 end;
 
 fun infer_setter(tc : Typechecker, s : Ast.Setter) : Ast.Type := match s do 
@@ -107,6 +116,20 @@ fun infer_setter(tc : Typechecker, s : Ast.Setter) : Ast.Type := match s do
         val ty := Ast.Tuple(parts);
         lt.init(ty);
         ty
+    end;
+    case Property(obj, name, lcty) := do 
+        print("Inferring property of name "+name);
+        val obj_ty := infer(tc, obj);
+        val Name(class_name) := obj_ty else panic("Cannot set property of non-class-type "+obj_ty);
+        lcty.init(obj_ty);
+        val class_info := tc.type_info_for(class_name);
+        val ClassInfo(?, fields, methods) := class_info else panic("Unimplemented type information in property setter");
+        if methods.has(name) do 
+            panic("Cannot change a method: method "+name+" of class "+class_name);
+        end
+        if fields.has(name) then do 
+            fields.get(name).ty
+        end else panic("Class "+class_name+" has no field called "+name)
     end;
 end;
 
@@ -128,6 +151,7 @@ fun check_declaration_setter(tc : Typechecker, setter : Ast.Setter, ty : Ast.Typ
                 check_declaration_setter(tc, setters[i], parts[i], mut);
             end;
         end;
+        case Property(?, ?, ?) := panic("Cannot use property as variable declaration: " + setter);
     end;
 end
 
@@ -185,9 +209,11 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
             fields_in_class(tc, members),
             methods_in_class(tc, members)
         ));
-        val body_env := check_body(tc, members);
         tc.open_scope();
+            tc.declare("this", Ast.Name(name), false);
+            check_body(tc, members);
             val constr_type := check_constructor(tc, constructor, name);
+            val body_env := tc.env;
         tc.close_scope();
         lenv.init(body_env);
         
@@ -220,6 +246,7 @@ fun gather_types(setter : Ast.Setter, ty : Ast.Type, mutable : Bool, list : Env.
                 gather_types(setters[i], parts[i], mutable, list);
             end;
         end;
+        case Property(?, ?, ?) := do end;
     end
 end
 
@@ -238,21 +265,20 @@ fun methods_in_class(tc : Typechecker, members : Ast.Decl[]) : Env.AList(Ast.Var
     types
 end
 
-fun check_body(tc : Typechecker, body : Ast.Decl[]) : Env.Env(Ast.VarInfo) do 
-    tc.open_scope();
-        val prev_in_class := tc.is_in_class;
-        tc.is_in_class := true;
-        for member in body do 
-            check_decl(tc, member);
-        end;
-        tc.is_in_class := prev_in_class;
-        val result := tc.env;
-    tc.close_scope();
-    result
+fun check_body(tc : Typechecker, body : Ast.Decl[]) do 
+    val prev_in_class := tc.is_in_class;
+    tc.is_in_class := true;
+    for member in body do 
+        check_decl(tc, member);
+    end;
+    tc.is_in_class := prev_in_class;
+
 end
 
 fun check_constructor(tc : Typechecker, constructor : Ast.Optional(Ast.Constructor), className : String) : Ast.Type do 
-    if val Some(constr) := constructor then do 
+    val prev_in_class := tc.is_in_class;
+    tc.is_in_class := true;
+    val result := if val Some(constr) := constructor then do 
         tc.open_scope();
             for param in constr.params do 
                 declare_param(tc, param);
@@ -263,7 +289,9 @@ fun check_constructor(tc : Typechecker, constructor : Ast.Optional(Ast.Construct
         Ast.Function(param_types(constr.params), Ast.Name(className))
     end else do 
         Ast.Function([], Ast.Name(className))
-    end
+    end;
+    tc.is_in_class := prev_in_class;
+    result
 end
 
 fun declare_param(tc : Typechecker, param : Ast.Parameter) := match param do 
@@ -291,6 +319,12 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
     case Boolean(?) := tc.require_assigneable(t, Ast.BooleanT(), e);
     case StringLiteral(?) := tc.require_assigneable(t, Ast.StringT(), e);
     case NullLiteral() := tc.require_assigneable(t, Ast.VoidT(), e);
+    case ThisExpr() := do 
+        if not tc.is_in_class do 
+            panic("Cannot use 'this' outside of a class");
+        end
+        tc.require_assigneable(t, tc.type_of_var("this"), e);
+    end;
     case Identifier(name) := do 
         tc.require_assigneable(t, tc.type_of_var(name), e);
         if matches(name, "__.*") do 
@@ -342,7 +376,7 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
             check(tc, subexprs[i], subtypes[i]);
         end;
     end;
-    case PropertyExpr(obj, name, la, lt, lft) := do 
+    case PropertyExpr(obj, name, la, lt, lft) := do
         val obj_ty := infer(tc, obj);
         lt.init(obj_ty);
         val Name(class_name) := obj_ty else panic("Cannot read property of non-class-type "+obj_ty+"in expression "+e);
@@ -388,6 +422,12 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
     case Boolean(?) := Ast.BooleanT();
     case StringLiteral(?) := Ast.StringT();
     case NullLiteral() := Ast.VoidT();
+    case ThisExpr() := do 
+        if not t.is_in_class do 
+            panic("Cannot use 'this' outside of a class");
+        end
+        t.type_of_var("this")
+    end;
     case Identifier(name) := do 
         if matches(name, "__.*") do 
             panic("Names may not start with __: '"+name+"'")

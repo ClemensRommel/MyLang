@@ -33,7 +33,7 @@ public record MyLangFunction(
         if(!checkSize(args)) {
             throw new InterpreterError(
                     "Wrong number of arguments: expected "+parameters.size()+
-                    ", got "+args.size()+" ("+args+")");
+                    ", got "+args.size()+" ("+args+")", interpreter.callStack);
         }
         for(int i = 0; i < parameters.size(); i++) {
             interpreter.env.declareVariable(parameters.get(i).lexeme(), args.remove(0), false);

@@ -17,10 +17,10 @@ enum Expr where
 //    IndexExpr(Expr, Expr),
     PropertyExpr(Expr, String, LateInitialized(AccessType), LateInitialized(Type), LateInitialized(Type)),
     TupleExpr(Expr[], LateInitialized(Type)),
-    BlockExpr(Stmt[], Optional(Expr), LateInitialized(Type), LateInitialized(Env.Env(VarInfo)));
+    BlockExpr(Stmt[], Optional(Expr), LateInitialized(Type), LateInitialized(Env.Env(VarInfo))),
     // WhileExpr(Expr, Stmt),
     // ForExpr(String, Expr, Expr),
-//    ThisExpr();
+    ThisExpr();
 end;
 
 enum AccessType where 
@@ -44,7 +44,8 @@ end;
 
 export enum Setter where 
     TupleSetter(Setter[], LateInitialized(Type)),
-    Variable(String), Property(Expr, String);
+    Variable(String), 
+    Property(Expr, String, LateInitialized(Type)/* Should always be the Name of the Class */);
 end;
 
 export enum BlockPart where 

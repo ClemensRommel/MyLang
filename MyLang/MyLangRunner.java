@@ -95,7 +95,12 @@ public class MyLangRunner {
 
     public void run() throws IOException {
         if(gatherAllImports()) {
-            interpreter.interpretFile(this, mainModule, true);
+            try {
+                interpreter.interpretFile(this, mainModule, true);
+            } catch(InterpreterError e) {
+                e.printStackTrace();
+            }
+    
         }
     }
 }

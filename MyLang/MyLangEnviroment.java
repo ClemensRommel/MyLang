@@ -32,35 +32,35 @@ public class MyLangEnviroment {
         return variables.containsKey(name) || (outer != null && outer.localVariableDeclared(name));
     }
     
-    public Object getVariable(String name) {
+    public Object getVariable(String name, MyLangInterpreter interpreter) {
         if(variables.containsKey(name)) {
             return variables.get(name);
         } else if(outer != null) {
-            return outer.getVariable(name);
+            return outer.getVariable(name, interpreter);
         } else {
-            throw new InterpreterError("Variable '"+name+"' not declared");
+            throw new InterpreterError("Variable '"+name+"' not declared", interpreter.callStack);
         }
     }
 
-    public void setVariable(String name, Object value) {
+    public void setVariable(String name, Object value, MyLangInterpreter interpreter) {
        if(variables.containsKey(name) && readability.get(name)) {
             variables.put(name, value);
         } else if(outer != null) {
-            outer.setVariable(name, value);
+            outer.setVariable(name, value, interpreter);
         } else {
-            throw new InterpreterError("Variable '"+name+"' not declared");
+            throw new InterpreterError("Variable '"+name+"' not declared", interpreter.callStack);
         }
     }
 
     public boolean isInClass() {
         return variables.containsKey("this") || (outer != null && outer.isInClass());
     }
-    public void declareModule(MyLangPath path, MyLangModule module) {
+    public void declareModule(MyLangPath path, MyLangModule module, MyLangInterpreter interpreter) {
         MyLangEnviroment currentEnclosing = this;
         for(int i = 0; i < path.names().size() - 1; i++) {
             Token name = path.names().get(i);
             if(currentEnclosing.variables.containsKey(name.lexeme())) {
-                var nextModule = (MyLangModule) currentEnclosing.getVariable(name.lexeme());
+                var nextModule = (MyLangModule) currentEnclosing.getVariable(name.lexeme(), interpreter);
                 currentEnclosing = nextModule.names;
             } else {
                 var newModule = new MyLangModule();

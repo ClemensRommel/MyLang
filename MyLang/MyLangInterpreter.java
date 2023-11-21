@@ -97,7 +97,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         }
 
         if(isMainFile) {
-            ((MyLangFunction) env.getVariable("main")).call(this, List.of(), Map.of());
+            ((MyLangFunction) env.getVariable("main", this)).call(this, List.of(), Map.of());
         }
     }
 
@@ -182,7 +182,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
 
     @Override
     public Object visitIdentifier(Identifier value) {
-        return env.getVariable(value.value().lexeme());
+        return env.getVariable(value.value().lexeme(), this);
     }
 
     public boolean truthy(Object object) {
@@ -209,7 +209,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
                     if(truthy(left)) yield left;
                     else yield interpretExpression(value.right());
                 }
-                default -> throw new InterpreterError("Unknown short-circuit operator: " + value.operator().type());
+                default -> throw new InterpreterError("Unknown short-circuit operator: " + value.operator().type(), callStack);
             };
         }
         var left = value.left().accept(this);
@@ -223,7 +223,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
                 } else if (right instanceof String s2) {
                     yield stringify(left) + s2;
                 } else {
-                    throw new InterpreterError("Unsupported operand types for +: " + left.getClass() + ", " + right.getClass());
+                    throw new InterpreterError("Unsupported operand types for +: " + left.getClass() + ", " + right.getClass(), callStack);
                 }
             }
             case MINUS -> (double) left - (double) right;
@@ -231,7 +231,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
                 if(left instanceof Double l1 && right instanceof Double l2) {
                     yield l1 * l2;
                 } else {
-                    throw new InterpreterError("Unsupported operands for *: "+left+", "+right);
+                    throw new InterpreterError("Unsupported operands for *: "+left+", "+right, callStack);
                 }
              }
             case SLASH -> (double) left / (double) right;
@@ -245,7 +245,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             case LESS_EQUAL -> (double) left <= (double) right;
             case XOR -> truthy(left) ^ truthy(right);
             case IN -> contains(left, right);
-            default -> throw new InterpreterError("Unimplemented operator: " + value.operator().type());
+            default -> throw new InterpreterError("Unimplemented operator: " + value.operator().type(), callStack);
         };
     }
 
@@ -255,7 +255,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         } else if(right instanceof String s) {
             return s.contains((String) left);
         } else {
-            throw new InterpreterError("Cannot check membership for type: " + right.getClass());
+            throw new InterpreterError("Cannot check membership for type: " + right.getClass(), callStack);
         }
     }
 
@@ -266,7 +266,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             case BANG -> !(boolean) operand;
             case MINUS -> -(double) operand;
             case PLUS -> +(double) operand;
-            default -> throw new InterpreterError("Unimplemented operator: " + value.operator().type());
+            default -> throw new InterpreterError("Unimplemented operator: " + value.operator().type(), callStack);
         };
     }
 
@@ -287,7 +287,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             callStack.pop();
             return result;
         } else {
-            throw new InterpreterError("Cannot call non-Function: " + function.getClass());
+            throw new InterpreterError("Cannot call non-Function: " + function.getClass(), callStack);
         }
     }
 
@@ -341,17 +341,17 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         if(list instanceof List theList) {
             var index = (double) interpretExpression(value.index());
             if(!(index >= 0 && index < theList.size()) || index % 1 != 0) {
-                throw new InterpreterError("Index out of bounds or invalid index: " + stringify(index));
+                throw new InterpreterError("Index out of bounds or invalid index: " + stringify(index), callStack);
             }
             return theList.get((int) index);
         } else if(list instanceof String str) {
             var index = (double) interpretExpression(value.index());
             if(index % 1 != 0) {
-                throw new InterpreterError("Index out of bounds or invalid index: " + stringify(index));
+                throw new InterpreterError("Index out of bounds or invalid index: " + stringify(index), callStack);
             }
             return String.valueOf(str.charAt((int) index));
         } else { // invalid list type
-            throw new InterpreterError("Invalid list type: " + list.getClass());
+            throw new InterpreterError("Invalid list type: " + list.getClass(), callStack);
         }
     }
 
@@ -359,7 +359,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     public Object visitPropertyExpression(PropertyExpression value) {
         var object = interpretExpression(value.object());
         if(object instanceof MyLangObject theObject) {
-            return theObject.getField(value.name().lexeme());
+            return theObject.getField(value.name().lexeme(), this);
         } else if(object instanceof List theList) {
             if(value.name().lexeme().equals("length")) {
                 return (double) theList.size();
@@ -374,18 +374,18 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             } else if(listClass.methods().containsKey(value.name().lexeme())){
                 return listClass.methods().get(value.name().lexeme()).bind(theList);
             } else {
-                throw new InterpreterError("List has no property '"+ value.name().lexeme()+"'");
+                throw new InterpreterError("List has no property '"+ value.name().lexeme()+"'", callStack);
             }
         } else if(object instanceof EnumVariantObject e) {
             return e.getProperty(value.name().lexeme());
         } else if(object instanceof MyLangModule m) {
             if(m.names.localVariableDeclared(value.name().lexeme())) {
-                return m.names.getVariable(value.name().lexeme());
+                return m.names.getVariable(value.name().lexeme(), this);
             } else {
-                throw new InterpreterError("Module '"+m.name.toString()+"' does not export '"+value.name().lexeme()+"'");
+                throw new InterpreterError("Module '"+m.name.toString()+"' does not export '"+value.name().lexeme()+"'", callStack);
             }
         } else {
-            throw new InterpreterError("Invalid object type: " + object.getClass());
+            throw new InterpreterError("Invalid object type: " + object.getClass(), callStack);
         }
     }
 
@@ -451,7 +451,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         env.declareVariable(value.Name().lexeme(), function, false);
         if(value.export()) {
             if(currentModule.names != env) {
-                throw new InterpreterError("Cannot export local variable ('"+value.Name().lexeme()+"')");
+                throw new InterpreterError("Cannot export local variable ('"+value.Name().lexeme()+"')", callStack);
             }
             currentModule.exports.add(value.Name().lexeme());
         }
@@ -520,7 +520,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             }
             return results;
         } else {
-            throw new InterpreterError("Invalid list type: " + collection.getClass());
+            throw new InterpreterError("Invalid list type: " + collection.getClass(), callStack);
         }
     }
 
@@ -537,7 +537,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             }
             return null;
         } else {
-            throw new InterpreterError("Invalid list type: " + collection.getClass());
+            throw new InterpreterError("Invalid list type: " + collection.getClass(), callStack);
         }
     }
 
@@ -553,7 +553,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             }
             return resultingList;
         } else {
-            throw new InterpreterError("Invalid Types for Range expression");
+            throw new InterpreterError("Invalid Types for Range expression", callStack);
         }
     }
 
@@ -573,7 +573,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         env.declareVariable(value.Name().lexeme(), result, false);
         if(value.export()) {
             if(currentModule.names != env) {
-                throw new InterpreterError("Cannot export local variable ('"+value.Name().lexeme()+"')");
+                throw new InterpreterError("Cannot export local variable ('"+value.Name().lexeme()+"')", callStack);
             }
             currentModule.exports.add(value.Name().lexeme());
         }
@@ -622,9 +622,9 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     public Object visitThisExpression(ThisExpression value) {
         if(!env.isInClass()) {
             System.out.println(env);
-            throw new InterpreterError("Cannot use 'this' outside of a class.");
+            throw new InterpreterError("Cannot use 'this' outside of a class.", callStack);
         }
-        return env.getVariable("this");
+        return env.getVariable("this", this);
     }
 
     @Override
@@ -640,7 +640,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         if(result instanceof List list) {
             return list;
         } else {
-            throw new InterpreterError("Invalid type for spread operator: "+result.getClass());
+            throw new InterpreterError("Invalid type for spread operator: "+result.getClass(), callStack);
         }
     }
 
@@ -659,7 +659,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     public Void visitModuleDeclaration(ModuleDeclaration value) {
         if(currentModule.name != null) {
             throw new InterpreterError("["+value.Name().names().get(0).line()+"]: Module already declared: "+
-                    currentModule.name);
+                    currentModule.name, callStack);
         } else {
             currentModule.name = value.Name();
             env.declareVariable(currentModule.name.toString(), currentModule, false);
@@ -671,13 +671,13 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         var v = (ImportDeclaration) value;
         var resolvedPath = runner.resolvePath(v.Name());
         if(runner.interpretedFiles.containsKey(resolvedPath)) {
-            env.declareModule(v.Name(), runner.interpretedFiles.get(resolvedPath));
+            env.declareModule(v.Name(), runner.interpretedFiles.get(resolvedPath), this);
         } else {
             var code = runner.compiledFiles.get(resolvedPath);
             var interpreter = new MyLangInterpreter();
             interpreter.interpretFile(runner, code, false);
             runner.interpretedFiles.put(resolvedPath, interpreter.currentModule);
-            env.declareModule(v.Name(), interpreter.currentModule);
+            env.declareModule(v.Name(), interpreter.currentModule, this);
         }
         return null;
     }
@@ -708,7 +708,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     }
     @Override
     public List<Object> visitNamedParameter(NamedParameter n) {
-        throw new InterpreterError("Unexpected named parameter: "+n);
+        throw new InterpreterError("Unexpected named parameter: "+n, callStack);
     }
     @Override
     public Void visitEnumDeclaration(EnumDeclaration e) {
@@ -736,7 +736,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             closeScope();
         }
 
-        throw new InterpreterError("Non exhaustive match while matching "+matched.toString());
+        throw new InterpreterError("Non exhaustive match while matching "+matched.toString(), callStack);
     }
 
     private boolean matches(Object o, Pattern p) {
@@ -764,7 +764,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
 
         if(exportCurrentPatterns) {
             if(currentModule.names != env) {
-                throw new InterpreterError("Cannot export local variable "+v.name().lexeme());
+                throw new InterpreterError("Cannot export local variable "+v.name().lexeme(), callStack);
             }
             currentModule.exports.add(v.name().lexeme());
         }
@@ -825,7 +825,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     }
     @Override
     public Void visitWildcardExpression(WildcardExpression w) {
-        throw new InterpreterError("Reached Wildcard on line "+w.position().line());
+        throw new InterpreterError("Reached Wildcard on line "+w.position().line(), callStack);
     }
     @Override
     public Void visitWildcardSetter(WildcardSetter w) {
@@ -836,7 +836,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         if(!env.localVariableDeclared(s.name().lexeme())) {
             System.out.println(env);
         }
-        env.setVariable(s.name().lexeme(), currentMatcher);
+        env.setVariable(s.name().lexeme(), currentMatcher, this);
         return null;
     }
     @Override
@@ -852,10 +852,10 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         var list = (List) interpretExpression(i.list());
         var index = (Double) interpretExpression(i.index());
         if(index % 1 != 0) {
-            throw new InterpreterError("Invalid index "+index);
+            throw new InterpreterError("Invalid index "+index, callStack);
         }
         if(index < 0 || index >= list.size()) {
-            throw new InterpreterError("Index "+index+" out of range for list of length "+list.size());
+            throw new InterpreterError("Index "+index+" out of range for list of length "+list.size(), callStack);
         }
         list.set((int) (double) index, currentMatcher);
         return null;
@@ -863,7 +863,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
     @Override
     public Void visitPropertySetter(PropertySetter p) {
         var object = (MyLangObject) interpretExpression(p.object());
-        object.setField(p.name().lexeme(), currentMatcher, inConstructor);
+        object.setField(p.name().lexeme(), currentMatcher, inConstructor, this);
         return null;
     }
     @Override

@@ -15,9 +15,9 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         this.name = name; type = t;
     }
 
-    protected void noNamedArgs(Map<String, Object> named) {
+    protected void noNamedArgs(Map<String, Object> named, MyLangInterpreter interpreter) {
         if(!named.isEmpty()) {
-            throw new InterpreterError("Builtin function '"+this.name+"' does not take named arguments");
+            throw new InterpreterError("Builtin function '"+this.name+"' does not take named arguments", interpreter.callStack);
         }
     }
 
@@ -183,7 +183,7 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
                 Typechecker.voidType, new TypeEnv())) {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
-            noNamedArgs(named);
+            noNamedArgs(named, interpreter);
             for (Object object : args) {
                 System.out.print(interpreter.stringify(object));
             }   
@@ -205,9 +205,9 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 1) {
-                throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'");
+                throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'", interpreter.callStack);
             }
-            noNamedArgs(named);
+            noNamedArgs(named, interpreter);
             System.out.print(interpreter.stringify(args.get(0)));
             return interpreter.inScanner.nextLine();
         }
@@ -226,13 +226,13 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 1) {
-                throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'");
+                throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'", interpreter.callStack);
             }
-            noNamedArgs(named);
+            noNamedArgs(named, interpreter);
             if(args.get(0) instanceof String s) {
                 return Double.parseDouble(s);
             } else {
-                throw new InterpreterError("Expected a String, got " + args.get(0).getClass() + " calling function '"+name+"'");
+                throw new InterpreterError("Expected a String, got " + args.get(0).getClass() + " calling function '"+name+"'", interpreter.callStack);
             }
         }
     };
@@ -249,13 +249,13 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 2) {
-                throw new InterpreterError("Expected 2 arguments, got " + args.size() + " calling function '"+name+"'");
+                throw new InterpreterError("Expected 2 arguments, got " + args.size() + " calling function '"+name+"'", interpreter.callStack);
             }
-            noNamedArgs(named);
+            noNamedArgs(named, interpreter);
             if(args.get(0) instanceof List l) {
                 l.add(args.get(1));
             } else {
-                throw new InterpreterError("Invalid this target for list push");
+                throw new InterpreterError("Invalid this target for list push", interpreter.callStack);
             }
             return null;
         }  
@@ -267,16 +267,16 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 1) {
-                throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'");
+                throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'", interpreter.callStack);
             }
-            noNamedArgs(named);
+            noNamedArgs(named, interpreter);
             if(args.get(0) instanceof List l) {
                 if(l.isEmpty()) {
-                    throw new InterpreterError("Cannot pop from empty List");
+                    throw new InterpreterError("Cannot pop from empty List", interpreter.callStack);
                 }
                 return l.remove(l.size() - 1);
             } else {
-                throw new InterpreterError("Invalid this target for list pop");
+                throw new InterpreterError("Invalid this target for list pop", interpreter.callStack);
             }
         }
     };
@@ -293,16 +293,16 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 1) {
-                throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'");
+                throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'", interpreter.callStack);
             }
-            noNamedArgs(named);
+            noNamedArgs(named, interpreter);
             if(args.get(0) instanceof List l) {
                 if(l.isEmpty()) {
-                    throw new InterpreterError("Cannot dequeue from empty List");
+                    throw new InterpreterError("Cannot dequeue from empty List", interpreter.callStack);
                 }
                 return l.remove(0);
             } else {
-                throw new InterpreterError("Invalid this target for list dequeue");
+                throw new InterpreterError("Invalid this target for list dequeue", interpreter.callStack);
             }
         }
     };
@@ -319,16 +319,16 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 1) {
-                throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'");
+                throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'", interpreter.callStack);
             }
-            noNamedArgs(named);
+            noNamedArgs(named, interpreter);
             if(args.get(0) instanceof List l) {
                 if(l.isEmpty()) {
-                    throw new InterpreterError("Cannot peek from empty List");
+                    throw new InterpreterError("Cannot peek from empty List", interpreter.callStack);
                 }
                 return l.get(0);
             } else {
-                throw new InterpreterError("Invalid this target for list peek");
+                throw new InterpreterError("Invalid this target for list peek", interpreter.callStack);
             }
         }
     };
@@ -339,16 +339,16 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 1) {
-                throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'");
+                throw new InterpreterError("Expected 1 argument, got " + args.size() + " calling function '"+name+"'", interpreter.callStack);
             }
-            noNamedArgs(named);
+            noNamedArgs(named, interpreter);
             if(args.get(0) instanceof List l) {
                 if(l.isEmpty()) {
-                    throw new InterpreterError("Cannot peekLast from empty List");
+                    throw new InterpreterError("Cannot peekLast from empty List", interpreter.callStack);
                 }
                 return l.get(l.size() - 1);
             } else {
-                throw new InterpreterError("Invalid this target for list peekLast");
+                throw new InterpreterError("Invalid this target for list peekLast", interpreter.callStack);
             }
         }
     };
@@ -366,13 +366,13 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 2) {
-                throw new InterpreterError("Expected 2 arguments, got " + args.size() + " calling function '"+name+"'");
+                throw new InterpreterError("Expected 2 arguments, got " + args.size() + " calling function '"+name+"'", interpreter.callStack);
             }
-            noNamedArgs(named);
+            noNamedArgs(named, interpreter);
             if(args.get(0) instanceof List l) {
                 l.add(0, args.get(1));
             } else {
-                throw new InterpreterError("Invalid this target for list prepend");
+                throw new InterpreterError("Invalid this target for list prepend", interpreter.callStack);
             }
             return null;
         }
@@ -391,13 +391,13 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 2) {
-                throw new InterpreterError("Expected 2 arguments, got " + args.size() + " calling function '"+name+"'");
+                throw new InterpreterError("Expected 2 arguments, got " + args.size() + " calling function '"+name+"'", interpreter.callStack);
             }
-            noNamedArgs(named);
+            noNamedArgs(named, interpreter);
             if(args.get(0) instanceof List l) {
                 l.addAll((List<?>) args.get(1));
             } else {
-                throw new InterpreterError("Invalid this target for list append");
+                throw new InterpreterError("Invalid this target for list append", interpreter.callStack);
             }
             return null;
         }  
@@ -409,9 +409,9 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 0) {
-                throw new InterpreterError("Expected 0 arguments, got " + args.size() + " calling function '"+name+"'");
+                throw new InterpreterError("Expected 0 arguments, got " + args.size() + " calling function '"+name+"'", interpreter.callStack);
             }
-            noNamedArgs(named);
+            noNamedArgs(named, interpreter);
             return interpreter.random.nextDouble();
         }
     };
@@ -428,9 +428,9 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         @Override
         public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
             if(args.size() != 0) {
-                throw new InterpreterError("Expected 0 arguments, got " + args.size() + " calling function '"+name+"'");
+                throw new InterpreterError("Expected 0 arguments, got " + args.size() + " calling function '"+name+"'", interpreter.callStack);
             }
-            noNamedArgs(named);
+            noNamedArgs(named, interpreter);
             return (double) System.currentTimeMillis();
         }
     };
@@ -446,4 +446,6 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
     public String toString() {
         return "<builtin function '" + name + "'>";
     }
+
+    
 }

@@ -329,6 +329,9 @@ end
 fun convert_setter(s : Ast.Expr) : Ast.Setter := match s do 
     case Identifier(name) := Ast.Variable(name);
     case TupleExpr(subexprs, lt) := Ast.TupleSetter(for expr in subexprs yield convert_setter(expr) end, lt);
+    case PropertyExpr(obj, name, ?, ?, ?) := do 
+        Ast.Property(obj, name, Ast.late_type())
+    end;
     case ? := panic("Invalid setter: "+s);
 end;
 
@@ -365,6 +368,8 @@ fun literal(p : Parser) : Ast.Expr :=
     end else if p.matches(Tokenizer.FUN()) then do 
         val (params, return_type, body) := end_of_function(p, false);
         Ast.FunctionExpr(params, return_type, body, Ast.late_env())
+    end else if p.matches(Tokenizer.VALUE_THIS()) then do 
+        Ast.ThisExpr()
     end else do 
         panic("Invalid literal: "+p.peek().kind)
     end;

@@ -246,6 +246,7 @@ fun compile_variables(c : Compiler, setter : Ast.Setter, ty : Ast.Type, is_globa
                 compile_variables(c, parts[i], types[i], is_global, mutable, is_upvalue);
             end;
         end;
+        case Property(?, ?, ?) := panic("Unreachable: Cannot assign to field of object in declaration");
     end;
 end
 
@@ -281,6 +282,7 @@ fun declare_variables(c : Compiler, setter : Ast.Setter) do
                 declare_variables(c, part);
             end;
         end;
+        case Property(?, ?, ?) := panic("Cannot declare property as variable: Unreachable");
     end;
 end
 
@@ -293,6 +295,7 @@ fun setter_is_upvalue(c : Compiler, setter : Ast.Setter) : Bool :=
             end
             false
         end;
+        case Property(?, ?, ?) := false;
     end;
 
 fun compile_fun_decl(
@@ -392,6 +395,7 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
         resulting := "\"" + resulting + "\"";
         use_with_target(c, resulting, target)
     end;
+    case ThisExpr() := use_with_target(c, "this", target);
     case TupleExpr(subexprs, lt) := compile_tuple(c, subexprs, lt.get(), target);
     case Boolean(b) := use_with_target(c, if b then "true" else "false", target);
     case NullLiteral() := use_with_target(c, "null", target);
@@ -506,7 +510,7 @@ fun compile_unary(c : Compiler, op : Ast.UnOp, operand : Ast.Expr, target : Targ
     val operation := do 
         val operand_comp := compile_expr(c, operand, UsedDirectly());
         val op_c := compile_un_op(op);
-        "op_c" + operand_comp
+        op_c + operand_comp
     end;
     match target do 
         case UsedDirectly() := "(" + operation + ")";
@@ -951,6 +955,10 @@ fun assign(c : Compiler, to : Ast.Setter, from : String) : String do
             for i in [0..parts.length] do 
                 assign(c, parts[i], temp_var+".field"+i+"()");
             end;
+        end;
+        case Property(obj, name, ct) := do 
+            val object := compile_expr(c, obj, UsedDirectly());
+            c.append(object); c.append("."); c.append(name); c.append(" = "); c.append(from);
         end;
     end;
     ""

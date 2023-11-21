@@ -41,7 +41,7 @@ public record MyLangClass(
             interpreter.inConstructor = prevInConstructor;
         } else {
             if(args.size() != 0 && !namedArgs.isEmpty()) {
-                throw new InterpreterError("Invalid number of arguments to implicit constructor of class "+name+": "+args.size());
+                throw new InterpreterError("Invalid number of arguments to implicit constructor of class "+name+": "+args.size(), interpreter.callStack);
             }
         }
 
