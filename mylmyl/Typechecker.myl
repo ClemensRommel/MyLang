@@ -99,7 +99,6 @@ fun check_mutability(tc : Typechecker, setter : Ast.Setter) := match setter do
     case Property(obj, name, lt) := do 
         val Name(class_name) := lt.get() else panic("Should be unreachable: Property with non-class-type");
         val ClassInfo(?, fields, methods) := tc.type_info_for(class_name) else panic("Should be unreachable: Non-class info in setter");
-        print(name);
         val field_info := fields.get(name);
         if not field_info.is_mutable do 
             panic("Cannot change immutable field "+name+" of class "+class_name);
@@ -118,8 +117,7 @@ fun infer_setter(tc : Typechecker, s : Ast.Setter) : Ast.Type := match s do
         lt.init(ty);
         ty
     end;
-    case Property(obj, name, lcty) := do 
-        print("Inferring property of name "+name);
+    case Property(obj, name, lcty) := do
         val obj_ty := infer(tc, obj);
         val Name(class_name) := obj_ty else panic("Cannot set property of non-class-type "+obj_ty);
         lcty.init(obj_ty);

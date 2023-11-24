@@ -14,7 +14,7 @@ enum Expr where
     FunctionCall(Expr, Expr[]),
     FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Env.Env(VarInfo))),
     IfExpr(Util.LateInitialized(Type), Expr, Expr, Expr),
-//    ListExpr(Expr[]),
+    ListExpr(Expr[], Util.LateInitialized(Type)),
 //    IndexExpr(Expr, Expr),
     PropertyExpr(Expr, String, Util.LateInitialized(AccessType), Util.LateInitialized(Type), Util.LateInitialized(Type)),
     TupleExpr(Expr[], Util.LateInitialized(Type)),
@@ -45,7 +45,7 @@ end;
 
 export enum Setter where 
     TupleSetter(Setter[], Util.LateInitialized(Type)),
-    Variable(String), 
+    Variable(String),
     Property(Expr, String, Util.LateInitialized(Type)/* Should always be the Name of the Class */);
 end;
 
@@ -96,9 +96,24 @@ end
 enum Type where 
     NumberT(), BooleanT(), StringT(), VoidT(),
     Tuple(Type[]), Name(String),
-    Function(Type[], Type);
+    Function(Type[], Type), ListOf(Type);
 end
 
+/*
+
+var name_counter : Number := 0;
+
+class Symbol where
+    val text : String;
+    val id : Number;
+    new(text : String) do
+        this.text := src;
+        this.id := name_counter;
+        name_counter := name_counter + 1;
+    end
+end
+
+*/
 
 export fun late_env() : Util.LateInitialized(Env.Env(VarInfo)) := Util.LateInitialized.[Env.Env(VarInfo)]();
 export fun late_type() : Util.LateInitialized(Type) := Util.LateInitialized.[Type]();

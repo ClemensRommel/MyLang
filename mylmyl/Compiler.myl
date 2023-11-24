@@ -965,7 +965,7 @@ fun assign(c : Compiler, to : Ast.Setter, from : String) : String do
         end;
         case Property(obj, name, ct) := do 
             val object := compile_expr(c, obj, UsedDirectly());
-            c.append(object); c.append("."); c.append(name); c.append(" = "); c.append(from);
+            c.append(object); c.append("."); c.append(name); c.append(" = "); c.append(from); c.append(";"); c.newline();
         end;
     end;
     ""

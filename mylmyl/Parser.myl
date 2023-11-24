@@ -366,7 +366,9 @@ fun literal(p : Parser) : Ast.Expr :=
         Ast.NullLiteral()
     end else if p.matches(Tokenizer.LPAREN()) then do 
         tuple(p)
-    end else if p.matches(Tokenizer.FUN()) then do 
+    end else if p.matches(Tokenizer.LBRACKET()) then do
+        list(p)
+    end else if p.matches(Tokenizer.FUN()) then do
         val (params, return_type, body) := end_of_function(p, false);
         Ast.FunctionExpr(params, return_type, body, Ast.late_env())
     end else if p.matches(Tokenizer.VALUE_THIS()) then do 
@@ -374,6 +376,19 @@ fun literal(p : Parser) : Ast.Expr :=
     end else do 
         panic("Invalid literal: "+p.peek().kind)
     end;
+
+fun list(p : Parser) : Ast.Expr do
+    val parts : Ast.Expr[] := [];
+    var needs_comma := false;
+    while !p.matches(Tokenizer.RBRACKET()) do
+        if needs_comma do
+            p.consume(Tokenizer.COMMA(), "Expect ',' to separate list parts");
+        end
+        parts.push(expr(p));
+        needs_comma := true;
+    end;
+    Ast.ListExpr(parts, Ast.late_type())
+end
 
 fun tuple(p : Parser) : Ast.Expr do 
     val exprs : Ast.Expr[] := [];
@@ -391,8 +406,8 @@ fun tuple(p : Parser) : Ast.Expr do
         Ast.TupleExpr(exprs, Ast.late_type())
 end
 
-fun type_literal(p : Parser) : Ast.Type := 
-    if p.matches(Tokenizer.NUMBER()) then 
+fun type_literal(p : Parser) : Ast.Type do
+    var left := if p.matches(Tokenizer.NUMBER()) then
         Ast.NumberT()
     else if p.matches(Tokenizer.STRING()) then 
         Ast.StringT()
@@ -433,3 +448,9 @@ fun type_literal(p : Parser) : Ast.Type :=
     end else do         
         panic("Invalid type: "+p.peek().kind)
     end;
+
+    while p.matches(Tokenizer.LBRACKET()) do
+        left := Ast.ListOf(left);
+    end;
+    left
+end
