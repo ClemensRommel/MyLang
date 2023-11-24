@@ -375,6 +375,13 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
             check(tc, subexprs[i], subtypes[i]);
         end;
     end;
+    case ListExpr(subexprs, lt) := do 
+        val ListOf(et) := t else panic("Expected "+t+", got expression of list type: "+e);
+        for subexpr in subexprs do 
+            check(tc, subexpr, et);
+        end;
+        lt.init(Ast.ListOf(et));
+    end;
     case PropertyExpr(obj, name, la, lt, lft) := do
         val obj_ty := infer(tc, obj);
         lt.init(obj_ty);
@@ -467,6 +474,21 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         val resulting := Ast.Tuple(types);
         lt.init(resulting);
         resulting
+    end;
+    case ListExpr(subexprs, lt) := do 
+        val lty : Ast.Type := if subexprs.length = 0 then 
+            panic("Cannot infer type of empty list")
+        else if subexprs.length = 10 then 
+            Ast.ListOf(infer(t, subexprs.first))
+        else do 
+            val ty := infer(t, subexprs.first);
+            for i in [1..subexprs.length] do 
+                check(t, subexprs[i], ty);
+            end;
+            Ast.ListOf(ty)
+        end;
+        lt.init(lty);
+        lty
     end;
     case PropertyExpr(obj, name, la, lt, lft) := do 
         val obj_ty := infer(t, obj);

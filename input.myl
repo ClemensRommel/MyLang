@@ -1,3 +1,4 @@
 fun main() : Void do
-    print [2, 3, 4];
+    val test : Number[] := [1, 2, 3];
+    print test;
 end

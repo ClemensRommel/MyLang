@@ -12,6 +12,7 @@ class Compiler where
 
     var is_class : Bool := true;
     var is_static : Bool := true;
+    var expect_ref_ty : Bool := false; // Wether we're currently compiling a type that is a type parameter
 
     val types_to_compile : CompilationTask[] := [];
     val compiled_types : (String, Ast.Type)[] := [];
@@ -155,6 +156,9 @@ fun import_implicits(c : Compiler) do
     c.append("import static std.codegen.Functions.*;");
     c.newline();
     c.append("import std.codegen.*;");
+    c.newline();
+    c.newline();
+    c.append("import java.util.ArrayList;");
     c.newline();
 
     c.newline();
@@ -390,7 +394,7 @@ fun use_with_target(c : Compiler, expr : String, target : Target) : String do
 end
 
 fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := match expr do 
-    case NumberLiteral(n) := use_with_target(c, n + "", target);
+    case NumberLiteral(n) := use_with_target(c, if n % 1 = 0 then n + ".0" else n+"", target);
     case StringLiteral(str) := do 
         var resulting := str;
         resulting := replace(resulting, "\\", "\\\\");
@@ -404,6 +408,7 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     end;
     case ThisExpr() := use_with_target(c, "this", target);
     case TupleExpr(subexprs, lt) := compile_tuple(c, subexprs, lt.get(), target);
+    case ListExpr(subexprs, lt) := compile_list_literal(c, subexprs, lt.get(), target);
     case Boolean(b) := use_with_target(c, if b then "true" else "false", target);
     case NullLiteral() := use_with_target(c, "null", target);
     case Identifier(name) := compile_identifier(c, name, target);
@@ -415,6 +420,27 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case FunctionExpr(params, return_type, body, lenv) := compile_function_expr(c, params, return_type, body, lenv.get(), target);
     case PropertyExpr(obj, name, la, lt, lft) := compile_property(c, obj, name, la.get(), lt.get(), lft.get(), target);
 end;
+
+fun compile_list_literal(c : Compiler, exprs : Ast.Expr[], lty : Ast.Type, target : Target) : String do 
+    if val Ignore() := target then do 
+        for expr in exprs do 
+            compile_expr(c, expr, Ignore());
+        end;
+        ""
+    end else do 
+        val Variable(name) := if val AssignTo(s) := target then s else Ast.Variable(c.new_var()) else panic("invalid target for lists: "+target);
+        if val AssignTo(?) := target then do end else do 
+            val compiled_ty := compile_type(c, lty);
+            c.append(compiled_ty);
+        end;
+        c.append(" "+name+" = new ArrayList<>("+exprs.length+");"); c.newline();    
+        for expr in exprs do 
+            val field := compile_expr(c, expr, UsedDirectly());
+            c.append(""+name+".add("+field+");"); c.newline();
+        end
+        if val AssignTo(?) := target then "" else use_with_target(c, name, target)
+    end
+end
 
 fun compile_property(c : Compiler, obj : Ast.Expr, name : String, at : Ast.AccessType, obj_ty : Ast.Type, field_ty : Ast.Type, target : Target) : String do 
     if target = Ignore() then do 
@@ -861,10 +887,17 @@ fun compile_if(
 end
 
 fun compile_type(c : Compiler, t : Ast.Type) : String := match t do 
-    case NumberT() := "double";
-    case BooleanT() := "boolean";
+    case NumberT() := if c.expect_ref_ty then "Double" else "double";
+    case BooleanT() := if c.expect_ref_ty then "Boolean" else "boolean";
     case StringT() := "String";
     case VoidT() := "Void";
+    case ListOf(et) := do 
+        val pref_expect_ref_ty := c.expect_ref_ty;
+        c.expect_ref_ty := true;
+        val result := "ArrayList<"+compile_type(c, et)+">";
+        c.expect_ref_ty := pref_expect_ref_ty;
+        result
+    end;
     case Function(?, ?) := create_enqueued_type(c, t);
     case Tuple(?) := create_enqueued_type(c, t);
     case Name(name) := name; // Classes are compiled with their name

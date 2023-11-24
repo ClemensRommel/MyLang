@@ -451,6 +451,7 @@ fun type_literal(p : Parser) : Ast.Type do
 
     while p.matches(Tokenizer.LBRACKET()) do
         left := Ast.ListOf(left);
+        p.consume(Tokenizer.RBRACKET(), "Expect ']' after '[' in list type");
     end;
     left
 end
