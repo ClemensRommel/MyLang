@@ -1,4 +1,7 @@
+
+
 fun main() : Void do
-    val test : Number[] := [1, 2, 3];
-    print test;
+    val lst := [1, 2, 3];
+    print lst[1];
 end
+

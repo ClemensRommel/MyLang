@@ -31,6 +31,8 @@ fun mentions_var(expr : Ast.Expr, name : String) : Bool := match expr do
     case TupleExpr(parts, ?) := Util.any.[Ast.Expr](parts, fun(t) := mentions_var(t, name));
     case BlockExpr(parts, last, ?, ?) := Util.any.[Ast.Stmt](parts, fun(t) := stmt_mentions_var(t, name)) or if val Some(l) := last then mentions_var(l, name) else false;
     case ThisExpr() := false;
+    case ListExpr(exprs, ?) := Util.any.[Ast.Expr](exprs, fun(t) := mentions_var(t, name));
+    case IndexExpr(lst, idx) := mentions_var(lst, name) or mentions_var(idx, name);
 end;
 
 fun stmt_mentions_var(stmt : Ast.Stmt, name : String) : Bool := match stmt do
@@ -124,6 +126,21 @@ fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
         case FunctionExpr(?, ?, body, ?) := do 
             scan_expr(scan_env, body); // Important part : Switch to scan mode
         end;
+        case ListExpr(exprs, ?) := do
+            for e in exprs do
+                analyze_expr(scan_env, e);
+            end;
+        end;
+        case IndexExpr(lst, idx) := do
+            analyze_expr(scan_env, lst);
+            analyze_expr(scan_env, idx);
+        end;
+        case PropertyExpr(obj, ?, ?, ?, ?) := analyze_expr(scan_env, obj);
+        case TupleExpr(exprs, ?) := do
+            for e in exprs do
+                analyze_expr(scan_env, e);
+            end;
+        end;
         case ? := null; // Non-recursive expressions that can't capture
     end;
 end
@@ -159,6 +176,21 @@ fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
         end;
         case Identifier(name) := do 
             mark(scan_env, name);
+        end;
+        case ListExpr(exprs, ?) := do
+            for e in exprs do
+                scan_expr(scan_env, e);
+            end;
+        end;
+        case IndexExpr(lst, idx) := do
+            scan_expr(scan_env, lst);
+            scan_expr(scan_env, idx);
+        end;
+        case PropertyExpr(obj, ?, ?, ?, ?) := scan_expr(scan_env, obj);
+        case TupleExpr(exprs, ?) := do
+            for e in exprs do
+                scan_expr(scan_env, e);
+            end;
         end;
         case ? := null; // Non-recursive expressions that can't capture
     end;

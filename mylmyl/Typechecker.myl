@@ -400,6 +400,10 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
             la.init(Ast.MethodAccess());
         end else panic("Class "+class_name+" has no field or method called "+name);
     end;
+    case IndexExpr(lst, idx) := do
+        check(tc, idx, Ast.NumberT());
+        check(tc, lst, Ast.ListOf(t));
+    end;
 end;
 
 fun check_block(
@@ -507,6 +511,12 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
             lft.init(ty);
             ty
         end else panic("Class "+class_name+" does not have field or method called "+name)
+    end;
+    case IndexExpr(lst, idx) := do
+        check(t, idx, Ast.NumberT());
+        val list_ty := infer(t, lst);
+        val ListOf(et) := list_ty else panic("Require indexed object to be a list, not "+list_ty+" in "+e);
+        et
     end;
 end;
 

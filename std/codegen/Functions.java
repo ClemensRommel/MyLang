@@ -5,4 +5,12 @@ public class Functions {
     public static <A> void ignore(A a) {
 
     }
+
+    public static int __toIndex(double d) {
+        if (d % 1 == 0) {
+            return (int) d;
+        } else {
+            throw new InvalidIndexException(d);
+        }
+    }
 }

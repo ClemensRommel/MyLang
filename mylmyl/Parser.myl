@@ -256,8 +256,9 @@ fun unary(p : Parser) : Ast.Expr :=
 
 fun use_expr(p : Parser) : Ast.Expr do 
     var lhs := primary(p);
-    while p.peek().kind = Tokenizer.LPAREN() or p.peek().kind = Tokenizer.DOT() do 
-        if p.next().kind = Tokenizer.LPAREN() then do // Consume and test next token
+    while p.peek().kind = Tokenizer.LPAREN() or p.peek().kind = Tokenizer.DOT() or p.peek().kind = Tokenizer.LBRACKET() do
+        if p.peek().kind = Tokenizer.LPAREN() then do // Consume and test next token
+            p.next();
             var args : Ast.Expr[] := [];
             var needs_comma := false;
             while !p.matches(Tokenizer.RPAREN()) do 
@@ -268,7 +269,13 @@ fun use_expr(p : Parser) : Ast.Expr do
                 needs_comma := true;
             end;
             lhs := Ast.FunctionCall(lhs, args);
+        end else if p.peek().kind = Tokenizer.LBRACKET() then do
+            p.next();
+            val idx := expr(p);
+            p.consume(Tokenizer.RBRACKET(), "Expect closing ']' in index expression");
+            lhs := Ast.IndexExpr(lhs, idx);
         end else do
+            p.next();
             val property := p.consume(Tokenizer.IDENTIFIER(), "Expect property name after .");
             lhs := Ast.PropertyExpr(lhs, property.src, Util.LateInitialized.[Ast.AccessType](), Ast.late_type(), Ast.late_type());
         end

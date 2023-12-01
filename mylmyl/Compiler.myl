@@ -145,10 +145,10 @@ fun compile(ast : Ast.Program, globals : Env.Env(Ast.VarInfo)) : String do
     for decl in ast.decls do 
         compile_decl(c, decl);
     end;
+    compile_enqueued_types(c);
     c.dedent(); c.newline();
     c.append("}");
     c.newline();
-    compile_enqueued_types(c);
     c.buf
 end
 
@@ -206,6 +206,7 @@ fun compile_class_decl(c : Compiler, name : String, members : Ast.Decl[], constr
     c.close_scope(prv);
     val info := VariableInfo();
     info.is_constructor := true;
+    info.is_no_fc_fn := true;
     c.env.insert(name, info);
 end
 
@@ -419,7 +420,20 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case FunctionCall(callee, args) := compile_call(c, callee, args, target);
     case FunctionExpr(params, return_type, body, lenv) := compile_function_expr(c, params, return_type, body, lenv.get(), target);
     case PropertyExpr(obj, name, la, lt, lft) := compile_property(c, obj, name, la.get(), lt.get(), lft.get(), target);
+    case IndexExpr(lst, idx) := compile_index(c, lst, idx, target);
 end;
+
+fun compile_index(c : Compiler, lst : Ast.Expr, idx : Ast.Expr, target : Target) : String do
+    if val Ignore() := target then do
+        compile_expr(c, lst, Ignore());
+        compile_expr(c, idx, Ignore());
+        ""
+    end else do
+        val indexed := compile_expr(c, lst, UsedDirectly());
+        val index := compile_expr(c, idx, UsedDirectly());
+        use_with_target(c, indexed+".get(__toIndex("+index+"))", target)
+    end
+end
 
 fun compile_list_literal(c : Compiler, exprs : Ast.Expr[], lty : Ast.Type, target : Target) : String do 
     if val Ignore() := target then do 
@@ -431,9 +445,9 @@ fun compile_list_literal(c : Compiler, exprs : Ast.Expr[], lty : Ast.Type, targe
         val Variable(name) := if val AssignTo(s) := target then s else Ast.Variable(c.new_var()) else panic("invalid target for lists: "+target);
         if val AssignTo(?) := target then do end else do 
             val compiled_ty := compile_type(c, lty);
-            c.append(compiled_ty);
+            c.append(compiled_ty); c.append(" ");
         end;
-        c.append(" "+name+" = new ArrayList<>("+exprs.length+");"); c.newline();    
+        c.append(name+" = new ArrayList<>("+exprs.length+");"); c.newline();
         for expr in exprs do 
             val field := compile_expr(c, expr, UsedDirectly());
             c.append(""+name+".add("+field+");"); c.newline();
@@ -634,17 +648,17 @@ fun maybe_upvalue(c : Compiler, name : String) : String :=
     else 
         name;
 
-fun compile_identifier(c : Compiler, name : String, target : Target) : String do 
+fun compile_identifier(c : Compiler, fname : String, target : Target) : String do
     if Ignore() = target do // Identifier has no side effects, so ignore means nothing has to be compiled
         return "";
     end;
-    if val Function(args, ret_type) := c.current_env.get(name).ty then do 
-        if !c.env.get(name).is_no_fc_fn do // Value is a first class function already 
+    if val Function(args, ret_type) := c.current_env.get(fname).ty then do
+        if !c.env.get(fname).is_no_fc_fn do // Value is a first class function already
             // Value might be an upvalue
-            return use_with_target(c, maybe_upvalue(c, name), target); // No lambda has to be created
+            return use_with_target(c, maybe_upvalue(c, fname), target); // No lambda has to be created
         end;
         // Value is a first class function and therefore cannot be an upvalue
-        val ty := compile_type(c, c.current_env.get(name).ty);
+        val ty := compile_type(c, c.current_env.get(fname).ty);
         var name := "";
         val temp_var := match target do 
             case Return() := Ast.Variable("");
@@ -677,7 +691,7 @@ fun compile_identifier(c : Compiler, name : String, target : Target) : String do
             params.push(arg_name);
             needs_comma := true;
         end;
-        c.append(") -> "); c.append(name); c.append("(");
+        c.append(") -> "); if c.env.get(fname).is_constructor do c.append("new "); end; c.append(fname); c.append("(");
         needs_comma := false;
         for param in params do 
             if needs_comma do 
@@ -690,7 +704,7 @@ fun compile_identifier(c : Compiler, name : String, target : Target) : String do
         name
     end else do 
         // Normal variable, might be an upvalue
-        use_with_target(c, maybe_upvalue(c, name), target)
+        use_with_target(c, maybe_upvalue(c, fname), target)
     end
 end
 
@@ -919,7 +933,7 @@ end
 fun compile_task(c : Compiler, task : CompilationTask) do 
     match task do 
         case CreateFunctionalInterface(args, ret_ty, name) := do
-            c.append("@FunctionalInterface interface "); c.append(name); c.append(" {");
+            c.append("@FunctionalInterface static interface "); c.append(name); c.append(" {");
             c.indent(); c.newline();
             c.append(compile_type(c, ret_ty));
             c.append(" call(");
@@ -938,7 +952,7 @@ fun compile_task(c : Compiler, task : CompilationTask) do
             c.compiled_types.push((name, Ast.Function(args, ret_ty)));
         end;
         case CreateTupleType(parts, name) := do 
-            c.append("record "); c.append(name); c.append("(");
+            c.append("static record "); c.append(name); c.append("(");
             var counter := 0;
             var needs_comma := false;
             for ty in parts do 
