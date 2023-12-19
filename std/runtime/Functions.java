@@ -1,4 +1,4 @@
-package std.codegen;
+package std.runtime;
 
 public class Functions {
     // Ignore a value. Used for expression statements and main()

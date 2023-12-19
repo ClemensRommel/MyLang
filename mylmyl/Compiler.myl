@@ -153,9 +153,9 @@ fun compile(ast : Ast.Program, globals : Env.Env(Ast.VarInfo)) : String do
 end
 
 fun import_implicits(c : Compiler) do 
-    c.append("import static std.codegen.Functions.*;");
+    c.append("import static std.runtime.Functions.*;");
     c.newline();
-    c.append("import std.codegen.*;");
+    c.append("import std.runtime.*;");
     c.newline();
     c.newline();
     c.append("import java.util.ArrayList;");
@@ -736,8 +736,7 @@ fun compile_call(c : Compiler, callee : Ast.Expr, args : Ast.Expr[], target : Ta
     val args_compiled := for arg in args yield 
         compile_expr(c, arg, UsedDirectly())
     end;
-    var str := "";
-    str := str + callee_compiled + "(";
+    var str := callee_compiled + "(";
     var needs_comma := false;
     for arg in args_compiled do 
         if needs_comma do 
@@ -752,7 +751,11 @@ fun compile_call(c : Compiler, callee : Ast.Expr, args : Ast.Expr[], target : Ta
         case Return() := do 
             return_stmt(c, str)
         end;
-        case UsedDirectly() := str;
+        case UsedDirectly() := do
+            val tmp := c.new_var();
+            c.append("var "+tmp+" = " + str + ";"); c.newline();
+            tmp
+        end;
         case AssignTo(setter) := do 
             assign(c, setter, str)
         end;
@@ -805,7 +808,7 @@ do
             case UsedDirectly() := AssignTo(var_name);
             case AssignTo(?) := AssignTo(var_name);
         end;
-        val ? := compile_expr(c, e, target);
+        val ? := compile_expr(c, e, resulting_target);
     end else do 
         match target do 
             case Ignore() := Ignore();
@@ -821,6 +824,7 @@ do
     c.strip_trailing();
     c.dedent(); c.newline();
     c.append("}");
+    c.newline();
     c.close_scope(prv);
     name
 end
@@ -993,7 +997,7 @@ fun compile_task(c : Compiler, task : CompilationTask) do
     end;
 end
 
-fun assign(c : Compiler, to : Ast.Setter, from : String) : String do 
+fun assign(c : Compiler, to : Ast.Setter, from : String) : String do
     match to do 
         case Variable(name) := do 
             c.append(maybe_upvalue(c, name));

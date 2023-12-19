@@ -1,4 +1,4 @@
-package std.codegen;
+package std.runtime;
 
 public class InvalidIndexException extends RuntimeException {
     public InvalidIndexException(double idx) {

@@ -1,7 +1,8 @@
+fun test() : Number := do 
+    print "test";
+    3
+end;
 
-
-fun main() : Void do
-    val lst := [1, 2, 3];
-    print lst[1];
-end
-
+fun main() : Void do 
+    print test() + do print "test2"; 4 end;
+end 

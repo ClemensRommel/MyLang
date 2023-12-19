@@ -1,16 +1,21 @@
-import static std.codegen.Functions.*;
-import std.codegen.*;
+import static std.runtime.Functions.*;
+import std.runtime.*;
 
 import java.util.ArrayList;
 
 class Main {
+    public static double test() {
+        System.out.println("test");
+        return 3.0;
+    }
     public static void main() {
-        final ArrayList<Double> lst;
-         lst = new ArrayList<>(3);
-        lst.add(1.0);
-        lst.add(2.0);
-        lst.add(3.0);
-        System.out.println(lst.get(__toIndex(1.5)));
+        var __a0 = test();
+        final double __a1;
+        {
+            System.out.println("test2");
+            __a1 = 4.0;
+        }
+        System.out.println((__a0 + __a1));
     }
     
     public static void main(String[] args) {
