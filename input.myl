@@ -1,8 +1,9 @@
-fun test() : Number := do 
-    print "test";
-    3
-end;
-
 fun main() : Void do 
-    print test() + do print "test2"; 4 end;
-end 
+    val lst := [1, 2, 3];
+    val pusher := lst.push;
+    val popper := lst.pop;
+    pusher(4);
+    print lst;
+    print popper();
+    print lst.peek();
+end

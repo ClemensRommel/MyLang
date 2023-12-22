@@ -1072,16 +1072,16 @@ public class Typechecker implements
     TypeRep listMethodType(String name, ListOfRep l) {
         //System.out.println("got method type of method "+name);
         return switch(name) {
-                case "push" -> pushType(l);
-                case "pop" -> popType(l);
-                case "dequeue" -> dequeueType(l);
-                case "peek" -> peekType(l);
-                case "peekLast" -> peekLastType(l);
-                case "prepend" -> prependType(l);
+                case "push" -> pushType(l); //
+                case "pop" -> popType(l);   //
+                case "dequeue" -> dequeueType(l); //
+                case "peek" -> peekType(l); /* */
+                case "peekLast" -> peekLastType(l); //
+                case "prepend" -> prependType(l); //
                 case "append" -> appendType(l);
-                case "length" -> numberType;
-                case "first" -> l.elements();
-                case "last" -> l.elements();
+                case "length" -> numberType; // 
+                case "first" -> l.elements(); //
+                case "last" -> l.elements(); //
                 case "rest" -> l;
                 case "firsts" -> l;
                 default -> {

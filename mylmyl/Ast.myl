@@ -20,7 +20,7 @@ enum Expr where
     TupleExpr(Expr[], Util.LateInitialized(Type)),
     BlockExpr(Stmt[], Util.Optional(Expr), Util.LateInitialized(Type), Util.LateInitialized(Env.Env(VarInfo))),
     // WhileExpr(Expr, Stmt),
-    // ForExpr(String, Expr, Expr),
+    ForExpr(Setter, Expr, Expr),
     ThisExpr();
 end;
 

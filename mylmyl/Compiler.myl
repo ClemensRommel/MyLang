@@ -461,16 +461,16 @@ fun compile_property(c : Compiler, obj : Ast.Expr, name : String, at : Ast.Acces
         compile_expr(c, obj, target)
     end else do // Target cannot be Ignore
         match at do 
-            case FieldAccess() := do 
+            case FieldAccess() := do
                 val subexpr := compile_expr(c, obj, UsedDirectly());
-                val fieldAccess := subexpr + "." + name;
+                val fieldAccess := if val ListOf(?) := obj_ty then builtin_list_property(name, subexpr) else subexpr + "." + name;
                 use_with_target(c, fieldAccess, target)
             end;
             case MethodAccess() := do 
                 val temp_var := c.new_var();
                 c.append("final "); c.append(compile_type(c, obj_ty)); c.append(" "); c.append(temp_var); c.append(";"); c.newline();
                 compile_expr(c, obj, AssignTo(Ast.Variable(temp_var)));
-                val methodAccess := temp_var + "::"+name; // Create method reference. Let java create lambda
+                val methodAccess := if val ListOf(?) := obj_ty then builtin_list_method(c, temp_var, name) else temp_var + "::"+name; // Create method reference. Let java create lambda
                 match target do 
                     case AssignTo(s) := assign(c, s, methodAccess);
                     case Return() := return_stmt(c, methodAccess);
@@ -482,6 +482,60 @@ fun compile_property(c : Compiler, obj : Ast.Expr, name : String, at : Ast.Acces
                 end
             end;
         end
+    end
+end
+
+fun builtin_list_property(name : String, subexpr : String) : String := match name do 
+    case "length" := "(double) ("+subexpr+".size())";
+    case "first" := subexpr+".get(0)";
+    case "last" := subexpr+".get("+subexpr+".size() - 1)";
+end;
+
+fun builtin_list_method(c : Compiler, tempvar : String, method : String) : String := match method do 
+    case "push" := do 
+        val arg := c.new_var();
+        "(var "+arg+") -> {"+tempvar+".add("+arg+"); return null;}"
+    end;
+    case "pop" := "() -> "+tempvar+".remove("+tempvar+".size() - 1)";
+    case "peek" := "() -> "+tempvar+".get("+tempvar+".size() - 1)";
+    case "dequeue" := "() -> "+tempvar+".remove(0)";
+    case "prepend" := do 
+        val arg := c.new_var();
+        "(var "+arg+") -> "+tempvar+".add(0, "+arg+")"
+    end;
+    case "append" := do 
+        val arg := c.new_var();
+        "(var "+arg+") -> "+tempvar+".addAll("+arg+")"
+    end;
+end;
+
+fun builtin_list_method_call(c : Compiler, obj : String, acc : String, args : Ast.Expr[], target : Target) : String do 
+    val args_compiled : String[] := for arg in args yield 
+        compile_expr(c, arg, UsedDirectly())
+    end;
+
+    val res_expr := match acc do 
+        case "push" := obj+".add("+(args_compiled[0]+")");
+        case "pop" := obj+".remove("+obj+".size() - 1)";
+        case "peek" := obj+".get("+obj+".size() - 1)";
+        case "dequeue" := obj+".remove(0)";
+        case "prepend" := obj+".add(0, "+(args_compiled[0]+")");
+        case "append" := obj+".addAll("+(args_compiled[0]+")");
+    end;
+
+    match target do 
+        case Ignore() := do 
+            c.append(res_expr); c.append(";");
+            c.newline();
+            ""
+        end;
+        case Return() := return_stmt(c, res_expr);
+        case UsedDirectly := do 
+            val temp_var := c.new_var();
+            c.append("var "+temp_var+" = "+res_expr+";"); c.newline();
+            temp_var
+        end;
+        case AssignTo(s) := assign(c, s, res_expr);
     end
 end
 
@@ -721,15 +775,21 @@ end
 fun compile_call(c : Compiler, callee : Ast.Expr, args : Ast.Expr[], target : Target) : String do 
     val callee_compiled := if val Identifier(name) := callee then do 
         val info := c.env.get(name);
-        if info.is_no_fc_fn then 
-            name 
-        else if info.is_constructor then 
+        if info.is_constructor then 
             "new " + name
+        else if info.is_no_fc_fn then 
+            name 
         else
             compile_expr(c, callee, UsedDirectly()) + ".call"
     end else if val PropertyExpr(obj, name, la, lt, lft) := callee then do 
         val obj_expr := compile_expr(c, obj, UsedDirectly());
-        if val MethodAccess() := la.get() then obj_expr + "." + name else obj_expr + "." + name  + ".call"
+        val obj_ty := lt.get();
+        if val ListOf(?) := obj_ty then 
+            return builtin_list_method_call(c, obj_expr, name, args, target) // builtin list methods have to be compiled specially
+        else 
+        if val MethodAccess() := la.get() then 
+             obj_expr + "." + name
+        else obj_expr + "." + name  + ".call"
     end else do 
         compile_expr(c, callee, UsedDirectly()) + ".call"
     end;
@@ -747,7 +807,7 @@ fun compile_call(c : Compiler, callee : Ast.Expr, args : Ast.Expr[], target : Ta
     end;
     str := str + ")";
     match target do 
-        case Ignore() := do c.append("ignore("); c.append(str); c.append(");"); c.newline(); "" end;
+        case Ignore() := do c.append("__ignore("); c.append(str); c.append(");"); c.newline(); "" end;
         case Return() := do 
             return_stmt(c, str)
         end;

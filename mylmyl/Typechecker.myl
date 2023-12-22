@@ -385,25 +385,43 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
     case PropertyExpr(obj, name, la, lt, lft) := do
         val obj_ty := infer(tc, obj);
         lt.init(obj_ty);
-        val Name(class_name) := obj_ty else panic("Cannot read property of non-class-type "+obj_ty+"in expression "+e);
-        val class_info := tc.type_info_for(class_name);
-        val ClassInfo(?, fields, methods) := class_info else panic("Unimplemented type information in property expression");
-        if fields.has(name) then do // Read field#
-            val ty := fields.get(name).ty;
-            tc.require_assigneable(t, ty, e);
-            lft.init(ty);
-            la.init(Ast.FieldAccess());
-        end else if methods.has(name) then do 
-            val ty := methods.get(name).ty;
-            lft.init(ty);
-            tc.require_assigneable(t, ty, e);
-            la.init(Ast.MethodAccess());
-        end else panic("Class "+class_name+" has no field or method called "+name);
+
+        val (member_ty, acc_ty) := get_property_ty(tc, name, obj_ty, e);
+        lft.init(member_ty);
+        la.init(acc_ty);
     end;
     case IndexExpr(lst, idx) := do
         check(tc, idx, Ast.NumberT());
         check(tc, lst, Ast.ListOf(t));
     end;
+end;
+
+fun get_property_ty(tc : Typechecker, name : String, ty : Ast.Type, e : Ast.Expr) : (Ast.Type, Ast.AccessType) := match ty do  
+    case Name(class_name) := do
+        val class_info := tc.type_info_for(class_name);
+        val ClassInfo(?, fields, methods) := class_info else panic("Unimplemented type information in property expression");
+        if fields.has(name) then do 
+            val ty := fields.get(name).ty;
+            (ty, Ast.FieldAccess())
+        end else if methods.has(name) then do 
+            val ty := methods.get(name).ty;
+            (ty, Ast.MethodAccess())
+        end else panic("Class "+class_name+" has no field or method called "+name)
+    end;
+    case ListOf(elem_ty) := builtin_list_property(elem_ty, name, e);
+    case ? := panic("Cannot read property of non-class-type "+ty+"in expression "+e);
+end;
+
+fun builtin_list_property(elem_ty : Ast.Type, name : String, e : Ast.Expr) : (Ast.Type, Ast.AccessType) := match name do 
+    case "length" := (Ast.NumberT(), Ast.FieldAccess());
+    case "first" := (elem_ty, Ast.FieldAccess());
+    case "last" := (elem_ty, Ast.FieldAccess());
+    case "push" := (Ast.Function([elem_ty], Ast.VoidT()), Ast.MethodAccess());
+    case "pop" := (Ast.Function([], elem_ty), Ast.MethodAccess());
+    case "peek" := (Ast.Function([], elem_ty), Ast.MethodAccess()); // Peekt auf das letzte element. für das erste kann first verwendet werden
+    case "dequeue" := (Ast.Function([], elem_ty), Ast.MethodAccess()); // Entfernt das erste element
+    case "prepend" := (Ast.Function([elem_ty], Ast.VoidT()), Ast.MethodAccess());
+    case "append" := (Ast.Function([Ast.ListOf(elem_ty)], Ast.VoidT()), Ast.MethodAccess());
 end;
 
 fun check_block(
@@ -497,20 +515,11 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
     case PropertyExpr(obj, name, la, lt, lft) := do 
         val obj_ty := infer(t, obj);
         lt.init(obj_ty);
-        val Name(class_name) := obj_ty else panic("Cannot read property of non-class-type "+obj_ty);
-        val class_info := t.type_info_for(class_name);
-        val ClassInfo(?, fields, methods) := class_info else panic("Unimplemented: Not class info in property expr");
-        if fields.has(name) then do
-            la.init(Ast.FieldAccess());
-            val ty := fields.get(name).ty;
-            lft.init(ty);
-            ty
-        end else if methods.has(name) then do
-            la.init(Ast.MethodAccess());
-            val ty := methods.get(name).ty;
-            lft.init(ty);
-            ty
-        end else panic("Class "+class_name+" does not have field or method called "+name)
+
+        val (member_ty, acc_ty) := get_property_ty(t, name, obj_ty, e);
+        lft.init(member_ty);
+        la.init(acc_ty);
+        member_ty
     end;
     case IndexExpr(lst, idx) := do
         check(t, idx, Ast.NumberT());

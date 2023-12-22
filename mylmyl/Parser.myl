@@ -288,9 +288,18 @@ fun primary(p : Parser) : Ast.Expr :=
         if_expr(p)    
     end else if p.matches(Tokenizer.DO()) then do 
         block_expr(p)
+    end else if p.matches(Tokenizer.FOR()) then do 
+        for_loop(p)
     end else do 
         literal(p)
     end;
+
+fun for_loop(p : Parser) : ast.Expr do 
+    val loop_variable_unconverted := expr(p);
+    val loop_variable := convert_setter(loop_variable_unconverted);
+    p.consume(Tokenizer.IN(), "Expect 'in' after loop variables");
+    val iterated := expr(p);
+end
 
 // Expects that starting do is already consumed
 fun block_expr(p : Parser) : Ast.Expr do 

@@ -2,7 +2,7 @@ package std.runtime;
 
 public class Functions {
     // Ignore a value. Used for expression statements and main()
-    public static <A> void ignore(A a) {
+    public static <A> void __ignore(A a) {
 
     }
 
