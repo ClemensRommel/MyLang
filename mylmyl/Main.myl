@@ -5,7 +5,11 @@ import Compiler;
 import Typechecker;
 
 fun main() do 
-    val source := openFile("input.myl");
+    val cli_args := args();
+    if cli_args.length != 1 do 
+        panic("Invalid argument count: Only 1 is allowed (input file)");
+    end
+    val source := openFile(cli_args[0]);
     if isNull(source) do 
         panic("Could not open file");
     end;

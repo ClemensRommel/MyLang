@@ -294,11 +294,14 @@ fun primary(p : Parser) : Ast.Expr :=
         literal(p)
     end;
 
-fun for_loop(p : Parser) : ast.Expr do 
+fun for_loop(p : Parser) : Ast.Expr do 
     val loop_variable_unconverted := expr(p);
     val loop_variable := convert_setter(loop_variable_unconverted);
     p.consume(Tokenizer.IN(), "Expect 'in' after loop variables");
     val iterated := expr(p);
+    p.consume(Tokenizer.DO(), "Expect 'do' before list body");
+    val body := block_expr(p);
+    Ast.ForExpr(loop_variable, iterated, body, Ast.late_env(), Ast.late_type(), Ast.late_type())
 end
 
 // Expects that starting do is already consumed

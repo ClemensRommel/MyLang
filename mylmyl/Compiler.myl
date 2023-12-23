@@ -417,11 +417,56 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case UnaryOperation(op, operand) := compile_unary(c, op, operand, target);
     case IfExpr(lt, cond, thenBr, elseBr) := compile_if(c, lt, cond, thenBr, elseBr, target);
     case BlockExpr(stmts, end_expr, lt, lenv) := compile_block(c, stmts, end_expr, lt.get(), lenv, target);
+    case ForExpr(loop_var, iterated, body, lenv, lt, lit) := compile_for(c, loop_var, iterated, body, lenv.get(), lt.get(), lit.get(), target);
     case FunctionCall(callee, args) := compile_call(c, callee, args, target);
     case FunctionExpr(params, return_type, body, lenv) := compile_function_expr(c, params, return_type, body, lenv.get(), target);
     case PropertyExpr(obj, name, la, lt, lft) := compile_property(c, obj, name, la.get(), lt.get(), lft.get(), target);
     case IndexExpr(lst, idx) := compile_index(c, lst, idx, target);
 end;
+
+fun compile_for(
+    c : Compiler, 
+    loop_var : Ast.Setter, 
+    iterated : Ast.Expr, 
+    body : Ast.Expr, 
+    env : Env.Env(Ast.VarInfo), 
+    result_ty : Ast.Type, 
+    iterated_elem_ty : Ast.Type,
+    target : Target) : String 
+do 
+    val iterated_compiled := compile_expr(c, iterated, UsedDirectly());
+    val internal_loop_var := c.new_var();
+    val list_var := if target != Ignore() then do 
+        val res_var := c.new_var();
+        c.append("final "); c.append(compile_type(c, result_ty)); c.append(" "+res_var+";"); c.newline();
+        res_var
+    end else "";
+    if target != Ignore() do 
+        assign(c, Ast.Variable(list_var), "new ArrayList<>()");
+    end
+    c.append("for(var "+internal_loop_var+" : "+iterated_compiled+") {"); c.indent(); c.newline();
+        val prv := c.open_scope(env);
+        val BlockExpr(stmts, end_expr, ?, ?) := body else panic("Internal error: non-block-expression as body of for");
+        val captures := Analyze.analyze_captures(stmts, end_expr); // Dont have to scan loop variables for captures as they aren't mutable
+        for (name, is_captured) in captures.bindings do 
+            if is_captured do 
+                val info := VariableInfo();
+                info.is_upvalue := true;
+                c.env.insert(name, info); // Mark as upvalue
+            end
+        end;
+        compile_variables(c, loop_var, iterated_elem_ty, false, false, false);
+        assign(c, loop_var, internal_loop_var);
+        val result := compile_expr(c, body, if val Ignore() := target then Ignore() else UsedDirectly());
+        if target != Ignore() do 
+            c.append(list_var); c.append(".add("+result+");"); c.newline();
+        end
+        c.close_scope(prv);
+        c.dedent(); c.newline();
+    c.append("}");
+    c.newline();
+    use_with_target(c, list_var, target)
+end
 
 fun compile_index(c : Compiler, lst : Ast.Expr, idx : Ast.Expr, target : Target) : String do
     if val Ignore() := target then do
@@ -581,6 +626,9 @@ fun compile_binary(
     target : Target
 ) : String 
 do 
+    if is_lazy_op(op) do 
+        return compile_lazy_binary(c, op, left, right, target);
+    end
     if Ignore() = target do // Don't need to compile the operation 
         compile_expr(c, left, Ignore());
         compile_expr(c, right, Ignore());
@@ -600,6 +648,49 @@ do
             assign(c, setter, operation)
         end;
         case UsedDirectly() := "(" + operation + ")";
+    end
+end
+
+fun is_lazy_op(op : Ast.BinOp) : Bool := match op do case And() := true; case Or() := true; case ? := false; end;
+
+fun compile_lazy_binary(c : Compiler, op : Ast.BinOp, left : Ast.Expr, right : Ast.Expr, target : Target) : String do 
+    val prefix := if val And() := op then "" else "!";
+    val default_result := if val And() := op then "false" else "true";
+    val lft := compile_expr(c, left, UsedDirectly());
+    match target do
+        case Ignore() := do 
+            c.append("if("+prefix+lft+") {"); c.indent(); c.newline();
+            compile_expr(c, right, Ignore());
+            c.dedent(); c.newline();
+            c.append("}"); c.newline();
+            ""
+        end;
+        case Return() := do
+            c.append("if("+prefix+lft+") {"); c.indent(); c.newline();
+            compile_expr(c, right, Return()); c.dedent(); c.newline();
+            c.append("} else {"); c.indent(); c.newline();
+            c.append("return "+default_result+";"); c.dedent(); c.newline();
+            c.append("}"); c.newline();
+            ""
+        end;
+        case UsedDirectly() := do 
+            val res_var := c.new_var();
+            c.append("final boolean "+res_var+";"); c.newline();
+            c.append("if("+prefix+lft+") {"); c.indent(); c.newline();
+            compile_expr(c, right, AssignTo(Ast.Variable(res_var))); c.dedent(); c.newline();
+            c.append("} else {"); c.indent(); c.newline();
+            c.append(res_var + " =  "+default_result+";"); c.dedent(); c.newline();
+            c.append("}"); c.newline();
+            res_var
+        end;
+        case AssignTo(to) := do 
+            c.append("if("+prefix+lft+") {"); c.indent(); c.newline();
+            compile_expr(c, right, target); c.dedent(); c.newline();
+            c.append("} else {"); c.indent(); c.newline();
+            assign(c, to, default_result); c.dedent(); c.newline();
+            c.append("}"); c.newline();
+            ""
+        end;
     end
 end
 

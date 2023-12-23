@@ -46,10 +46,12 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         callStack.push("main");
     }
     
+    ArrayList<String> program_args;
 
     MyLangEnviroment env = currentModule.names;
 
-    public MyLangInterpreter() {
+    public MyLangInterpreter(ArrayList<String> prg_args) {
+        program_args = prg_args;
         loadBuiltins();
     }
 
@@ -62,6 +64,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         MyLangBuiltinFunction.openFile,
         MyLangBuiltinFunction.isNull,
         MyLangBuiltinFunction.split,
+        MyLangBuiltinFunction.args,
         MyLangBuiltinFunction.strip,
         MyLangBuiltinFunction.len,
         MyLangBuiltinFunction.panic,
@@ -674,7 +677,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             env.declareModule(v.Name(), runner.interpretedFiles.get(resolvedPath), this);
         } else {
             var code = runner.compiledFiles.get(resolvedPath);
-            var interpreter = new MyLangInterpreter();
+            var interpreter = new MyLangInterpreter(program_args);
             interpreter.interpretFile(runner, code, false);
             runner.interpretedFiles.put(resolvedPath, interpreter.currentModule);
             env.declareModule(v.Name(), interpreter.currentModule, this);

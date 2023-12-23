@@ -36,6 +36,24 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
             return (double) ((String) args.get(0)).length();
         }
     };
+
+    public static final MyLangBuiltinFunction args = new MyLangBuiltinFunction("args", 
+        new FunctionTypeRep(
+            List.of(),
+            List.of(),
+            Map.of(),
+            Map.of(),
+            null,
+            new ListOfRep(Typechecker.stringType),
+            new TypeEnv()
+        )) {
+
+            @Override
+            public Object call(MyLangInterpreter interpreter, List<Object> args, Map<String, Object> named) {
+                return interpreter.program_args;
+            }
+        };
+
     public static final MyLangBuiltinFunction matches = new MyLangBuiltinFunction("matches",
         new FunctionTypeRep(
             List.of(Typechecker.stringType, Typechecker.stringType),

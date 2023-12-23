@@ -15,13 +15,17 @@ public class MyLangRunner {
     MyLangFile mainModule;
     Set<String> waitingFiles = new HashSet<>();
 
-    public MyLangRunner(String file) {
+    ArrayList<String> prg_args;
+
+    public MyLangRunner(String file, ArrayList<String> args) {
+        prg_args = args;
         mainFile = file;
         var parentPath = Paths.get(file).getParent();
         workingDirectoryPath = parentPath == null ? "" : parentPath.toString();
+        interpreter = new MyLangInterpreter(prg_args);
     }
 
-    MyLangInterpreter interpreter = new MyLangInterpreter();
+    MyLangInterpreter interpreter;
 
     String resolvePath(MyLangPath path) {
         return path.names().stream()

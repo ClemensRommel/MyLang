@@ -1,9 +1,8 @@
 fun main() : Void do 
     val lst := [1, 2, 3];
-    val pusher := lst.push;
-    val popper := lst.pop;
-    pusher(4);
-    print lst;
-    print popper();
-    print lst.peek();
+    if lst[1] > lst[0] or do print("here"); true end then do 
+        print(true);
+    end else do 
+        print(false);
+    end;
 end

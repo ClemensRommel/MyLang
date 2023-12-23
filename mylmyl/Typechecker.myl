@@ -342,6 +342,9 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
         check_block(tc, t, stmts, end_expr, e, lenv);
         lt.init(t);
     end;
+    case ForExpr(setter, iterated, body, lenv, lt, lit) := do 
+        check_for(tc, t, setter, iterated, body, lenv, lt, lit);
+    end;
     case FunctionCall(callee, args) := do 
         val callee_type := infer(tc, callee);
         val Function(param_types, ret_type) := callee_type else do 
@@ -445,6 +448,34 @@ do
     tc.close_scope();
 end
 
+fun check_for(
+    tc : Typechecker, 
+    result_ty : Ast.Type,
+    setter : Ast.Setter, 
+    iterated : Ast.Expr,
+    body : Ast.Expr, 
+    lenv : Util.LateInitialized(Env.Env(Ast.VarInfo)), 
+    lt : Util.LateInitialized(Ast.Type),
+    lit : Util.LateInitialized(Ast.Type)) 
+do 
+    val iterated_ty := infer(tc, iterated);
+    tc.open_scope();
+        val ListOf(elem_ty) := iterated_ty else panic("Cannot iterate non-list-type "+iterated_ty);
+        lit.init(elem_ty);
+        check_declaration_setter(tc, setter, elem_ty, false);
+        if val VoidT() := result_ty then do 
+            check(tc, body, Ast.VoidT());
+        end else if val ListOf(elem_ty) := result_ty then do 
+            check(tc, body, elem_ty);
+        end else do 
+            val body_ty := infer(tc, body);
+            tc.error.[Void]("Expected "+result_ty+", got "+Ast.ListOf(body_ty));
+        end;
+        lenv.init(tc.env);
+        lt.init(result_ty);
+    tc.close_scope();
+end
+
 fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do 
     case NumberLiteral(?) := Ast.NumberT();
     case Boolean(?) := Ast.BooleanT();
@@ -474,6 +505,7 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
     end;
     case FunctionExpr(params, return_type, body, lenv) := infer_function(t, params, return_type, body, lenv);
     case BlockExpr(stmts, end_expr, lt, lenv) := infer_block(t, stmts, end_expr, lt, lenv);
+    case ForExpr(setter, iterated, body, lenv, lt, lit) := infer_for(t, setter, iterated, body, lenv, lt, lit);
     case FunctionCall(callee, args) := do 
         val callee_type := infer(t, callee);
         val Function(param_types, ret_type) := callee_type else do 
@@ -565,6 +597,28 @@ do
     t.close_scope();
     lt.init(result_type);
     result_type
+end
+
+fun infer_for(
+    tc : Typechecker, 
+    loop_var : Ast.Setter, 
+    iterated : Ast.Expr, 
+    body : Ast.Expr, 
+    lenv : Util.LateInitialized(Env.Env(Ast.VarInfo)), 
+    lt : Util.LateInitialized(Ast.Type),
+    lit : Util.LateInitialized(Ast.Type)) : Ast.Type 
+do 
+    val iterated_ty := infer(tc, iterated);
+    tc.open_scope();
+        val ListOf(elem_ty) := iterated_ty else panic("Cannot iterate non-list-type "+iterated_ty);
+        lit.init(elem_ty);
+        check_declaration_setter(tc, loop_var, elem_ty, false);
+        val resulting_elem_ty := infer(tc, body);
+        lenv.init(tc.env);
+    tc.close_scope();
+    val resulting := Ast.ListOf(resulting_elem_ty);
+    lt.init(resulting);
+    resulting
 end
 
 fun infer_binary(t : Typechecker, op : Ast.BinOp, lhs : Ast.Expr, rhs : Ast.Expr) : Ast.Type := match op do 
