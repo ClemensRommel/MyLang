@@ -1,8 +1,5 @@
 fun main() : Void do 
     val lst := [1, 2, 3];
-    if lst[1] > lst[0] or do print("here"); true end then do 
-        print(true);
-    end else do 
-        print(false);
-    end;
+    val results := for x in lst do x end;
+    print results;
 end

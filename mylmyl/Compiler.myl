@@ -418,6 +418,7 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case IfExpr(lt, cond, thenBr, elseBr) := compile_if(c, lt, cond, thenBr, elseBr, target);
     case BlockExpr(stmts, end_expr, lt, lenv) := compile_block(c, stmts, end_expr, lt.get(), lenv, target);
     case ForExpr(loop_var, iterated, body, lenv, lt, lit) := compile_for(c, loop_var, iterated, body, lenv.get(), lt.get(), lit.get(), target);
+    case WhileExpr(cond, body, lenv, lty) := compile_while(c, cond, body, lenv.get(), lty.get(), target);
     case FunctionCall(callee, args) := compile_call(c, callee, args, target);
     case FunctionExpr(params, return_type, body, lenv) := compile_function_expr(c, params, return_type, body, lenv.get(), target);
     case PropertyExpr(obj, name, la, lt, lft) := compile_property(c, obj, name, la.get(), lt.get(), lft.get(), target);
@@ -436,12 +437,12 @@ fun compile_for(
 do 
     val iterated_compiled := compile_expr(c, iterated, UsedDirectly());
     val internal_loop_var := c.new_var();
-    val list_var := if target != Ignore() then do 
+    val list_var := if target != Ignore() and result_ty != Ast.VoidT() then do 
         val res_var := c.new_var();
         c.append("final "); c.append(compile_type(c, result_ty)); c.append(" "+res_var+";"); c.newline();
         res_var
     end else "";
-    if target != Ignore() do 
+    if target != Ignore() and result_ty != Ast.VoidT() do 
         assign(c, Ast.Variable(list_var), "new ArrayList<>()");
     end
     c.append("for(var "+internal_loop_var+" : "+iterated_compiled+") {"); c.indent(); c.newline();
@@ -458,14 +459,47 @@ do
         compile_variables(c, loop_var, iterated_elem_ty, false, false, false);
         assign(c, loop_var, internal_loop_var);
         val result := compile_expr(c, body, if val Ignore() := target then Ignore() else UsedDirectly());
-        if target != Ignore() do 
+        if target != Ignore() and result_ty != Ast.VoidT() do 
             c.append(list_var); c.append(".add("+result+");"); c.newline();
         end
         c.close_scope(prv);
         c.dedent(); c.newline();
     c.append("}");
     c.newline();
-    use_with_target(c, list_var, target)
+    use_with_target(c, if result_ty = Ast.VoidT() then "null" else list_var, target)
+end
+
+fun compile_while(c : Compiler, cond : Ast.Expr, body : Ast.Expr, env : Env.Env(Ast.VarInfo), result_ty : Ast.Type, target : Target) : String do 
+    val list_var := if target != Ignore() and result_ty != Ast.VoidT() then do 
+        val res_var := c.new_var();
+        c.append("final "); c.append(compile_type(c, result_ty)); c.append(" "+res_var+";"); c.newline();
+        res_var
+    end else "";
+    if target != Ignore() and result_ty != Ast.VoidT() do 
+        assign(c, Ast.Variable(list_var), "new ArrayList<>()");
+    end
+    c.append("while(true) {"); c.indent(); c.newline();
+    val cond := compile_expr(c, cond, UsedDirectly());
+    c.append("if(!"+cond+") { break; }"); c.newline();
+        val prv := c.open_scope(env);
+        val BlockExpr(stmts, end_expr, ?, ?) := body else panic("Internal error: non-block-expression as body of for");
+        val captures := Analyze.analyze_captures(stmts, end_expr); // There are no loop variables
+        for (name, is_captured) in captures.bindings do 
+            if is_captured do 
+                val info := VariableInfo();
+                info.is_upvalue := true;
+                c.env.insert(name, info); // Mark as upvalue
+            end
+        end;
+        val result := compile_expr(c, body, if val Ignore() := target then Ignore() else UsedDirectly());
+        if target != Ignore() and result_ty != Ast.VoidT() do 
+            c.append(list_var); c.append(".add("+result+");"); c.newline();
+        end
+        c.close_scope(prv);
+        c.dedent(); c.newline();
+    c.append("}");
+    c.newline();
+    use_with_target(c, if result_ty = Ast.VoidT() then "null" else list_var, target)
 end
 
 fun compile_index(c : Compiler, lst : Ast.Expr, idx : Ast.Expr, target : Target) : String do

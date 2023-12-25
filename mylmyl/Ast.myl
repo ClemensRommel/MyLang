@@ -19,7 +19,7 @@ enum Expr where
     PropertyExpr(Expr, String, Util.LateInitialized(AccessType), Util.LateInitialized(Type), Util.LateInitialized(Type)),
     TupleExpr(Expr[], Util.LateInitialized(Type)),
     BlockExpr(Stmt[], Util.Optional(Expr), Util.LateInitialized(Type), Util.LateInitialized(Env.Env(VarInfo))),
-    // WhileExpr(Expr, Stmt),
+    WhileExpr(Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type)),
     ForExpr(Setter, Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type), Util.LateInitialized(Type)),
     ThisExpr();
 end;

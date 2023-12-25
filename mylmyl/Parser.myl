@@ -290,16 +290,25 @@ fun primary(p : Parser) : Ast.Expr :=
         block_expr(p)
     end else if p.matches(Tokenizer.FOR()) then do 
         for_loop(p)
+    end else if p.matches(Tokenizer.WHILE()) then do 
+        while_loop(p)
     end else do 
         literal(p)
     end;
+
+fun while_loop(p : Parser) : Ast.Expr do 
+    val cond := expr(p);
+    p.consume(Tokenizer.DO(), "Expect 'do' before while loop body");
+    val body := block_expr(p);
+    Ast.WhileExpr(cond, body, Ast.late_env(), Ast.late_type())
+end
 
 fun for_loop(p : Parser) : Ast.Expr do 
     val loop_variable_unconverted := expr(p);
     val loop_variable := convert_setter(loop_variable_unconverted);
     p.consume(Tokenizer.IN(), "Expect 'in' after loop variables");
     val iterated := expr(p);
-    p.consume(Tokenizer.DO(), "Expect 'do' before list body");
+    p.consume(Tokenizer.DO(), "Expect 'do' before for loop body");
     val body := block_expr(p);
     Ast.ForExpr(loop_variable, iterated, body, Ast.late_env(), Ast.late_type(), Ast.late_type())
 end

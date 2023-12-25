@@ -342,9 +342,8 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
         check_block(tc, t, stmts, end_expr, e, lenv);
         lt.init(t);
     end;
-    case ForExpr(setter, iterated, body, lenv, lt, lit) := do 
-        check_for(tc, t, setter, iterated, body, lenv, lt, lit);
-    end;
+    case ForExpr(setter, iterated, body, lenv, lt, lit) := check_for(tc, t, setter, iterated, body, lenv, lt, lit);
+    case WhileExpr(cond, body, lenv, lty) := check_while(tc, t, cond, body, lenv, lty);
     case FunctionCall(callee, args) := do 
         val callee_type := infer(tc, callee);
         val Function(param_types, ret_type) := callee_type else do 
@@ -476,6 +475,22 @@ do
     tc.close_scope();
 end
 
+fun check_while(tc : Typechecker,  expected : Ast.Type, cond : Ast.Expr, body : Ast.Expr, lenv : Util.LateInitialized(Env.Env(Ast.VarInfo)), lty : Util.LateInitialized(Ast.Type)) do 
+    check(tc, cond, Ast.BooleanT());
+    tc.open_scope();
+        if val VoidT() := expected then do 
+            check(tc, body, Ast.VoidT());
+        end else if val ListOf(elem_ty) := expected then do 
+            check(tc, body, elem_ty);
+        end else do 
+            val elem_ty := infer(tc, body);
+            tc.error.[Void]("Expected "+expected+", got "+Ast.ListOf(elem_ty)+" in "+ Ast.WhileExpr(cond, body, lenv, lty));
+        end;
+        lty.init(expected); // The resulting type of the entire expression, not the element type
+        lenv.init(tc.env);
+    tc.close_scope();
+end
+
 fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do 
     case NumberLiteral(?) := Ast.NumberT();
     case Boolean(?) := Ast.BooleanT();
@@ -506,6 +521,7 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
     case FunctionExpr(params, return_type, body, lenv) := infer_function(t, params, return_type, body, lenv);
     case BlockExpr(stmts, end_expr, lt, lenv) := infer_block(t, stmts, end_expr, lt, lenv);
     case ForExpr(setter, iterated, body, lenv, lt, lit) := infer_for(t, setter, iterated, body, lenv, lt, lit);
+    case WhileExpr(cond, body, lenv, lty) := infer_while(t, cond, body, lenv, lty);
     case FunctionCall(callee, args) := do 
         val callee_type := infer(t, callee);
         val Function(param_types, ret_type) := callee_type else do 
@@ -618,6 +634,17 @@ do
     tc.close_scope();
     val resulting := Ast.ListOf(resulting_elem_ty);
     lt.init(resulting);
+    resulting
+end
+
+fun infer_while(tc : Typechecker, cond : Ast.Expr, body : Ast.Expr, lenv : Util.LateInitialized(Env.Env(Ast.VarInfo)), lty : Util.LateInitialized(Ast.Type)) : Ast.Type do 
+    check(tc, cond, Ast.BooleanT());
+    tc.open_scope();
+        val elem_ty := infer(tc, body);
+        val resulting := Ast.ListOf(elem_ty);
+        lenv.init(tc.env);
+        lty.init(resulting);
+    tc.close_scope();
     resulting
 end
 
