@@ -84,6 +84,7 @@ fun is_decl_start(p : Parser) : Bool := match p.peek().kind do
     case VAR() := true;
     case FUN() := p.peekNext().kind = Tokenizer.IDENTIFIER();
     case CLASS() := true;
+    case ENUM() := true;
     case ? := false;
 end;
 
@@ -94,6 +95,21 @@ fun decl(p : Parser) : Ast.Decl do
         case VAL() := var_decl(p, false);
         case FUN() := fun_decl(p);
         case CLASS() := class_decl(p);
+        case ENUM() := enum_decl(p);
+    end
+end
+
+fun enum_decl(p : Parser) : Ast.Decl do 
+    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect class name after 'class' keyword");
+    p.consume(Tokenizer.WHERE(), "Expect start of enum body after enum name: 'where'");
+    val constructors : Ast.EnumConstructor[] := [];
+    while p.matches(Tokenizer.IDENTIFIER()) do 
+        val name := previous();
+        p.consume(Tokenizer.LPAREN(), "Expect '(' after enum constructor name");
+        val types : Ast.Type[] := [];
+        while !p.matches(Tokenizer.RPAREN()) do 
+            types.push(type_literal(p));
+        end;
     end
 end
 
@@ -407,14 +423,20 @@ fun literal(p : Parser) : Ast.Expr :=
 
 fun list(p : Parser) : Ast.Expr do
     val parts : Ast.Expr[] := [];
-    var needs_comma := false;
-    while !p.matches(Tokenizer.RBRACKET()) do
-        if needs_comma do
-            p.consume(Tokenizer.COMMA(), "Expect ',' to separate list parts");
-        end
+    if !p.matches(Tokenizer.RBRACKET()) do 
         parts.push(expr(p));
-        needs_comma := true;
-    end;
+        if p.matches(Tokenizer.DOTS()) then do 
+            val fst := parts.pop();
+            val end_expr := expr(p);
+            p.consume(Tokenizer.RBRACKET(), "Expect closing ']' after range expression");
+            return Ast.RangeExpr(fst, end_expr);
+        end else do 
+            while !p.matches(Tokenizer.RBRACKET()) do 
+                p.consume(Tokenizer.COMMA(), "Expect ',' to separate list parts");
+                parts.push(expr(p));
+            end
+        end
+    end
     Ast.ListExpr(parts, Ast.late_type())
 end
 

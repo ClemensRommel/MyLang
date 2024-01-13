@@ -169,9 +169,13 @@ fun compile_stmt(c : Compiler, stmt : Ast.Stmt) := match stmt do
         val arg := compile_expr(c, expr, Ignore());
     end;
     case PrintStmt(expr) := do 
-        val arg := compile_expr(c, expr, UsedDirectly());
-        c.append("System.out.println(");c.append(arg);c.append(");");
-        c.newline();
+        if val NullLiteral() := expr then do 
+            c.append("System.out.println(\"null\");"); c.newline();
+        end else do 
+            val arg := compile_expr(c, expr, UsedDirectly());
+            c.append("System.out.println(");c.append(arg);c.append(");");
+            c.newline();
+        end
     end;
     case Declaration(decl) := compile_decl(c, decl);
     case SetStatement(setter, expr) := compile_expr(c, expr, AssignTo(setter));
@@ -410,6 +414,7 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case ThisExpr() := use_with_target(c, "this", target);
     case TupleExpr(subexprs, lt) := compile_tuple(c, subexprs, lt.get(), target);
     case ListExpr(subexprs, lt) := compile_list_literal(c, subexprs, lt.get(), target);
+    case RangeExpr(start, end_expr) := compile_range_expr(c, start, end_expr, target);
     case Boolean(b) := use_with_target(c, if b then "true" else "false", target);
     case NullLiteral() := use_with_target(c, "null", target);
     case Identifier(name) := compile_identifier(c, name, target);
@@ -425,6 +430,18 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case IndexExpr(lst, idx) := compile_index(c, lst, idx, target);
 end;
 
+fun compile_range_expr(c : Compiler, start : Ast.Expr, end_expr : Ast.Expr, target : Target) : String do
+    if val Ignore() := target then do 
+        compile_expr(c, start, Ignore());
+        compile_expr(c, end_expr, Ignore());
+        ""
+    end else do 
+        val start_compiled := compile_expr(c, start, UsedDirectly());
+        val end_compiled := compile_expr(c, end_expr, UsedDirectly());
+        use_with_target(c, "__range("+start_compiled+", "+end_compiled+")", target)
+    end
+end
+
 fun compile_for(
     c : Compiler, 
     loop_var : Ast.Setter, 
@@ -435,7 +452,6 @@ fun compile_for(
     iterated_elem_ty : Ast.Type,
     target : Target) : String 
 do 
-    val iterated_compiled := compile_expr(c, iterated, UsedDirectly());
     val internal_loop_var := c.new_var();
     val list_var := if target != Ignore() and result_ty != Ast.VoidT() then do 
         val res_var := c.new_var();
@@ -445,7 +461,18 @@ do
     if target != Ignore() and result_ty != Ast.VoidT() do 
         assign(c, Ast.Variable(list_var), "new ArrayList<>()");
     end
-    c.append("for(var "+internal_loop_var+" : "+iterated_compiled+") {"); c.indent(); c.newline();
+
+    if val RangeExpr(start_expr, end_expr) := iterated then do 
+        val start_var := c.new_var();
+        c.append("final double "+start_var+";"); compile_expr(c, start_expr, AssignTo(Ast.Variable(start_var)));
+        val end_var := c.new_var();
+        c.append("final double "+end_var+";"); compile_expr(c, end_expr, AssignTo(Ast.Variable(end_var)));
+        c.append("if("+start_var+" < "+end_var+") "); c.newline();
+        c.append("for(double "+internal_loop_var+" = "+start_var+"; "+internal_loop_var+ " < "+end_var+"; "+internal_loop_var+"++) {"); c.indent(); c.newline();
+    end else do 
+        val iterated_compiled := compile_expr(c, iterated, UsedDirectly());
+        c.append("for(var "+internal_loop_var+" : "+iterated_compiled+") {"); c.indent(); c.newline();
+    end;
         val prv := c.open_scope(env);
         val BlockExpr(stmts, end_expr, ?, ?) := body else panic("Internal error: non-block-expression as body of for");
         val captures := Analyze.analyze_captures(stmts, end_expr); // Dont have to scan loop variables for captures as they aren't mutable

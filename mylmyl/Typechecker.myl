@@ -384,6 +384,11 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
         end;
         lt.init(Ast.ListOf(et));
     end;
+    case RangeExpr(start, end_expr) := do
+        check(tc, start, Ast.NumberT());
+        check(tc, end_expr, Ast.NumberT());
+        tc.require_assigneable(t, Ast.ListOf(Ast.NumberT()), e);
+    end;
     case PropertyExpr(obj, name, la, lt, lft) := do
         val obj_ty := infer(tc, obj);
         lt.init(obj_ty);
@@ -391,6 +396,7 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
         val (member_ty, acc_ty) := get_property_ty(tc, name, obj_ty, e);
         lft.init(member_ty);
         la.init(acc_ty);
+        tc.require_assigneable(t, member_ty, e)
     end;
     case IndexExpr(lst, idx) := do
         check(tc, idx, Ast.NumberT());
@@ -559,6 +565,11 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         end;
         lt.init(lty);
         lty
+    end;
+    case RangeExpr(start, end_expr) := do 
+        check(t, start, Ast.NumberT());
+        check(t, end_expr, Ast.NumberT());
+        Ast.ListOf(Ast.NumberT())
     end;
     case PropertyExpr(obj, name, la, lt, lft) := do 
         val obj_ty := infer(t, obj);

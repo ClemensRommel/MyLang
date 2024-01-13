@@ -15,6 +15,7 @@ enum Expr where
     FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Env.Env(VarInfo))),
     IfExpr(Util.LateInitialized(Type), Expr, Expr, Expr),
     ListExpr(Expr[], Util.LateInitialized(Type)),
+    RangeExpr(Expr, Expr),
     IndexExpr(Expr, Expr),
     PropertyExpr(Expr, String, Util.LateInitialized(AccessType), Util.LateInitialized(Type), Util.LateInitialized(Type)),
     TupleExpr(Expr[], Util.LateInitialized(Type)),
@@ -58,7 +59,15 @@ export enum Decl where
     VarDecl(Setter, Util.LateInitialized(Type), Util.Optional(Expr), Bool /* mut */, Bool /* export */),
     FunDecl(String, Parameter[], Type, Expr, Bool /* export */, Util.LateInitialized(Env.Env(VarInfo))),
     ClassDecl(String, Decl[], Util.Optional(Constructor), Bool /* export */, Util.LateInitialized(Env.Env(VarInfo)));
-end; 
+    EnumDecl(String, EnumConstructor[], Decl[], Bool /* export */, Util.LateInitialized(Env.Env(VarInfo)));
+end;
+
+export class EnumConstructor where 
+    val fields : Type[];
+    new(fs : Type[]) do 
+        this.fields := fs;
+    end
+end
 
 export class Constructor where 
     val params : Parameter[];

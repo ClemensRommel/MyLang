@@ -1,0 +1,24 @@
+fun f(x : Number) : Number := x * 2;
+class Test where 
+    val test : Number := 3;
+    fun getTest() : Test := this;
+end
+fun main() : Void do 
+    print 1; print "test"; print true; print null; 
+    var x := 1;
+    print x;
+    print x + 1;
+    print -x;
+    print f(x);
+    print (fun(y : Number) : Number := 3 * y)(x);
+    print if true then x else 3;
+    print [1, 2, 3];
+    print [1..3];
+    print [1, 2, 3][1];
+    print Test().test;
+    print (1, 2);
+    print do print "hello "; "world" end;
+    print while x < 5 do x := x + 1; x end;
+    print for y in [1..4] do y + 1 end;
+    print Test().getTest();
+end

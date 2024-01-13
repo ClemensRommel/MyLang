@@ -141,7 +141,19 @@ fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
                 analyze_expr(scan_env, e);
             end;
         end;
-        case ? := null; // Non-recursive expressions that can't capture
+        case RangeExpr(start_expr, end_expr) := do 
+            analyze_expr(scan_env, start_expr);
+            analyze_expr(scan_env, end_expr);
+        end;
+        case WhileExpr(cond, body, ?, ?) := do 
+            analyze_expr(scan_env, cond);
+            analyze_expr(scan_env, body);
+        end;
+        case ForExpr(?, iterated, body, ?, ?, ?) := do 
+            analyze_expr(scan_env, iterated);
+            analyze_expr(scan_env, body);
+        end;
+        case NumberLiteral(?) := do end; case Identifier(?) := do end; case StringLiteral(?) := do end; case Boolean(?) := do end; case NullLiteral() := do end; case ThisExpr() := do end;
     end;
 end
 
@@ -192,7 +204,19 @@ fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
                 scan_expr(scan_env, e);
             end;
         end;
-        case ? := null; // Non-recursive expressions that can't capture
+        case RangeExpr(start_expr, end_expr) := do 
+            scan_expr(scan_env, start_expr);
+            scan_expr(scan_env, end_expr);
+        end;
+        case WhileExpr(cond, body, ?, ?) := do 
+            scan_expr(scan_env, cond);
+            scan_expr(scan_env, body);
+        end;
+        case ForExpr(?, iterated, body, ?, ?, ?) := do 
+            scan_expr(scan_env, iterated);
+            scan_expr(scan_env, body);
+        end;
+        case NumberLiteral(?) := do end; case StringLiteral(?) := do end; case Boolean(?) := do end; case NullLiteral() := do end; case ThisExpr() := do end;
     end;
 end
 

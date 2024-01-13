@@ -51,6 +51,7 @@ class Tokenizer where
     end;
 
     fun peek() : String := this.source[this.position];
+    fun peekNext() : String := this.source[this.position];
     fun next() : String do 
         val c := this.peek();
         this.position := this.position + 1;
@@ -65,6 +66,8 @@ class Tokenizer where
     end
 
     fun at_end() : Bool := this.position >= len(this.source);
+
+    fun charsLeft() : Number := len(this.source) - this.position;
 
     fun tokenize() : Token[] do 
         val tokens : Token[] := [];
@@ -184,7 +187,7 @@ class Tokenizer where
                     while !this.at_end() and matches(this.peek(), "[0-9]") do 
                         n := n + this.next();
                     end;
-                    if !this.at_end() and this.peek() = "." do 
+                    if this.charsLeft() >= 2 and this.peek() = "." and matches(this.peekNext(), "[0-9]") do 
                         n := n + "."; this.next();
                         while !this.at_end() and matches(this.peek(), "[0-9]") do 
                             n := n + this.next();
