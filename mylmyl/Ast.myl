@@ -58,13 +58,15 @@ end
 export enum Decl where 
     VarDecl(Setter, Util.LateInitialized(Type), Util.Optional(Expr), Bool /* mut */, Bool /* export */),
     FunDecl(String, Parameter[], Type, Expr, Bool /* export */, Util.LateInitialized(Env.Env(VarInfo))),
-    ClassDecl(String, Decl[], Util.Optional(Constructor), Bool /* export */, Util.LateInitialized(Env.Env(VarInfo)));
+    ClassDecl(String, Decl[], Util.Optional(Constructor), Bool /* export */, Util.LateInitialized(Env.Env(VarInfo))),
     EnumDecl(String, EnumConstructor[], Decl[], Bool /* export */, Util.LateInitialized(Env.Env(VarInfo)));
 end;
 
 export class EnumConstructor where 
+    val name : String;
     val fields : Type[];
-    new(fs : Type[]) do 
+    new(n : String, fs : Type[]) do 
+        this.name := n;
         this.fields := fs;
     end
 end
@@ -91,7 +93,8 @@ class VarInfo where
 end
 
 enum TyInfo where 
-    ClassInfo(String, Env.AList(VarInfo) /* fields */, Env.AList(VarInfo) /* methods */);
+    ClassInfo(String, Env.AList(VarInfo) /* fields */, Env.AList(VarInfo) /* methods */),
+    EnumInfo(String, EnumConstructor[], Env.AList(VarInfo) /* methods, doesn't have fields */);
 end
 
 enum Parameter where 

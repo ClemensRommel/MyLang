@@ -1,6 +1,10 @@
+enum Test where 
+    A(Number), B(String, Number), C(Test[]);
+
+    fun get_one() : Number := 1; 
+end
+
 fun main() : Void do 
-    val lst := [1, 3, 5, 7];
-    for x in [0..lst.length] do
-        print lst[x];
-    end;
+    val testval : Test := A(3);
+    print testval;
 end

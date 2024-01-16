@@ -103,14 +103,28 @@ fun enum_decl(p : Parser) : Ast.Decl do
     val name := p.consume(Tokenizer.IDENTIFIER(), "Expect class name after 'class' keyword");
     p.consume(Tokenizer.WHERE(), "Expect start of enum body after enum name: 'where'");
     val constructors : Ast.EnumConstructor[] := [];
-    while p.matches(Tokenizer.IDENTIFIER()) do 
-        val name := previous();
+    var needs_comma := false;
+    while !p.matches(Tokenizer.SEMICOLON()) do 
+        if needs_comma do 
+            p.consume(Tokenizer.COMMA(), "Expect ',' to separate enum variants");
+        end;
+        val name := p.consume(Tokenizer.IDENTIFIER(), "Expect enum variant to start with identifier");
         p.consume(Tokenizer.LPAREN(), "Expect '(' after enum constructor name");
         val types : Ast.Type[] := [];
+        var inner_needs_comma := false;
         while !p.matches(Tokenizer.RPAREN()) do 
+            if inner_needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate enum variant parameters"); end;
             types.push(type_literal(p));
+            inner_needs_comma := true;
         end;
-    end
+        constructors.push(Ast.EnumConstructor(name.src, types));
+        needs_comma := true;
+    end;
+    val members : Ast.Decl[] := [];
+    while !p.matches(Tokenizer.END()) do 
+        members.push(decl(p));
+    end;
+    Ast.EnumDecl(name.src, constructors, members, true, Ast.late_env())
 end
 
 fun class_decl(p : Parser) : Ast.Decl do 

@@ -218,7 +218,34 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
         
         tc.declare(name, constr_type, false);
     end;
+    case EnumDecl(name, variants, members, is_export, lenv) := do 
+        disallow_fields_in_enum(tc, members, name);
+        val funs := methods_in_class(tc, members);
+        tc.declare_type(name, Ast.EnumInfo(name, variants, funs));
+        tc.open_scope();
+            tc.declare("this", Ast.Name(name), false);
+            check_body(tc, members);
+            val body_env := tc.env;
+        tc.close_scope();
+        lenv.init(body_env);
+        declare_enum_constructors(tc, name, variants);
+    end;
 end;
+
+fun declare_enum_constructors(tc : Typechecker, name : String, variants : Ast.EnumConstructor[]) do 
+    val enum_ty := Ast.Name(name);
+    for constr in variants do 
+        tc.declare(constr.name, Ast.Function(constr.fields, enum_ty), false);
+    end;
+end
+
+fun disallow_fields_in_enum(tc : Typechecker, members : Ast.Decl[], name : String) do 
+    for member in members do 
+        if val VarDecl(setter, ?, ?, ?, ?) := member then do 
+            panic("Error: Fields are not allowed as members of enums (in enum "+name+"): "+setter);
+        end else do end;
+    end;
+end
 
 fun fields_in_class(tc : Typechecker, members : Ast.Decl[]) : Env.AList(Ast.VarInfo) do 
     val types : Env.AList(Ast.VarInfo) := Env.AList.[Ast.VarInfo]();
@@ -257,7 +284,8 @@ fun methods_in_class(tc : Typechecker, members : Ast.Decl[]) : Env.AList(Ast.Var
                 val fun_ty := Ast.Function(param_types(params), ret_ty);
                 types.insert(name, Ast.VarInfo(false, fun_ty, name));
             end;
-            case ClassDecl(name, ?, ?, ?, ?) := panic("Error: Do not allow class as member of another class: "+name);
+            case ClassDecl(name, ?, ?, ?, ?) := panic("Error: Do not allow class as member of another class or enum: "+name);
+            case EnumDecl(name, ?, ?, ?, ?) := panic("Error: Do not allow enum as member of another class or enum: "+name);
             case ? := do end;
         end;
     end

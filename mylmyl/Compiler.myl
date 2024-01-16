@@ -12,6 +12,7 @@ class Compiler where
 
     var is_class : Bool := true;
     var is_static : Bool := true;
+    var is_generated_interface : Bool := false;
     var expect_ref_ty : Bool := false; // Wether we're currently compiling a type that is a type parameter
 
     val types_to_compile : CompilationTask[] := [];
@@ -96,17 +97,20 @@ class Compiler where
         val previous_is_class := this.is_class;
         val previous_is_static := this.is_static;
         val previous_env := this.current_env;
+        val previous_is_generated_interface := this.is_generated_interface;
         this.current_env := env;
         this.env := this.env.open_scope();
         this.is_class := false;
         this.is_static := false;
-        ScopeInfo(previous_is_class, previous_env, previous_is_static)
+        this.is_generated_interface := false;
+        ScopeInfo(previous_is_class, previous_env, previous_is_static, previous_is_generated_interface)
     end
 
     fun close_scope(sci : ScopeInfo) do 
         this.is_static := sci.previous_is_static;
         this.is_class := sci.previous_is_class;
         this.current_env := sci.previous_env;
+        this.is_generated_interface := sci.previous_is_generated_interface;
         this.env := this.env.close_scope();
     end
 end
@@ -115,10 +119,12 @@ class ScopeInfo where
     val previous_is_class : Bool;
     val previous_env : Env.Env(Ast.VarInfo);
     val previous_is_static : Bool;
-    new(pic : Bool, penv : Env.Env(Ast.VarInfo), pis : Bool) do 
+    val previous_is_generated_interface : Bool;
+    new(pic : Bool, penv : Env.Env(Ast.VarInfo), pis : Bool, pigi : Bool) do 
         this.previous_is_class := pic;
         this.previous_env := penv;
         this.previous_is_static := pis;
+        this.previous_is_generated_interface := pigi;
     end
 end
 
@@ -185,9 +191,58 @@ fun compile_decl(c : Compiler, decl : Ast.Decl) := match decl do
     case VarDecl(setter, lt, init, mutable, ?) := compile_var_decl(c, setter, lt, init, mutable);
     case FunDecl(name, params, return_type, body, ?, lenv) := compile_fun_decl(c, name, params, return_type, body, lenv);
     case ClassDecl(name, members, opt_constr, ?, lenv) := compile_class_decl(c, name, members, opt_constr, lenv.get());
+    case EnumDecl(name, variants, members, ?, lenv) := compile_enum_decl(c, name, variants, members, lenv.get());
 end;
 
+fun compile_enum_decl(c : Compiler, name : String, variants : Ast.EnumConstructor[], members : Ast.Decl[], env : Env.Env(Ast.VarInfo)) do 
+    val prefix := (if c.is_class then "public " else "") + (if c.is_static then "static " else "");
+    c.append(prefix);
+    c.append(" sealed interface "); c.append(name); c.append(" {");
+    c.indent(); c.newline();
+    val prv := c.open_scope(env);
+    c.is_class := true;
+    c.is_generated_interface := true;
+    for member in members do 
+        compile_decl(c, member);
+    end;
+    c.strip_trailing(); c.dedent(); c.newline();
+    c.append("}");
+    c.newline();
+    c.close_scope(prv);
+    for variant in variants do 
+        compile_enum_variant(c, name, prefix, variant);
+    end;
+end
 
+fun compile_enum_variant(c : Compiler, name : String, prefix : String, variant : Ast.EnumConstructor) do 
+    c.append(prefix); c.append(" record "); c.append(variant.name); c.append("(");
+    var i := 0;
+    var need_comma := false;
+    for field in variant.fields do 
+        if need_comma do c.append(", "); end;
+        c.append(compile_type(c, field)); c.append(" __field"+i); 
+        i := i + 1; need_comma := true; 
+    end; 
+    c.append(") implements "); c.append(name); c.append(" {");
+    c.indent(); c.newline();
+    c.append("@Override public String toString() {"); c.indent(); c.newline();
+        c.append("StringBuilder __builder = new StringBuilder();"); c.newline();
+        c.append("__builder.append(\""+variant.name+"(\");"); c.newline();
+        var needs_comma := false;
+        for i in [0..variant.fields.length] do 
+            if needs_comma do c.append("__builder.append(\", \");"); end;
+            c.append("__builder.append(__field"+i+"());"); c.newline();
+            needs_comma := true;
+        end;
+        c.append("__builder.append(\")\");"); c.newline();
+        c.append("return __builder.toString();"); c.dedent(); c.newline();
+        c.append("} "); c.dedent(); c.newline();
+    c.append("}"); c.newline();
+    val info := VariableInfo();
+    info.is_constructor := true;
+    info.is_no_fc_fn := true;
+    c.env.insert(variant.name, info);
+end
 
 fun compile_class_decl(c : Compiler, name : String, members : Ast.Decl[], constr : Util.Optional(Ast.Constructor), env : Env.Env(Ast.VarInfo)) do
     if c.is_class do 
@@ -323,6 +378,7 @@ do
     if c.is_class then do 
         c.append("public ");
         if c.is_static do c.append("static "); end; 
+        if c.is_generated_interface do c.append("default "); end;
         if is_main then do 
             c.append("void");
         end else do
