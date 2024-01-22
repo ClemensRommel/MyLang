@@ -51,7 +51,6 @@ public class Typechecker implements
         }
 
         runner.typecheckedFiles.put(name, new MyLangAST.Module(tc.currentFileName, tc.env));
-
         if(tc.hadError) {
             System.out.println("Following errors occured:");
             for(var error: tc.errors) {
@@ -1430,6 +1429,8 @@ public class Typechecker implements
             for(int i = 0; i < t.elements().size(); i++) {
                 checkType(t2.elements().get(i), t.elements().get(i));
             }
+        } else if(checkTarget.equals(voidType)) {
+            inferType(t);
         } else {
             typeMismatch(checkTarget, new TupleRep(t.elements().stream().map(this::inferType).toList()), p.prettyPrint(t));
         }

@@ -127,7 +127,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         env = env.closeScope();
     }
 
-    public String stringify(Object obj) {
+    public static String stringify(Object obj) {
         if(obj == null) {
             return "null";
         } else if(obj instanceof Double d) {
@@ -739,7 +739,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             closeScope();
         }
 
-        throw new InterpreterError("Non exhaustive match while matching "+matched.toString(), callStack);
+        throw new InterpreterError("Non exhaustive match while matching "+stringify(matched), callStack);
     }
 
     private boolean matches(Object o, Pattern p) {
@@ -809,7 +809,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         for(var expr: exprs) {
             resulting.add(interpretExpression(expr));
         }
-        return resulting.toArray();
+        return resulting.toArray(new Object[0]);
     }
     @Override
     public Boolean visitTuplePattern(TuplePattern tp) {

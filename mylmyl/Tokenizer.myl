@@ -35,9 +35,11 @@ end
 export class Token where 
     val kind : TokenType;
     val src : String;
-    new(k : TokenType, s : String) do 
+    val pos : SourcePos;
+    new(k : TokenType, s : String, p : SourcePos) do 
         this.kind := k;
         this.src := s;
+        this.pos := p;
     end
 end;
 
@@ -45,9 +47,12 @@ class Tokenizer where
     val source : String;
     var position : Number;
 
+    var sourcePos : SourcePos;
+
     new(s : String) do 
         this.source := s;
         this.position := 0;
+        this.sourcePos := SourcePos(0, 0);
     end;
 
     fun peek() : String := this.source[this.position];
@@ -55,6 +60,7 @@ class Tokenizer where
     fun next() : String do 
         val c := this.peek();
         this.position := this.position + 1;
+        this.sourcePos := nextPos(c, this.sourcePos);
         c
     end
 
@@ -74,7 +80,7 @@ class Tokenizer where
         while !this.at_end() do 
             this.parse_token(tokens);
         end;
-        tokens.push(Token(EOF(), ""));
+        tokens.push(Token(EOF(), "", this.sourcePos));
         tokens
     end
 
@@ -84,59 +90,59 @@ class Tokenizer where
             return null;
         end
         match c do 
-            case "(" := ls.push(Token(LPAREN(), "("));
-            case ")" := ls.push(Token(RPAREN(), ")"));
-            case "[" := ls.push(Token(LBRACKET(), "["));
-            case "]" := ls.push(Token(RBRACKET(), "]"));
-            case "{" := ls.push(Token(LBRACE(), "{"));
-            case "}" := ls.push(Token(RBRACE(), "}"));
-            case ";" := ls.push(Token(SEMICOLON(), ";"));
+            case "(" := ls.push(Token(LPAREN(), "(", this.sourcePos));
+            case ")" := ls.push(Token(RPAREN(), ")", this.sourcePos));
+            case "[" := ls.push(Token(LBRACKET(), "[", this.sourcePos));
+            case "]" := ls.push(Token(RBRACKET(), "]", this.sourcePos));
+            case "{" := ls.push(Token(LBRACE(), "{", this.sourcePos));
+            case "}" := ls.push(Token(RBRACE(), "}", this.sourcePos));
+            case ";" := ls.push(Token(SEMICOLON(), ";", this.sourcePos));
             case ":" := if this.peek() = "=" then do 
                 this.consume("=");
-                ls.push(Token(ASSIGN(), ":="));                
+                ls.push(Token(ASSIGN(), ":=", this.sourcePos));                
             end else do 
-                ls.push(Token(COLON(), ":"));
+                ls.push(Token(COLON(), ":", this.sourcePos));
             end;
             case "." := if this.peek() = "." then do 
                 this.consume(".");
-                ls.push(Token(DOTS(), ".."));
+                ls.push(Token(DOTS(), "..", this.sourcePos));
             end else do
-                ls.push(Token(DOT(), "."));
+                ls.push(Token(DOT(), ".", this.sourcePos));
             end;
-            case "," := ls.push(Token(COMMA(), ","));
-            case "+" := ls.push(Token(PLUS(), "+"));
-            case "-" := ls.push(Token(MINUS(), "-"));
-            case "*" := ls.push(Token(STAR(), "*"));
+            case "," := ls.push(Token(COMMA(), ",", this.sourcePos));
+            case "+" := ls.push(Token(PLUS(), "+", this.sourcePos));
+            case "-" := ls.push(Token(MINUS(), "-", this.sourcePos));
+            case "*" := ls.push(Token(STAR(), "*", this.sourcePos));
             case "/" := do 
                 val nxt := this.peek();
                 if nxt = "/" or nxt = "*" then do
                     this.comment();
                 end else do 
-                    ls.push(Token(SLASH(), "/"));
+                    ls.push(Token(SLASH(), "/", this.sourcePos));
                 end;
             end;
-            case "%" := ls.push(Token(PERCENT(), "%"));
-            case "^" := ls.push(Token(EXPO(), "^"));
+            case "%" := ls.push(Token(PERCENT(), "%", this.sourcePos));
+            case "^" := ls.push(Token(EXPO(), "^", this.sourcePos));
             case "<" := if this.peek() = "=" then do 
                 this.consume("=");
-                ls.push(Token(LESS_EQUAL(), "<="));
+                ls.push(Token(LESS_EQUAL(), "<=", this.sourcePos));
             end else do 
-                ls.push(Token(LESS(), "<"));
+                ls.push(Token(LESS(), "<", this.sourcePos));
             end;
             case ">" := if this.peek() = "=" then do 
                 this.consume("=");
-                ls.push(Token(GREATER_EQUAL(), ">="));
+                ls.push(Token(GREATER_EQUAL(), ">=", this.sourcePos));
             end else do 
-                ls.push(Token(GREATER(), ">"));
+                ls.push(Token(GREATER(), ">", this.sourcePos));
             end;
-            case "=" := ls.push(Token(EQUAL(), "="));
+            case "=" := ls.push(Token(EQUAL(), "=", this.sourcePos));
             case "!" := if this.peek() = "=" then do 
                 this.consume("=");
-                ls.push(Token(NOT_EQUAL(), "!="));
+                ls.push(Token(NOT_EQUAL(), "!=", this.sourcePos));
             end else do 
-                ls.push(Token(BANG(), "!"));
+                ls.push(Token(BANG(), "!", this.sourcePos));
             end;
-            case "?" := ls.push(Token(QUESTION_MARK(), "?"));
+            case "?" := ls.push(Token(QUESTION_MARK(), "?", this.sourcePos));
             case "\"" := do 
                 var content := "";
                 var running := true;
@@ -170,9 +176,10 @@ class Tokenizer where
                         end;
                     end else do 
                         content := content + next;
+                        true;
                     end;
                 end;
-                ls.push(Token(STRING_LITERAL(), content));
+                ls.push(Token(STRING_LITERAL(), content, this.sourcePos));
             end;
             
             case c := 
@@ -181,7 +188,7 @@ class Tokenizer where
                     while !this.at_end() and matches(this.peek(), "[a-zA-Z0-9]|_") do 
                         ident := ident + this.next();
                     end;
-                    ls.push(Token(this.identifierToken(ident), ident));
+                    ls.push(Token(this.identifierToken(ident), ident, this.sourcePos));
                 end else if matches(c, "[0-9]") then do 
                     var n := c;
                     while !this.at_end() and matches(this.peek(), "[0-9]") do 
@@ -193,7 +200,7 @@ class Tokenizer where
                             n := n + this.next();
                         end;
                     end;
-                    ls.push(Token(NUMBER_LITERAL(), n));
+                    ls.push(Token(NUMBER_LITERAL(), n, this.sourcePos));
                 end else do 
                     panic("Invalid character: "+c);
                 end;
@@ -263,6 +270,20 @@ class Tokenizer where
         end;
     end
 end;
+
+class SourcePos where 
+    val line : Number;
+    val collumn : Number;
+    new(l : Number, c : Number) do 
+        this.line := l; this.collumn := c;
+    end
+end
+
+fun nextPos(c : String, pos : SourcePos) : SourcePos := 
+    if c = "\n" then 
+        SourcePos(pos.line + 1, 0)
+    else 
+        SourcePos(pos.line, pos.collumn + 1);
 
 fun getContent(content: String): Util.Optional(String) do
     val fileContent := openFile(content);

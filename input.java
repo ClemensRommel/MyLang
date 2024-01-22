@@ -41,6 +41,11 @@ class Main {
         final Test testval;
         testval = new A(3.0);
         System.out.println(testval);
+        switch(testval) {
+            case A(double x) -> {System.out.println("a with "+x);}
+            case B(String a, double b) -> {System.out.println("B with "+a+" and "+b);}
+            case C(ArrayList<Test> c) -> {System.out.println("C with "+c);}
+        }
     }
     
     public static void main(String[] args) {

@@ -25,7 +25,7 @@ class Parser where
     fun consume(t : Tokenizer.TokenType, error : String) : Tokenizer.Token do 
         val nxt := this.next();
         if nxt.kind != t do
-            panic("Unexpected "+nxt.kind+": "+error);
+            panic("["+nxt.pos.line+":"+nxt.pos.collumn+"]: Unexpected "+nxt.kind+": "+error);
         end;
         nxt
     end
@@ -322,11 +322,69 @@ fun primary(p : Parser) : Ast.Expr :=
         for_loop(p)
     end else if p.matches(Tokenizer.WHILE()) then do 
         while_loop(p)
+    end else if p.matches(Tokenizer.MATCH()) then do 
+        match_expr(p)
     end else do 
         literal(p)
     end;
 
-fun while_loop(p : Parser) : Ast.Expr do 
+fun match_expr(p : Parser) : Ast.Expr do 
+    val matched := expr(p);
+    p.consume(Tokenizer.DO(), "Expect 'do' after matched expression");
+    val cases : (Ast.Pattern, Ast.Expr)[] := [];
+    while !p.matches(Tokenizer.END()) do
+        p.consume(Tokenizer.CASE(), "Expect 'case' to start pattern");
+        val pat := pattern(p);
+        p.consume(Tokenizer.ASSIGN(), "Expect ':=' after pattern");
+        val result := expr(p);
+        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after case arm");
+        cases.push((pat, result));
+    end;
+    Ast.MatchExpr(matched, cases)
+end
+
+fun pattern(p : Parser) : Ast.Pattern :=
+    if p.matches(Tokenizer.NUMBER_LITERAL()) then do 
+        val token := p.previous();
+        Ast.NumericPattern(number(token.src))
+    end else if p.matches(Tokenizer.STRING_LITERAL()) then do 
+        val token := p.previous();
+        Ast.StringPattern(token.src)
+    end else if p.matches(Tokenizer.TRUE()) then do 
+        Ast.BooleanPattern(true)
+    end else if p.matches(Tokenizer.FALSE()) then do 
+        Ast.BooleanPattern(false)
+    end else if p.matches(Tokenizer.QUESTION_MARK()) then do 
+        Ast.WildcardPattern()
+    end else if p.matches(Tokenizer.LPAREN()) then do 
+        val parts : Ast.Pattern[] := [];
+        var needs_comma := false;
+        while !p.matches(Tokenizer.RPAREN()) do 
+            if needs_comma do p.consume(Tokenizer.COMMA(), "Expect comma to separate tuple pattern parts") end;
+            parts.push(pattern(p));
+        end;
+        Ast.TuplePattern(parts)
+    end else if p.matches(Tokenizer.IDENTIFIER()) then do 
+        val name := p.previous().src;
+        if p.matches(Tokenizer.LPAREN()) then do 
+            val parts : Ast.Pattern[] := [];
+            var needs_comma := false;
+            while !p.matches(Tokenizer.RPAREN()) do 
+                if needs_comma do p.consume(Tokenizer.COMMA(), "Expect comma to separate constructor pattern parameters") end;
+                parts.push(pattern(p));
+                needs_comma := true;
+            end;
+            Ast.ConstructorPattern(name, parts)
+        end else do 
+            Ast.NamePattern(name)
+        end
+        
+    end else do 
+        panic("Unexpected "+p.next().kind+", expected start of pattern")
+    end;
+
+
+fun while_loop(p : Parser) : Ast.Expr do
     val cond := expr(p);
     p.consume(Tokenizer.DO(), "Expect 'do' before while loop body");
     val body := block_expr(p);

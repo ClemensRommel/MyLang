@@ -14,6 +14,7 @@ enum Expr where
     FunctionCall(Expr, Expr[]),
     FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Env.Env(VarInfo))),
     IfExpr(Util.LateInitialized(Type), Expr, Expr, Expr),
+    MatchExpr(Expr, (Pattern, Expr)[]),
     ListExpr(Expr[], Util.LateInitialized(Type)),
     RangeExpr(Expr, Expr),
     IndexExpr(Expr, Expr),
@@ -23,7 +24,17 @@ enum Expr where
     WhileExpr(Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type)),
     ForExpr(Setter, Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type), Util.LateInitialized(Type)),
     ThisExpr();
-end;
+end
+
+enum Pattern where 
+    NumericPattern(Number),
+    StringPattern(String),
+    BooleanPattern(Bool),
+    NamePattern(String),
+    WildcardPattern(),
+    TuplePattern(Pattern[]),
+    ConstructorPattern(String, Pattern[]);
+end
 
 enum AccessType where 
     FieldAccess(), MethodAccess();
@@ -31,10 +42,10 @@ end
 
 enum BinOp where 
     Add(), Sub(), Mul(), Div(), Mod(), LessThan(), LessEqual(), GreaterEqual(), GreaterThan(), Equals(), NotEquals(), And(), Or(), Xor();
-end;
+end
 enum UnOp where 
     Plus(), Minus(), Not();
-end; 
+end
 
 export enum Stmt where 
     ExprStmt(Expr),
