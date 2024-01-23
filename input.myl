@@ -9,6 +9,7 @@ fun main() : Void do
     print match testval do 
         case A(3) := "A of 3";
         case A(?) := "A of anything";
+        case B("hello", zahl) := "B of hello and zahl";
         case B(first, last) := "B of bla und blub";
         case C(vals) := "C of multiple things";
     end;

@@ -40,12 +40,19 @@ class Main {
     public static void main() {
         final Test testval;
         testval = new A(3.0);
-        System.out.println(testval);
+        final String __a0;
         switch(testval) {
-            case A(double x) -> {System.out.println("a with "+x);}
-            case B(String a, double b) -> {System.out.println("B with "+a+" and "+b);}
-            case C(ArrayList<Test> c) -> {System.out.println("C with "+c);}
+            case A(double x) -> {__a0 = "A of 3";
+            }
+            //case A(var __a1) -> {__a0 = "A of anything";
+            // }
+            case B(String s, double x) -> {__a0 = "B of hello and zahl";
+            }
+            case C(var vals) -> {__a0 = "C of multiple things";
+            }
+            
         }
+        System.out.println(__a0);
     }
     
     public static void main(String[] args) {

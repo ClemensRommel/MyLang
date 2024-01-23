@@ -443,14 +443,16 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
         check(tc, idx, Ast.NumberT());
         check(tc, lst, Ast.ListOf(t));
     end;
-    case MatchExpr(matched, arms) := do
+    case MatchExpr(matched, arms, lty) := do
         val matched_ty := infer(tc, matched);
-        for (pattern, expr) in arms do
+        for (pattern, expr, lenv) in arms do
             tc.open_scope(); 
                 check_pattern(tc, pattern, matched_ty);
                 check(tc, expr, t);
+                lenv.init(tc.env);
             tc.close_scope();
         end;
+        lty.init(t);
     end;
 end;
 
@@ -692,13 +694,13 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         val ListOf(et) := list_ty else panic("Require indexed object to be a list, not "+list_ty+" in "+e);
         et
     end;
-    case MatchExpr(matched, arms) := do 
+    case MatchExpr(matched, arms, lty) := do 
         val matched_ty := infer(t, matched);
         if arms.length = 0 do 
             panic("Cannot infer type of match with out arms: "+e);
         end;
         var resulting := Util.None.[Ast.Type]();
-        for (pattern, expr) in arms do 
+        for (pattern, expr, lenv) in arms do 
             t.open_scope();
                 check_pattern(t, pattern, matched_ty);
                 fun infer_match_ty() do 
@@ -714,9 +716,11 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
                 end else do 
                     infer_match_ty();
                 end;
+                lenv.init(t.env);
             t.close_scope();
         end;
         if val Some(t) := resulting then do 
+            lty.init(t);
             t
         end else do 
             panic("Could not infer resulting type of "+e)

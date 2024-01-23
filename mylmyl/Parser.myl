@@ -3,6 +3,7 @@ module Parser;
 import Tokenizer;
 import Ast;
 import Util;
+import Env;
 
 class Parser where 
     val tokens : Tokenizer.Token[];
@@ -331,16 +332,16 @@ fun primary(p : Parser) : Ast.Expr :=
 fun match_expr(p : Parser) : Ast.Expr do 
     val matched := expr(p);
     p.consume(Tokenizer.DO(), "Expect 'do' after matched expression");
-    val cases : (Ast.Pattern, Ast.Expr)[] := [];
+    val cases : (Ast.Pattern, Ast.Expr, Util.LateInitialized(Env.Env(Ast.VarInfo)))[] := [];
     while !p.matches(Tokenizer.END()) do
         p.consume(Tokenizer.CASE(), "Expect 'case' to start pattern");
         val pat := pattern(p);
         p.consume(Tokenizer.ASSIGN(), "Expect ':=' after pattern");
         val result := expr(p);
         p.consume(Tokenizer.SEMICOLON(), "Expect ';' after case arm");
-        cases.push((pat, result));
+        cases.push((pat, result, Ast.late_env()));
     end;
-    Ast.MatchExpr(matched, cases)
+    Ast.MatchExpr(matched, cases, Ast.late_type())
 end
 
 fun pattern(p : Parser) : Ast.Pattern :=

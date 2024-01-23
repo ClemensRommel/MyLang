@@ -454,18 +454,22 @@ fun use_with_target(c : Compiler, expr : String, target : Target) : String do
     end
 end
 
+fun escape_string(str : String) : String do 
+    var resulting := str;
+    resulting := replace(resulting, "\\", "\\\\");
+    resulting := replace(resulting, "\n", "\\n");
+    resulting := replace(resulting, "\t", "\\t");
+    resulting := replace(resulting, "\r", "\\r");
+    resulting := replace(resulting, "\"", "\\\"");
+    resulting := replace(resulting, "\0", "\\0");
+    resulting := "\"" + resulting + "\"";
+    resulting
+end
+
 fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := match expr do 
     case NumberLiteral(n) := use_with_target(c, if n % 1 = 0 then n + ".0" else n+"", target);
     case StringLiteral(str) := do 
-        var resulting := str;
-        resulting := replace(resulting, "\\", "\\\\");
-        resulting := replace(resulting, "\n", "\\n");
-        resulting := replace(resulting, "\t", "\\t");
-        resulting := replace(resulting, "\r", "\\r");
-        resulting := replace(resulting, "\"", "\\\"");
-        resulting := replace(resulting, "\0", "\\0");
-        resulting := "\"" + resulting + "\"";
-        use_with_target(c, resulting, target)
+        use_with_target(c, escape_string(str), target)
     end;
     case ThisExpr() := use_with_target(c, "this", target);
     case TupleExpr(subexprs, lt) := compile_tuple(c, subexprs, lt.get(), target);
@@ -484,6 +488,45 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case FunctionExpr(params, return_type, body, lenv) := compile_function_expr(c, params, return_type, body, lenv.get(), target);
     case PropertyExpr(obj, name, la, lt, lft) := compile_property(c, obj, name, la.get(), lt.get(), lft.get(), target);
     case IndexExpr(lst, idx) := compile_index(c, lst, idx, target);
+    case MatchExpr(matched, arms, lretty) := compile_match(c, matched, arms, lretty.get(), target);
+end;
+
+fun compile_match(c : Compiler, matched : Ast.Expr, arms : (Ast.Pattern, Ast.Expr, Util.LateInitialized(Env.Env(Ast.VarInfo)))[], ret_ty : Ast.Type, target : Target) : String do 
+    val matched_compiled := compile_expr(c, matched, UsedDirectly());
+    val arm_target := if val UsedDirectly() := target then do 
+        val temp_var := c.new_var();
+        c.append("final "); c.append(compile_type(c, ret_ty)); c.append(" "); c.append(temp_var); c.append(";"); c.newline();
+        AssignTo(Ast.Variable(temp_var))
+    end else target;
+    c.append("switch(");c.append(matched_compiled); c.append(") {"); c.indent(); c.newline();
+    for (patt, expr, lenv) in arms do 
+        val prv := c.open_scope(lenv.get());
+        c.append("case "); compile_pattern(c, patt); c.append(" -> {"); compile_expr(c, expr, arm_target); c.append("}"); c.newline();
+        c.close_scope(prv);
+    end;
+    c.dedent(); c.newline(); c.append("}"); c.newline();
+    if val UsedDirectly() := target then do 
+        val AssignTo(Variable(temp)) := arm_target else panic("Unreachable: Invalid arm target");
+        temp
+    end else ""
+end;
+
+fun compile_pattern(c : Compiler, pattern : Ast.Pattern) := match pattern do 
+    case NumericPattern(n) := c.append(""+n);
+    case StringPattern(str) := c.append(escape_string(str));
+    case BooleanPattern(b) := c.append(""+b);
+    case NamePattern(n) := c.append(n);
+    case WildcardPattern() := c.append(c.new_var());
+    case ConstructorPattern(name, subpatterns) := do 
+        c.append(name); c.append("(");
+        var needs_comma := false;
+        for pat in subpatterns do 
+            if needs_comma do c.append(", "); end;
+            compile_pattern(c, pat);
+            needs_comma := true;
+        end;
+        c.append(")");
+    end;
 end;
 
 fun compile_range_expr(c : Compiler, start : Ast.Expr, end_expr : Ast.Expr, target : Target) : String do

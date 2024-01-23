@@ -14,7 +14,7 @@ enum Expr where
     FunctionCall(Expr, Expr[]),
     FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Env.Env(VarInfo))),
     IfExpr(Util.LateInitialized(Type), Expr, Expr, Expr),
-    MatchExpr(Expr, (Pattern, Expr)[]),
+    MatchExpr(Expr, (Pattern, Expr, Util.LateInitialized(Env.Env(VarInfo)))[], Util.LateInitialized(Type)),
     ListExpr(Expr[], Util.LateInitialized(Type)),
     RangeExpr(Expr, Expr),
     IndexExpr(Expr, Expr),
