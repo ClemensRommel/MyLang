@@ -4,6 +4,7 @@ import Env;
 import Util;
 
 enum Expr where 
+    DesugarableExpr(MutExpr),
     NumberLiteral(Number),
     StringLiteral(String),
     Boolean(Bool),
@@ -14,7 +15,8 @@ enum Expr where
     FunctionCall(Expr, Expr[]),
     FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Env.Env(VarInfo))),
     IfExpr(Util.LateInitialized(Type), Expr, Expr, Expr),
-    MatchExpr(Expr, (Pattern, Expr, Util.LateInitialized(Env.Env(VarInfo)))[], Util.LateInitialized(Type)),
+    IfValExpr(Util.LateInitialized(Type), Pattern, Expr, Expr, Expr, Util.LateInitialized(Env.Env(VarInfo))),
+    MatchExpr(Expr, (Pattern, Expr, Util.LateInitialized(Env.Env(VarInfo)))[], Util.LateInitialized(Type), Util.LateInitialized(Type)),
     ListExpr(Expr[], Util.LateInitialized(Type)),
     RangeExpr(Expr, Expr),
     IndexExpr(Expr, Expr),
@@ -24,6 +26,11 @@ enum Expr where
     WhileExpr(Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type)),
     ForExpr(Setter, Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type), Util.LateInitialized(Type)),
     ThisExpr();
+end
+
+class MutExpr where 
+    var expr : Expr;
+    new(e : Expr) do this.expr := e; end
 end
 
 enum Pattern where 

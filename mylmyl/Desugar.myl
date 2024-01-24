@@ -1,0 +1,7 @@
+module Desugar;
+
+import Ast;
+
+fun desugar(program : Ast.Program) : Ast.Program := do 
+    val resulting_decls : Ast.Decl[] := [];
+end;

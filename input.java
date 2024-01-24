@@ -38,17 +38,18 @@ class Main {
         } 
     }
     public static void main() {
-        final Test testval;
-        testval = new A(3.0);
+        final double x;
+        x = -1.5;
         final String __a0;
-        switch(testval) {
-            case A(double x) -> {__a0 = "A of 3";
+        switch((Double) x) {
+            case Double __a1 when __a1 == 3 -> {
+                __a0 = "3";
             }
-            //case A(var __a1) -> {__a0 = "A of anything";
-            // }
-            case B(String s, double x) -> {__a0 = "B of hello and zahl";
+            case Double __a2 when __a2 == 4 -> {
+                __a0 = "4";
             }
-            case C(var vals) -> {__a0 = "C of multiple things";
+            case Double y -> {
+                __a0 = "other";
             }
             
         }

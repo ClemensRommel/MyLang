@@ -33,7 +33,7 @@ fun mentions_var(expr : Ast.Expr, name : String) : Bool := match expr do
     case ThisExpr() := false;
     case ListExpr(exprs, ?) := Util.any.[Ast.Expr](exprs, fun(t) := mentions_var(t, name));
     case IndexExpr(lst, idx) := mentions_var(lst, name) or mentions_var(idx, name);
-    case MatchExpr(matched, arms, ?) := mentions_var(matched, name) or do 
+    case MatchExpr(matched, arms, ?, ?) := mentions_var(matched, name) or do 
         var mentions := false;
         for (?, e, ?) in arms do 
             mentions := mentions or mentions_var(e, name);
@@ -160,7 +160,7 @@ fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
             analyze_expr(scan_env, iterated);
             analyze_expr(scan_env, body);
         end;
-        case MatchExpr(matched, arms, ?) := do 
+        case MatchExpr(matched, arms, ?, ?) := do 
             analyze_expr(scan_env, matched);
             for (?, e, ?) in arms do 
                 analyze_expr(scan_env, e);
@@ -229,7 +229,7 @@ fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
             scan_expr(scan_env, iterated);
             scan_expr(scan_env, body);
         end;
-        case MatchExpr(matched, arms, ?) := do 
+        case MatchExpr(matched, arms, ?, ?) := do 
             scan_expr(scan_env, matched);
             for (?, e, ?) in arms do 
                 scan_expr(scan_env, e);

@@ -56,7 +56,7 @@ class Tokenizer where
     end;
 
     fun peek() : String := this.source[this.position];
-    fun peekNext() : String := this.source[this.position];
+    fun peekNext() : String := this.source[this.position+1];
     fun next() : String do 
         val c := this.peek();
         this.position := this.position + 1;

@@ -1,16 +1,12 @@
-enum Test where
-    A(Number), B(String, Number), C(Test[]);
-
-    fun get_one() : Number := 1; 
+enum Test where 
+    A(Number), B();
 end
 
 fun main() : Void do
-    val testval : Test := A(3);
-    print match testval do 
-        case A(3) := "A of 3";
-        case A(?) := "A of anything";
-        case B("hello", zahl) := "B of hello and zahl";
-        case B(first, last) := "B of bla und blub";
-        case C(vals) := "C of multiple things";
-    end;
+    val test := A(3);
+    if val A(n) := test then do 
+        print "A";
+    end else do 
+        print "B";
+    end
 end

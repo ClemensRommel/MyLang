@@ -315,7 +315,8 @@ fun compile_variables(c : Compiler, setter : Ast.Setter, ty : Ast.Type, is_globa
     end;
 end
 
-fun compile_var_decl(c : Compiler, setter : Ast.Setter, lt : Util.LateInitialized(Ast.Type), init : Util.Optional(Ast.Expr), mutable : Bool) do
+fun compile_var_decl(c : Compiler, setter : Ast.Setter, lt : Util.LateInitialized(Ast.Type), init_mut : Util.Optional(Ast.Expr), mutable : Bool) do
+    val init := if val Some(e) := init_mut then Util.Some.[Ast.Expr](e) else Util.None.[Ast.Expr]();
     if c.is_class then do
         compile_variables(c, setter, lt.get(), true, mutable, false);
         if val Some(e) := init then do 
@@ -488,20 +489,20 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case FunctionExpr(params, return_type, body, lenv) := compile_function_expr(c, params, return_type, body, lenv.get(), target);
     case PropertyExpr(obj, name, la, lt, lft) := compile_property(c, obj, name, la.get(), lt.get(), lft.get(), target);
     case IndexExpr(lst, idx) := compile_index(c, lst, idx, target);
-    case MatchExpr(matched, arms, lretty) := compile_match(c, matched, arms, lretty.get(), target);
+    case MatchExpr(matched, arms, lmatchty, lretty) := compile_match(c, matched, arms, lmatchty.get(), lretty.get(), target);
 end;
 
-fun compile_match(c : Compiler, matched : Ast.Expr, arms : (Ast.Pattern, Ast.Expr, Util.LateInitialized(Env.Env(Ast.VarInfo)))[], ret_ty : Ast.Type, target : Target) : String do 
+fun compile_match(c : Compiler, matched : Ast.Expr, arms : (Ast.Pattern, Ast.Expr, Util.LateInitialized(Env.Env(Ast.VarInfo)))[], matched_ty : Ast.Type, ret_ty : Ast.Type, target : Target) : String do 
     val matched_compiled := compile_expr(c, matched, UsedDirectly());
     val arm_target := if val UsedDirectly() := target then do 
         val temp_var := c.new_var();
         c.append("final "); c.append(compile_type(c, ret_ty)); c.append(" "); c.append(temp_var); c.append(";"); c.newline();
         AssignTo(Ast.Variable(temp_var))
     end else target;
-    c.append("switch(");c.append(matched_compiled); c.append(") {"); c.indent(); c.newline();
+    c.append("switch("); if val NumberT() := matched_ty then do c.append("(Double) "); end else do end; c.append(matched_compiled); c.append(") {"); c.indent(); c.newline();
     for (patt, expr, lenv) in arms do 
         val prv := c.open_scope(lenv.get());
-        c.append("case "); compile_pattern(c, patt); c.append(" -> {"); compile_expr(c, expr, arm_target); c.append("}"); c.newline();
+        c.append("case "); compile_pattern(c, patt, matched_ty); c.append(" -> {"); c.indent(); c.newline(); compile_expr(c, expr, arm_target); c.strip_trailing(); c.dedent(); c.newline(); c.append("}"); c.newline();
         c.close_scope(prv);
     end;
     c.dedent(); c.newline(); c.append("}"); c.newline();
@@ -511,18 +512,58 @@ fun compile_match(c : Compiler, matched : Ast.Expr, arms : (Ast.Pattern, Ast.Exp
     end else ""
 end;
 
-fun compile_pattern(c : Compiler, pattern : Ast.Pattern) := match pattern do 
-    case NumericPattern(n) := c.append(""+n);
-    case StringPattern(str) := c.append(escape_string(str));
-    case BooleanPattern(b) := c.append(""+b);
-    case NamePattern(n) := c.append(n);
-    case WildcardPattern() := c.append(c.new_var());
+fun compile_pattern(c : Compiler, pattern : Ast.Pattern, matched_ty : Ast.Type) do 
+    if val StringPattern(str) := pattern then do 
+        c.append(escape_string(str));
+    end else if val BooleanPattern(b) := pattern then do 
+        c.append(""+b);
+    end else if val NumericPattern(n) := pattern then do 
+        val temp := c.new_var();
+        c.append("Double "+temp+" when "+temp+" == "+n);
+    end else if val NamePattern(n) := pattern then do 
+        val prv_box_ty := c.expect_ref_ty;
+        c.expect_ref_ty := true;
+        c.append(compile_type(c, matched_ty)); c.append(" "); c.append(n);
+        c.expect_ref_ty := prv_box_ty;
+    end else do 
+        val guard_queue : String[] := [];
+        compile_complex_pattern(c, pattern, guard_queue);
+        if guard_queue.length > 0 do 
+            c.append(" when ");
+            var needs_and := false;
+            for guard in guard_queue do 
+                if needs_and do c.append(" && "); end;
+                c.append(guard);
+                needs_and := true;
+            end
+        end
+    end;
+end
+
+fun compile_complex_pattern(c : Compiler, pattern : Ast.Pattern, guard_queue : String[]) := match pattern do 
+    case NumericPattern(n) := do 
+        val variable := c.new_var(); 
+        c.append("var "+variable); 
+        guard_queue.push(variable+" == "+n); 
+    end;
+    case StringPattern(str) := do 
+        val variable := c.new_var();
+        c.append("String "+variable);
+        guard_queue.push(variable+".equals("+escape_string(str)+")");
+    end;
+    case BooleanPattern(b) := do 
+        val variable := c.new_var();
+        c.append("var "+variable);
+        guard_queue.push(if b then variable else "!"+variable);
+    end;
+    case NamePattern(n) := c.append("var "+n);
+    case WildcardPattern() := c.append("var "+c.new_var());
     case ConstructorPattern(name, subpatterns) := do 
         c.append(name); c.append("(");
         var needs_comma := false;
         for pat in subpatterns do 
             if needs_comma do c.append(", "); end;
-            compile_pattern(c, pat);
+            compile_complex_pattern(c, pat, guard_queue);
             needs_comma := true;
         end;
         c.append(")");

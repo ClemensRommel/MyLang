@@ -341,7 +341,7 @@ fun match_expr(p : Parser) : Ast.Expr do
         p.consume(Tokenizer.SEMICOLON(), "Expect ';' after case arm");
         cases.push((pat, result, Ast.late_env()));
     end;
-    Ast.MatchExpr(matched, cases, Ast.late_type())
+    Ast.MatchExpr(matched, cases, Ast.late_type(), Ast.late_type())
 end
 
 fun pattern(p : Parser) : Ast.Pattern :=
@@ -457,12 +457,23 @@ fun is_stmt_start(p : Parser) : Bool := is_decl_start(p) or p.peek().kind = Toke
 
 // Expects that if is already consumed
 fun if_expr(p : Parser) : Ast.Expr do 
-    val cond := expr(p);
-    p.consume(Tokenizer.THEN(), "Expect then branch after if condition");
-    val thenBranch := expr(p);
-    p.consume(Tokenizer.ELSE(), "Expect else branch in if expression");
-    val elseBranch := expr(p);
-    Ast.IfExpr(Ast.late_type(), cond, thenBranch, elseBranch)
+    if p.matches(Tokenizer.VAL()) then do 
+        val pat := pattern(p);
+        p.consume(Tokenizer.ASSIGN(), "Expect := after pattern of if val expression");
+        val matched := expr(p);
+        p.consume(Tokenizer.THEN(), "Expect then branch after if val condition");
+        val thenBranch := expr(p);
+        p.consume(Tokenizer.ELSE(), "Expect else branch in if val expression");
+        val elseBranch := expr(p);
+        Ast.IfValExpr(Ast.late_type(), pat, matched, thenBranch, elseBranch, Ast.late_env())
+    end else do 
+        val cond := expr(p);
+        p.consume(Tokenizer.THEN(), "Expect then branch after if condition");
+        val thenBranch := expr(p);
+        p.consume(Tokenizer.ELSE(), "Expect else branch in if expression");
+        val elseBranch := expr(p);
+        Ast.IfExpr(Ast.late_type(), cond, thenBranch, elseBranch)
+    end
 end
 
 fun literal(p : Parser) : Ast.Expr :=
