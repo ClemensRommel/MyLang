@@ -3,6 +3,7 @@ module Main;
 import Parser;
 import Compiler;
 import Typechecker;
+import Desugar;
 
 fun main() do 
     val cli_args := args();
@@ -13,8 +14,9 @@ fun main() do
     if isNull(source) do 
         panic("Could not open file");
     end;
-    val ast := Parser.parse(source);
+    val (ast, to_be_desugared) := Parser.parse(source);
     val globals := Typechecker.typecheck(ast);
+    Desugar.desugar(to_be_desugared);
     val compiled := Compiler.compile(ast, globals);
     print(compiled);
 end

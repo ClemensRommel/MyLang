@@ -17,6 +17,7 @@ fun analyze_captures(stmts : Ast.Stmt[], last : Util.Optional(Ast.Expr)) : Env.A
 end
 
 fun mentions_var(expr : Ast.Expr, name : String) : Bool := match expr do
+    case DesugarableExpr(content) := mentions_var(content.get(), name);
     case NumberLiteral(?) := false;
     case StringLiteral(?) := false;
     case Boolean(?) := false;
@@ -106,6 +107,7 @@ end
 // Search for possible captures in this function
 fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do 
     match expr do 
+        case DesugarableExpr(content) := analyze_expr(scan_env, content.get());
         case BinaryOperation(?, left, right) := do 
             analyze_expr(scan_env, left);
             analyze_expr(scan_env, right);
@@ -172,6 +174,7 @@ end
 
 fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do 
     match expr do 
+        case DesugarableExpr(content) := scan_expr(scan_env, content.get());
         case BinaryOperation(?, left, right) := do 
             scan_expr(scan_env, left);
             scan_expr(scan_env, right);

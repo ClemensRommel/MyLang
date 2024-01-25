@@ -3,7 +3,7 @@ enum Test where
 end
 
 fun main() : Void do
-    val test := A(3);
+    val test := B();
     if val A(n) := test then do 
         print "A";
     end else do 

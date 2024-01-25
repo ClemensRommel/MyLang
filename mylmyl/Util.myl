@@ -2,6 +2,11 @@ module Util;
 
 export enum Optional(T) where
     None(), Some(T);
+
+    fun unwrap() : T := match this do 
+        case Some(t) := t;
+        case None() := panic("Error: called unwrap on empty Optional");
+    end;
 end;
 
 export class LateInitialized(T) where

@@ -1,7 +1,28 @@
 module Desugar;
 
 import Ast;
+import Util;
+import Env;
 
-fun desugar(program : Ast.Program) : Ast.Program := do 
-    val resulting_decls : Ast.Decl[] := [];
+fun desugar(sugared : Ast.MutExpr[]) do 
+    for expr in sugared do 
+        expr.set(desugar_expr(expr.get()));
+    end
 end;
+
+fun desugar_expr(e : Ast.Expr) : Ast.Expr := match e do 
+    case IfValExpr(return_ty, pat, matched, thenBr, elseBr, env, match_ty) := Ast.MatchExpr(
+        matched,
+        [(pat, thenBr, env), (Ast.WildcardPattern(), elseBr, get_outer_env(env))],
+        match_ty,
+        return_ty
+    );
+end;
+
+fun get_outer_env(e : Util.LateInitialized(Env.Env(Ast.VarInfo))) : Util.LateInitialized(Env.Env(Ast.VarInfo)) do 
+    val other := Ast.late_env();
+    if e.is_init() do 
+        other.init(e.get().get_outer());
+    end;
+    other
+end

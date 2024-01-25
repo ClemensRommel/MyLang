@@ -468,6 +468,7 @@ fun escape_string(str : String) : String do
 end
 
 fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := match expr do 
+    case DesugarableExpr(content) := compile_expr(c, content.get(), target);
     case NumberLiteral(n) := use_with_target(c, if n % 1 = 0 then n + ".0" else n+"", target);
     case StringLiteral(str) := do 
         use_with_target(c, escape_string(str), target)
@@ -527,7 +528,7 @@ fun compile_pattern(c : Compiler, pattern : Ast.Pattern, matched_ty : Ast.Type) 
         c.expect_ref_ty := prv_box_ty;
     end else do 
         val guard_queue : String[] := [];
-        compile_complex_pattern(c, pattern, guard_queue);
+        compile_complex_pattern(c, pattern, guard_queue, matched_ty);
         if guard_queue.length > 0 do 
             c.append(" when ");
             var needs_and := false;
@@ -540,7 +541,7 @@ fun compile_pattern(c : Compiler, pattern : Ast.Pattern, matched_ty : Ast.Type) 
     end;
 end
 
-fun compile_complex_pattern(c : Compiler, pattern : Ast.Pattern, guard_queue : String[]) := match pattern do 
+fun compile_complex_pattern(c : Compiler, pattern : Ast.Pattern, guard_queue : String[], matched_ty : Ast.Type) := match pattern do 
     case NumericPattern(n) := do 
         val variable := c.new_var(); 
         c.append("var "+variable); 
@@ -553,17 +554,17 @@ fun compile_complex_pattern(c : Compiler, pattern : Ast.Pattern, guard_queue : S
     end;
     case BooleanPattern(b) := do 
         val variable := c.new_var();
-        c.append("var "+variable);
+        c.append(compile_type(c, matched_ty)+" "+variable);
         guard_queue.push(if b then variable else "!"+variable);
     end;
-    case NamePattern(n) := c.append("var "+n);
-    case WildcardPattern() := c.append("var "+c.new_var());
-    case ConstructorPattern(name, subpatterns) := do 
+    case NamePattern(n) := c.append(compile_type(c, matched_ty)+" "+n);
+    case WildcardPattern() := c.append(compile_type(c, matched_ty)+" "+c.new_var());
+    case ConstructorPattern(name, subpatterns, constr) := do 
         c.append(name); c.append("(");
         var needs_comma := false;
-        for pat in subpatterns do 
+        for i in [0..subpatterns.length] do 
             if needs_comma do c.append(", "); end;
-            compile_complex_pattern(c, pat, guard_queue);
+            compile_complex_pattern(c, subpatterns[i], guard_queue, constr.get().fields[i]);
             needs_comma := true;
         end;
         c.append(")");

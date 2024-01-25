@@ -9,7 +9,7 @@ class Parser where
     val tokens : Tokenizer.Token[];
     var pos : Number;
 
-    val to_be_desugared : Ast.MutExpr[];
+    val to_be_desugared : Ast.MutExpr[] := [];
 
     new(source : String) do
         this.tokens := Tokenizer.tokenize(source);
@@ -52,9 +52,10 @@ class Parser where
     end;
 end;
 
-export fun parse(source : String) : Ast.Program do 
+export fun parse(source : String) : (Ast.Program, Ast.MutExpr[]) do 
     val parser := Parser(source);
-    program(parser)
+    val prg := program(parser); 
+    (prg, parser.to_be_desugared)
 end
 
 fun program(p : Parser) : Ast.Program do 
@@ -383,7 +384,7 @@ fun pattern(p : Parser) : Ast.Pattern :=
                 parts.push(pattern(p));
                 needs_comma := true;
             end;
-            Ast.ConstructorPattern(name, parts)
+            Ast.ConstructorPattern(name, parts, Util.LateInitialized.[Ast.EnumConstructor]())
         end else do 
             Ast.NamePattern(name)
         end
@@ -473,7 +474,7 @@ fun if_expr(p : Parser) : Ast.Expr do
         val thenBranch := expr(p);
         p.consume(Tokenizer.ELSE(), "Expect else branch in if val expression");
         val elseBranch := expr(p);
-        p.wrap_sugared(Ast.IfValExpr(Ast.late_type(), pat, matched, thenBranch, elseBranch, Ast.late_env()))
+        p.wrap_sugared(Ast.IfValExpr(Ast.late_type(), pat, matched, thenBranch, elseBranch, Ast.late_env(), Ast.late_type()))
     end else do 
         val cond := expr(p);
         p.consume(Tokenizer.THEN(), "Expect then branch after if condition");

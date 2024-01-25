@@ -15,7 +15,7 @@ enum Expr where
     FunctionCall(Expr, Expr[]),
     FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Env.Env(VarInfo))),
     IfExpr(Util.LateInitialized(Type), Expr, Expr, Expr),
-    IfValExpr(Util.LateInitialized(Type), Pattern, Expr, Expr, Expr, Util.LateInitialized(Env.Env(VarInfo))),
+    IfValExpr(Util.LateInitialized(Type), Pattern, Expr, Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type)),
     MatchExpr(Expr, (Pattern, Expr, Util.LateInitialized(Env.Env(VarInfo)))[], Util.LateInitialized(Type), Util.LateInitialized(Type)),
     ListExpr(Expr[], Util.LateInitialized(Type)),
     RangeExpr(Expr, Expr),
@@ -43,7 +43,7 @@ enum Pattern where
     NamePattern(String),
     WildcardPattern(),
     TuplePattern(Pattern[]),
-    ConstructorPattern(String, Pattern[]);
+    ConstructorPattern(String, Pattern[], Util.LateInitialized(EnumConstructor));
 end
 
 enum AccessType where 
