@@ -31,6 +31,9 @@ end
 class MutExpr where 
     var expr : Expr;
     new(e : Expr) do this.expr := e; end
+
+    fun get() : Expr := this.expr;
+    fun set(e : Expr) do this.expr := e; end;
 end
 
 enum Pattern where 
