@@ -15,16 +15,20 @@ enum Expr where
     FunctionCall(Expr, Expr[]),
     FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Env.Env(VarInfo))),
     IfExpr(Util.LateInitialized(Type), Expr, Expr, Expr),
-    IfValExpr(Util.LateInitialized(Type), Pattern, Expr, Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type)),
-    MatchExpr(Expr, (Pattern, Expr, Util.LateInitialized(Env.Env(VarInfo)))[], Util.LateInitialized(Type), Util.LateInitialized(Type)),
+    IfValExpr(Util.LateInitialized(Type), Pattern, Expr, Expr, Expr, 
+              Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type)),
+    MatchExpr(Expr, (Pattern, Expr, Util.LateInitialized(Env.Env(VarInfo)))[], 
+              Util.LateInitialized(Type), Util.LateInitialized(Type)),
     ListExpr(Expr[], Util.LateInitialized(Type)),
     RangeExpr(Expr, Expr),
     IndexExpr(Expr, Expr),
-    PropertyExpr(Expr, String, Util.LateInitialized(AccessType), Util.LateInitialized(Type), Util.LateInitialized(Type)),
+    PropertyExpr(Expr, String, Util.LateInitialized(AccessType), Util.LateInitialized(Type), 
+                               Util.LateInitialized(Type)),
     TupleExpr(Expr[], Util.LateInitialized(Type)),
     BlockExpr(Stmt[], Util.Optional(Expr), Util.LateInitialized(Type), Util.LateInitialized(Env.Env(VarInfo))),
     WhileExpr(Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type)),
-    ForExpr(Setter, Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type), Util.LateInitialized(Type)),
+    ForExpr(Setter, Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type), 
+                                Util.LateInitialized(Type)),
     ThisExpr();
 end
 
@@ -51,7 +55,8 @@ enum AccessType where
 end
 
 enum BinOp where 
-    Add(), Sub(), Mul(), Div(), Mod(), LessThan(), LessEqual(), GreaterEqual(), GreaterThan(), Equals(), NotEquals(), And(), Or(), Xor();
+    Add(), Sub(), Mul(), Div(), Mod(), LessThan(), LessEqual(), GreaterEqual(), GreaterThan(), Equals(), NotEquals(), 
+    And(), Or(), Xor();
 end
 enum UnOp where 
     Plus(), Minus(), Not();
@@ -78,6 +83,8 @@ end
 
 export enum Decl where 
     VarDecl(Setter, Util.LateInitialized(Type), Util.Optional(Expr), Bool /* mut */, Bool /* export */),
+    ValElseDeclaration(Pattern, Expr, Expr, Bool /* mut */, Bool /* export */, Util.LateInitialized(Type), 
+                       Util.LateInitialized(Type), Util.LateInitialized(Env.Env(VarInfo))),
     FunDecl(String, Parameter[], Type, Expr, Bool /* export */, Util.LateInitialized(Env.Env(VarInfo))),
     ClassDecl(String, Decl[], Util.Optional(Constructor), Bool /* export */, Util.LateInitialized(Env.Env(VarInfo))),
     EnumDecl(String, EnumConstructor[], Decl[], Bool /* export */, Util.LateInitialized(Env.Env(VarInfo)));

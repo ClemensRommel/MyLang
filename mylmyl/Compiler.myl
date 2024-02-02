@@ -244,7 +244,13 @@ fun compile_enum_variant(c : Compiler, name : String, prefix : String, variant :
     c.env.insert(variant.name, info);
 end
 
-fun compile_class_decl(c : Compiler, name : String, members : Ast.Decl[], constr : Util.Optional(Ast.Constructor), env : Env.Env(Ast.VarInfo)) do
+fun compile_class_decl(
+    c : Compiler, 
+    name : String, 
+    members : Ast.Decl[], 
+    constr : Util.Optional(Ast.Constructor), 
+    env : Env.Env(Ast.VarInfo)) 
+do
     if c.is_class do 
         c.append("public ");
     end;
@@ -289,7 +295,14 @@ fun compile_constructor(c : Compiler, constr : Util.Optional(Ast.Constructor), n
     compile_expr(c, construct.body, Ignore());
 end
 
-fun compile_variables(c : Compiler, setter : Ast.Setter, ty : Ast.Type, is_global : Bool, mutable : Bool, is_upvalue : Bool) do 
+fun compile_variables(
+    c : Compiler, 
+    setter : Ast.Setter, 
+    ty : Ast.Type, 
+    is_global : Bool, 
+    mutable : Bool, 
+    is_upvalue : Bool) 
+do 
     match setter do 
         case Variable(name) := do 
             if c.is_class do c.append("public "); end;
@@ -315,7 +328,13 @@ fun compile_variables(c : Compiler, setter : Ast.Setter, ty : Ast.Type, is_globa
     end;
 end
 
-fun compile_var_decl(c : Compiler, setter : Ast.Setter, lt : Util.LateInitialized(Ast.Type), init_mut : Util.Optional(Ast.Expr), mutable : Bool) do
+fun compile_var_decl(
+    c : Compiler, 
+    setter : Ast.Setter, 
+    lt : Util.LateInitialized(Ast.Type), 
+    init_mut : Util.Optional(Ast.Expr), 
+    mutable : Bool) 
+do
     val init := if val Some(e) := init_mut then Util.Some.[Ast.Expr](e) else Util.None.[Ast.Expr]();
     if c.is_class then do
         compile_variables(c, setter, lt.get(), true, mutable, false);
@@ -388,10 +407,12 @@ do
         c.append(" ");
     end else do
         val ty := c.current_env.get(name).ty;
-        if val Function(?, ?) := ty then do end else panic("Unreachable: Function is being compiled that has non-function-type");
+        if val Function(?, ?) := ty then do end 
+               else panic("Unreachable: Function is being compiled that has non-function-type");
         if Analyze.mentions_var(body, name) then do // Check if body mentions name (means its recursive)
             info.is_upvalue := true; // Recursive local functions have to be compiled as upvalues due to being compiled as lambdas
-            c.append("final "); c.append(compile_upvalue_type(c, ty)); c.append(name); c.append(" = "); c.append("new Upvalue<>();"); c.newline();
+            c.append("final "); c.append(compile_upvalue_type(c, ty)); c.append(name); 
+            c.append(" = "); c.append("new Upvalue<>();"); c.newline();
         end else do
             c.append("final " + compile_type(c, ty) + " ");
         end;
@@ -484,7 +505,10 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case UnaryOperation(op, operand) := compile_unary(c, op, operand, target);
     case IfExpr(lt, cond, thenBr, elseBr) := compile_if(c, lt, cond, thenBr, elseBr, target);
     case BlockExpr(stmts, end_expr, lt, lenv) := compile_block(c, stmts, end_expr, lt.get(), lenv, target);
-    case ForExpr(loop_var, iterated, body, lenv, lt, lit) := compile_for(c, loop_var, iterated, body, lenv.get(), lt.get(), lit.get(), target);
+    case ForExpr(loop_var, iterated, body, lenv, lt, lit) := compile_for(c, loop_var, 
+                                                                         iterated, body, 
+                                                                         lenv.get(), lt.get(), lit.get(), 
+                                                                         target);
     case WhileExpr(cond, body, lenv, lty) := compile_while(c, cond, body, lenv.get(), lty.get(), target);
     case FunctionCall(callee, args) := compile_call(c, callee, args, target);
     case FunctionExpr(params, return_type, body, lenv) := compile_function_expr(c, params, return_type, body, lenv.get(), target);
@@ -493,17 +517,30 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case MatchExpr(matched, arms, lmatchty, lretty) := compile_match(c, matched, arms, lmatchty.get(), lretty.get(), target);
 end;
 
-fun compile_match(c : Compiler, matched : Ast.Expr, arms : (Ast.Pattern, Ast.Expr, Util.LateInitialized(Env.Env(Ast.VarInfo)))[], matched_ty : Ast.Type, ret_ty : Ast.Type, target : Target) : String do 
+fun compile_match(
+    c : Compiler, 
+    matched : Ast.Expr, 
+    arms : (Ast.Pattern, Ast.Expr, Util.LateInitialized(Env.Env(Ast.VarInfo)))[], 
+    matched_ty : Ast.Type, 
+    ret_ty : Ast.Type, 
+    target : Target) : String 
+do 
     val matched_compiled := compile_expr(c, matched, UsedDirectly());
     val arm_target := if val UsedDirectly() := target then do 
         val temp_var := c.new_var();
         c.append("final "); c.append(compile_type(c, ret_ty)); c.append(" "); c.append(temp_var); c.append(";"); c.newline();
         AssignTo(Ast.Variable(temp_var))
     end else target;
-    c.append("switch("); if val NumberT() := matched_ty then do c.append("(Double) "); end else do end; c.append(matched_compiled); c.append(") {"); c.indent(); c.newline();
+    c.append("switch("); 
+    if val NumberT() := matched_ty then do 
+        c.append("(Double) "); 
+    end else do end; 
+    c.append(matched_compiled); c.append(") {"); c.indent(); c.newline();
     for (patt, expr, lenv) in arms do 
         val prv := c.open_scope(lenv.get());
-        c.append("case "); compile_pattern(c, patt, matched_ty); c.append(" -> {"); c.indent(); c.newline(); compile_expr(c, expr, arm_target); c.strip_trailing(); c.dedent(); c.newline(); c.append("}"); c.newline();
+        c.append("case "); compile_pattern(c, patt, matched_ty); c.append(" -> {"); c.indent(); c.newline(); 
+        compile_expr(c, expr, arm_target); c.strip_trailing(); 
+        c.dedent(); c.newline(); c.append("}"); c.newline();
         c.close_scope(prv);
     end;
     c.dedent(); c.newline(); c.append("}"); c.newline();
@@ -541,7 +578,11 @@ fun compile_pattern(c : Compiler, pattern : Ast.Pattern, matched_ty : Ast.Type) 
     end;
 end
 
-fun compile_complex_pattern(c : Compiler, pattern : Ast.Pattern, guard_queue : String[], matched_ty : Ast.Type) := match pattern do 
+fun compile_complex_pattern(
+    c : Compiler, 
+    pattern : Ast.Pattern, 
+    guard_queue : String[], 
+    matched_ty : Ast.Type) := match pattern do 
     case NumericPattern(n) := do 
         val variable := c.new_var(); 
         c.append("var "+variable); 
@@ -563,8 +604,20 @@ fun compile_complex_pattern(c : Compiler, pattern : Ast.Pattern, guard_queue : S
         c.append(name); c.append("(");
         var needs_comma := false;
         for i in [0..subpatterns.length] do 
-            if needs_comma do c.append(", "); end;
+            if needs_comma do c.append(", ");  end;
             compile_complex_pattern(c, subpatterns[i], guard_queue, constr.get().fields[i]);
+            needs_comma := true;
+        end;
+        c.append(")");
+    end;
+    case TuplePattern(subpatterns) := do 
+        c.append(compile_type(c, matched_ty));
+        c.append("(");
+        var needs_comma := false;
+        val Tuple(subtys) := matched_ty else panic("No tuple type in tuple pattern");
+        for i in [0..subpatterns.length] do 
+            if needs_comma do c.append(", "); end;
+            compile_complex_pattern(c, subpatterns[i], guard_queue, subtys[i]);
             needs_comma := true;
         end;
         c.append(")");
@@ -609,14 +662,17 @@ do
         val end_var := c.new_var();
         c.append("final double "+end_var+";"); compile_expr(c, end_expr, AssignTo(Ast.Variable(end_var)));
         c.append("if("+start_var+" < "+end_var+") "); c.newline();
-        c.append("for(double "+internal_loop_var+" = "+start_var+"; "+internal_loop_var+ " < "+end_var+"; "+internal_loop_var+"++) {"); c.indent(); c.newline();
+        c.append("for(double "+internal_loop_var+" = "+start_var+"; "); 
+        c.append(internal_loop_var+ " < "+end_var+"; "+internal_loop_var+"++) {")
+        c.indent(); c.newline();
     end else do 
         val iterated_compiled := compile_expr(c, iterated, UsedDirectly());
         c.append("for(var "+internal_loop_var+" : "+iterated_compiled+") {"); c.indent(); c.newline();
     end;
         val prv := c.open_scope(env);
         val BlockExpr(stmts, end_expr, ?, ?) := body else panic("Internal error: non-block-expression as body of for");
-        val captures := Analyze.analyze_captures(stmts, end_expr); // Dont have to scan loop variables for captures as they aren't mutable
+        // Dont have to scan loop variables for captures as they aren't mutable
+        val captures := Analyze.analyze_captures(stmts, end_expr); 
         for (name, is_captured) in captures.bindings do 
             if is_captured do 
                 val info := VariableInfo();
@@ -637,7 +693,14 @@ do
     use_with_target(c, if result_ty = Ast.VoidT() then "null" else list_var, target)
 end
 
-fun compile_while(c : Compiler, cond : Ast.Expr, body : Ast.Expr, env : Env.Env(Ast.VarInfo), result_ty : Ast.Type, target : Target) : String do 
+fun compile_while(
+    c : Compiler, 
+    cond : Ast.Expr, 
+    body : Ast.Expr, 
+    env : Env.Env(Ast.VarInfo), 
+    result_ty : Ast.Type, 
+    target : Target) : String 
+do 
     val list_var := if target != Ignore() and result_ty != Ast.VoidT() then do 
         val res_var := c.new_var();
         c.append("final "); c.append(compile_type(c, result_ty)); c.append(" "+res_var+";"); c.newline();
@@ -689,7 +752,8 @@ fun compile_list_literal(c : Compiler, exprs : Ast.Expr[], lty : Ast.Type, targe
         end;
         ""
     end else do 
-        val Variable(name) := if val AssignTo(s) := target then s else Ast.Variable(c.new_var()) else panic("invalid target for lists: "+target);
+        val Variable(name) := if val AssignTo(s) := target then s else Ast.Variable(c.new_var()) 
+                                else panic("invalid target for lists: "+target);
         if val AssignTo(?) := target then do end else do 
             val compiled_ty := compile_type(c, lty);
             c.append(compiled_ty); c.append(" ");
@@ -703,27 +767,40 @@ fun compile_list_literal(c : Compiler, exprs : Ast.Expr[], lty : Ast.Type, targe
     end
 end
 
-fun compile_property(c : Compiler, obj : Ast.Expr, name : String, at : Ast.AccessType, obj_ty : Ast.Type, field_ty : Ast.Type, target : Target) : String do 
+fun compile_property(
+    c : Compiler, 
+    obj : Ast.Expr,
+    name : String, 
+    at : Ast.AccessType, 
+    obj_ty : Ast.Type, 
+    field_ty : Ast.Type, 
+    target : Target) : String 
+do 
     if target = Ignore() then do 
         compile_expr(c, obj, target)
     end else do // Target cannot be Ignore
         match at do 
             case FieldAccess() := do
                 val subexpr := compile_expr(c, obj, UsedDirectly());
-                val fieldAccess := if val ListOf(?) := obj_ty then builtin_list_property(name, subexpr) else subexpr + "." + name;
+                val fieldAccess := if val ListOf(?) := obj_ty 
+                    then builtin_list_property(name, subexpr) 
+                    else subexpr + "." + name;
                 use_with_target(c, fieldAccess, target)
             end;
             case MethodAccess() := do 
                 val temp_var := c.new_var();
                 c.append("final "); c.append(compile_type(c, obj_ty)); c.append(" "); c.append(temp_var); c.append(";"); c.newline();
                 compile_expr(c, obj, AssignTo(Ast.Variable(temp_var)));
-                val methodAccess := if val ListOf(?) := obj_ty then builtin_list_method(c, temp_var, name) else temp_var + "::"+name; // Create method reference. Let java create lambda
+                val methodAccess := if val ListOf(?) := obj_ty 
+                    then builtin_list_method(c, temp_var, name) 
+                    else temp_var + "::"+name; // Create method reference. Let java create lambda
                 match target do 
                     case AssignTo(s) := assign(c, s, methodAccess);
                     case Return() := return_stmt(c, methodAccess);
                     case UsedDirectly() := do 
                         val resulting_var := c.new_var();
-                        c.append("final "); c.append(compile_type(c, field_ty)); c.append(" "); c.append(resulting_var); c.append(" = "); c.append(methodAccess); c.append(";"); c.newline();
+                        c.append("final "); c.append(compile_type(c, field_ty)); c.append(" "); c.append(resulting_var); 
+                        c.append(" = "); c.append(methodAccess); c.append(";"); c.newline();
                         resulting_var
                     end;
                 end
@@ -795,7 +872,8 @@ fun compile_tuple(c : Compiler, subexprs : Ast.Expr[], ty : Ast.Type, target : T
     if target = Ignore() do 
         return "";
     end
-    val tuple_type := compile_type(c, ty); // Name of the corresponding tuple type (will be created and will have a constructor)
+    // Name of the corresponding tuple type (will be created and will have a constructor)
+    val tuple_type := compile_type(c, ty); 
     var name := "";
     val setter := if val AssignTo(s) := target then s else do 
         name := c.new_var();

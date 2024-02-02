@@ -3,10 +3,11 @@ enum Test where
 end
 
 fun main() : Void do
-    val test := B();
-    if val A(n) := test then do 
-        print "A";
-    end else do 
-        print "B";
-    end
+    val first := "Hello ";
+    val second := " world";
+    match (first, second) do 
+        case ("Hello ", world) := do print "hello "+world; end;
+        case (some, " world") := do print "some "+some+" world"; end;
+        case (hello , world) := do print "other: "+hello+world; end;
+    end;
 end

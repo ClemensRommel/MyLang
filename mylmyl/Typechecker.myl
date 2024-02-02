@@ -101,7 +101,8 @@ fun check_mutability(tc : Typechecker, setter : Ast.Setter) := match setter do
     end;
     case Property(obj, name, lt) := do 
         val Name(class_name) := lt.get() else panic("Should be unreachable: Property with non-class-type");
-        val ClassInfo(?, fields, methods) := tc.type_info_for(class_name) else panic("Should be unreachable: Non-class info in setter");
+        val ClassInfo(?, fields, methods) := tc.type_info_for(class_name) 
+            else panic("Should be unreachable: Non-class info in setter");
         val field_info := fields.get(name);
         if not field_info.is_mutable do 
             panic("Cannot change immutable field "+name+" of class "+class_name);
@@ -499,7 +500,8 @@ fun check_pattern(tc : Typechecker, pattern : Ast.Pattern, matched_ty : Ast.Type
         end;
         case ConstructorPattern(name, subpatterns, lconstr) := do 
             val Name(enum_name) := matched_ty else panic("Cannot match on non-enum-type "+matched_ty+" in "+pattern);
-            val EnumInfo(?, constructors, methods) := tc.type_info_for(enum_name) else panic("Cannot match on class type "+matched_ty+"in "+pattern);
+            val EnumInfo(?, constructors, methods) := tc.type_info_for(enum_name) 
+                else panic("Cannot match on class type "+matched_ty+"in "+pattern);
             for constr in constructors do 
                 if constr.name = name do 
                     lconstr.init(constr);
@@ -548,7 +550,8 @@ fun builtin_list_property(elem_ty : Ast.Type, name : String, e : Ast.Expr) : (As
     case "last" := (elem_ty, Ast.FieldAccess());
     case "push" := (Ast.Function([elem_ty], Ast.VoidT()), Ast.MethodAccess());
     case "pop" := (Ast.Function([], elem_ty), Ast.MethodAccess());
-    case "peek" := (Ast.Function([], elem_ty), Ast.MethodAccess()); // Peekt auf das letzte element. für das erste kann first verwendet werden
+    // Peekt auf das letzte element. für das erste kann first verwendet werden
+    case "peek" := (Ast.Function([], elem_ty), Ast.MethodAccess()); 
     case "dequeue" := (Ast.Function([], elem_ty), Ast.MethodAccess()); // Entfernt das erste element
     case "prepend" := (Ast.Function([elem_ty], Ast.VoidT()), Ast.MethodAccess());
     case "append" := (Ast.Function([Ast.ListOf(elem_ty)], Ast.VoidT()), Ast.MethodAccess());
@@ -603,7 +606,14 @@ do
     tc.close_scope();
 end
 
-fun check_while(tc : Typechecker,  expected : Ast.Type, cond : Ast.Expr, body : Ast.Expr, lenv : Util.LateInitialized(Env.Env(Ast.VarInfo)), lty : Util.LateInitialized(Ast.Type)) do 
+fun check_while(
+    tc : Typechecker,  
+    expected : Ast.Type, 
+    cond : Ast.Expr, 
+    body : Ast.Expr, 
+    lenv : Util.LateInitialized(Env.Env(Ast.VarInfo)), 
+    lty : Util.LateInitialized(Ast.Type)) 
+do 
     check(tc, cond, Ast.BooleanT());
     tc.open_scope();
         if val VoidT() := expected then do 
@@ -816,7 +826,13 @@ do
     resulting
 end
 
-fun infer_while(tc : Typechecker, cond : Ast.Expr, body : Ast.Expr, lenv : Util.LateInitialized(Env.Env(Ast.VarInfo)), lty : Util.LateInitialized(Ast.Type)) : Ast.Type do 
+fun infer_while(
+    tc : Typechecker, 
+    cond : Ast.Expr, 
+    body : Ast.Expr, 
+    lenv : Util.LateInitialized(Env.Env(Ast.VarInfo)), 
+    lty : Util.LateInitialized(Ast.Type)) : Ast.Type 
+do 
     check(tc, cond, Ast.BooleanT());
     tc.open_scope();
         val elem_ty := infer(tc, body);

@@ -206,7 +206,7 @@ fun parameter(p : Parser) : Ast.Parameter do
 end
 
 fun var_decl(p : Parser, mutable : Bool) : Ast.Decl do 
-    val setter := convert_setter(expr(p));
+    val setter_unconverted := expr(p);
     val ty := Ast.late_type();
     if p.matches(Tokenizer.COLON()) do 
         ty.init(type_literal(p));
@@ -214,8 +214,15 @@ fun var_decl(p : Parser, mutable : Bool) : Ast.Decl do
     val initializer := if p.matches(Tokenizer.ASSIGN()) then do 
         Util.Some.[Ast.Expr](expr(p))
     end else Util.None.[Ast.Expr]();
-    p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration");
-    Ast.VarDecl(setter, ty, initializer, mutable, true)
+    if p.matches(Tokenizer.ELSE()) then do 
+        val else_br := expr(p);
+        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration with else branch");
+        Ast.ValElseDeclaration(convert_pattern(setter_unconverted), initializer, elseBr, mutable, true, ty, 
+                               Ast.late_type(), Ast.late_env());
+    end else do 
+        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration");
+        Ast.VarDecl(convert_setter(setter_unconverted), ty, initializer, mutable, true)
+    end
 end
 
 fun expr(p : Parser) : Ast.Expr := boolean_combination(p);
@@ -237,8 +244,13 @@ end
 
 fun comparison(p : Parser) : Ast.Expr do 
     var result := addition(p);
-    if p.matches(Tokenizer.LESS()) or p.matches(Tokenizer.LESS_EQUAL()) or p.matches(Tokenizer.EQUAL())
-        or p.matches(Tokenizer.GREATER_EQUAL()) or p.matches(Tokenizer.GREATER()) or p.matches(Tokenizer.NOT_EQUAL()) do 
+    if p.matches(Tokenizer.LESS()) or 
+       p.matches(Tokenizer.LESS_EQUAL()) or 
+       p.matches(Tokenizer.EQUAL()) or 
+       p.matches(Tokenizer.GREATER_EQUAL()) or 
+       p.matches(Tokenizer.GREATER()) or 
+       p.matches(Tokenizer.NOT_EQUAL()) 
+    do 
         val operator := p.previous();
         val rhs := addition(p);
         val op := match operator.kind do 
@@ -296,7 +308,10 @@ fun unary(p : Parser) : Ast.Expr :=
 
 fun use_expr(p : Parser) : Ast.Expr do 
     var lhs := primary(p);
-    while p.peek().kind = Tokenizer.LPAREN() or p.peek().kind = Tokenizer.DOT() or p.peek().kind = Tokenizer.LBRACKET() do
+    while p.peek().kind = Tokenizer.LPAREN() or 
+          p.peek().kind = Tokenizer.DOT() or 
+          p.peek().kind = Tokenizer.LBRACKET() 
+    do
         if p.peek().kind = Tokenizer.LPAREN() then do // Consume and test next token
             p.next();
             var args : Ast.Expr[] := [];
@@ -317,7 +332,8 @@ fun use_expr(p : Parser) : Ast.Expr do
         end else do
             p.next();
             val property := p.consume(Tokenizer.IDENTIFIER(), "Expect property name after .");
-            lhs := Ast.PropertyExpr(lhs, property.src, Util.LateInitialized.[Ast.AccessType](), Ast.late_type(), Ast.late_type());
+            lhs := Ast.PropertyExpr(lhs, property.src, 
+                                    Util.LateInitialized.[Ast.AccessType](), Ast.late_type(), Ast.late_type());
         end
     end;
     lhs
@@ -370,8 +386,9 @@ fun pattern(p : Parser) : Ast.Pattern :=
         val parts : Ast.Pattern[] := [];
         var needs_comma := false;
         while !p.matches(Tokenizer.RPAREN()) do 
-            if needs_comma do p.consume(Tokenizer.COMMA(), "Expect comma to separate tuple pattern parts") end;
+            if needs_comma do p.consume(Tokenizer.COMMA(), "Expect comma to separate tuple pattern parts"); end;
             parts.push(pattern(p));
+            needs_comma := true;
         end;
         Ast.TuplePattern(parts)
     end else if p.matches(Tokenizer.IDENTIFIER()) then do 
@@ -380,7 +397,8 @@ fun pattern(p : Parser) : Ast.Pattern :=
             val parts : Ast.Pattern[] := [];
             var needs_comma := false;
             while !p.matches(Tokenizer.RPAREN()) do 
-                if needs_comma do p.consume(Tokenizer.COMMA(), "Expect comma to separate constructor pattern parameters") end;
+                if needs_comma do p.consume(Tokenizer.COMMA(), 
+                    "Expect comma to separate constructor pattern parameters") end;
                 parts.push(pattern(p));
                 needs_comma := true;
             end;
@@ -462,7 +480,9 @@ fun convert_setter(s : Ast.Expr) : Ast.Setter := match s do
     case ? := panic("Invalid setter: "+s);
 end;
 
-fun is_stmt_start(p : Parser) : Bool := is_decl_start(p) or p.peek().kind = Tokenizer.PRINT() or p.peek().kind = Tokenizer.SEMICOLON();
+fun is_stmt_start(p : Parser) : Bool := is_decl_start(p) or
+                                        p.peek().kind = Tokenizer.PRINT() or 
+                                        p.peek().kind = Tokenizer.SEMICOLON();
 
 // Expects that if is already consumed
 fun if_expr(p : Parser) : Ast.Expr do 
@@ -474,7 +494,11 @@ fun if_expr(p : Parser) : Ast.Expr do
         val thenBranch := expr(p);
         p.consume(Tokenizer.ELSE(), "Expect else branch in if val expression");
         val elseBranch := expr(p);
-        p.wrap_sugared(Ast.IfValExpr(Ast.late_type(), pat, matched, thenBranch, elseBranch, Ast.late_env(), Ast.late_type()))
+        p.wrap_sugared(Ast.IfValExpr(
+                        Ast.late_type(), 
+                        pat, matched, 
+                        thenBranch, elseBranch, 
+                        Ast.late_env(), Ast.late_type()))
     end else do 
         val cond := expr(p);
         p.consume(Tokenizer.THEN(), "Expect then branch after if condition");

@@ -25,12 +25,15 @@ fun mentions_var(expr : Ast.Expr, name : String) : Bool := match expr do
     case Identifier(n) := n = name;
     case BinaryOperation(?, left, right) := mentions_var(left, name) or mentions_var(right, name);
     case UnaryOperation(?, part) := mentions_var(part, name);
-    case FunctionCall(callee, called) := mentions_var(callee, name) or Util.any.[Ast.Expr](called, fun(t) := mentions_var(t, name));
-    case FunctionExpr(?, ?, body, ?) := mentions_var(body, name); // Name shadowing is not allowed. If it will be, this has to change
+    case FunctionCall(callee, called) := mentions_var(callee, name) or 
+                                         Util.any.[Ast.Expr](called, fun(t) := mentions_var(t, name));
+                                        // Name shadowing is not allowed. If it will be, this has to change
+    case FunctionExpr(?, ?, body, ?) := mentions_var(body, name);
     case IfExpr(?, cond, th, el) := mentions_var(cond, name) or mentions_var(th, name) or mentions_var(el, name);
     case PropertyExpr(obj, ?, ?, ?, ?) := mentions_var(obj, name);
     case TupleExpr(parts, ?) := Util.any.[Ast.Expr](parts, fun(t) := mentions_var(t, name));
-    case BlockExpr(parts, last, ?, ?) := Util.any.[Ast.Stmt](parts, fun(t) := stmt_mentions_var(t, name)) or if val Some(l) := last then mentions_var(l, name) else false;
+    case BlockExpr(parts, last, ?, ?) := Util.any.[Ast.Stmt](parts, fun(t) := stmt_mentions_var(t, name)) or 
+                                         if val Some(l) := last then mentions_var(l, name) else false;
     case ThisExpr() := false;
     case ListExpr(exprs, ?) := Util.any.[Ast.Expr](exprs, fun(t) := mentions_var(t, name));
     case IndexExpr(lst, idx) := mentions_var(lst, name) or mentions_var(idx, name);
@@ -168,7 +171,8 @@ fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
                 analyze_expr(scan_env, e);
             end;
         end;
-        case NumberLiteral(?) := do end; case Identifier(?) := do end; case StringLiteral(?) := do end; case Boolean(?) := do end; case NullLiteral() := do end; case ThisExpr() := do end;
+        case NumberLiteral(?) := do end; case Identifier(?) := do end; case StringLiteral(?) := do end; 
+        case Boolean(?) := do end; case NullLiteral() := do end; case ThisExpr() := do end;
     end;
 end
 
@@ -238,7 +242,8 @@ fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
                 scan_expr(scan_env, e);
             end;
         end;
-        case NumberLiteral(?) := do end; case StringLiteral(?) := do end; case Boolean(?) := do end; case NullLiteral() := do end; case ThisExpr() := do end;
+        case NumberLiteral(?) := do end; case StringLiteral(?) := do end; case Boolean(?) := do end; 
+        case NullLiteral() := do end; case ThisExpr() := do end;
     end;
 end
 
