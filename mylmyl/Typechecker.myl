@@ -15,11 +15,13 @@ end
 class Typechecker where 
     var env : Env.Env(Ast.VarInfo) := Env.Env.[Ast.VarInfo]();
     var ty_env : Env.Env(Ast.TyInfo) := Env.Env.[Ast.TyInfo]();
+    val return_tys : (Bool, Ast.Type)[] := [(false, Ast.Never())]; // Global variables can't return, so push false first
     var is_in_class : Bool := false;
     fun error[A](message : String) : A := panic(message);
     fun require_assigneable(to : Ast.Type, from : Ast.Type, violating_section : Fun() : String) do 
         require_types_exist(this, to);
         require_types_exist(this, from);
+        if to = Ast.Never() do return null; end;
         if to != from do 
             this.error.[Void](from+" is not assigneable to "+to+" in "+violating_section());
         end;
@@ -200,11 +202,13 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
             tc.declare(name, fun_type, false);
         end;
         tc.open_scope();
+            tc.return_tys.push((true, return_type));
             for param in params do 
                 declare_param(tc, param);
             end;
             check(tc, body, return_type);
             lenv.init(tc.env);
+            tc.return_tys.pop();
         tc.close_scope();
         if tc.is_global() and name = "main" and return_type != Ast.VoidT() do 
             panic("Main may not return anything other than Void");
@@ -220,10 +224,12 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
             methods_in_class(tc, members)
         ));
         tc.open_scope();
+            tc.return_tys.push((false, Ast.Never()));
             tc.declare("this", Ast.Name(name), false);
             check_body(tc, members);
             val constr_type := check_constructor(tc, constructor, name);
             val body_env := tc.env;
+            tc.return_tys.pop();
         tc.close_scope();
         lenv.init(body_env);
         
@@ -235,9 +241,11 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
         tc.declare_type(name, Ast.EnumInfo(name, variants, funs));
         declare_enum_constructors(tc, name, variants);
         tc.open_scope();
+            tc.return_tys.push((false, Ast.Never()));
             tc.declare("this", Ast.Name(name), false);
             check_body(tc, members);
             val body_env := tc.env;
+            tc.return_tys.pop();
         tc.close_scope();
         lenv.init(body_env);
     end;
@@ -356,6 +364,7 @@ fun param_types(params : Ast.Parameter[]) : Ast.Type[] :=
     end;
 
 fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do 
+    case WildCardExpression() := panic("Error: ? is not a valid expression");
     case DesugarableExpr(content) := check(tc, content.get(), t);
     case NumberLiteral(?) := tc.require_assigneable(t, Ast.NumberT(), lazy_str(e));
     case Boolean(?) := tc.require_assigneable(t, Ast.BooleanT(), lazy_str(e));
@@ -467,6 +476,12 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
             tc.close_scope();
         end;
         lty.init(t);
+    end;
+    case ReturnExpr(ret, lty) := do 
+        lty.init(t);
+        val (can_return, return_ty) := tc.return_tys.last;
+        if !can_return do panic("Cannot return outside of functions or methods: "+e) end
+        check(tc, ret, return_ty);
     end;
 end;
 
@@ -630,6 +645,7 @@ do
 end
 
 fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do 
+    case WildCardExpression() := panic("Error: ? is not a valid expression");
     case DesugarableExpr(content) := infer(t, content.get());
     case NumberLiteral(?) := Ast.NumberT();
     case Boolean(?) := Ast.BooleanT();
@@ -763,6 +779,13 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         end else do 
             panic("Could not infer resulting type of "+e)
         end
+    end;
+    case ReturnExpr(ret, lty) := do 
+        lty.init(Ast.Never());
+        val (can_return, return_ty) := t.return_tys.last;
+        if !can_return do panic("Cannot return outside of functions and methods: "+e); end;
+        check(t, ret, return_ty);
+        Ast.Never()
     end;
 end;
 

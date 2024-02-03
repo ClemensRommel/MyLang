@@ -29,6 +29,8 @@ enum Expr where
     WhileExpr(Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type)),
     ForExpr(Setter, Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type), 
                                 Util.LateInitialized(Type)),
+    WildCardExpression(),
+    ReturnExpr(Expr, Util.LateInitialized(Type)),
     ThisExpr();
 end
 
@@ -136,7 +138,8 @@ end
 enum Type where 
     NumberT(), BooleanT(), StringT(), VoidT(),
     Tuple(Type[]), Name(String),
-    Function(Type[], Type), ListOf(Type);
+    Function(Type[], Type), ListOf(Type),
+    Never();
 end
 
 /*

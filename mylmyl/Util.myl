@@ -7,6 +7,16 @@ export enum Optional(T) where
         case Some(t) := t;
         case None() := panic("Error: called unwrap on empty Optional");
     end;
+
+    fun map[K](f : Fun(T) : K) : Optional(K) := match this do 
+        case None() := None.[K]();
+        case Some(t) := Some.[K](f(t));
+    end;
+
+    fun expect(e : String) : T := match this do 
+        case Some(t) := t;
+        case None() := panic("e");
+    end;
 end;
 
 export class LateInitialized(T) where

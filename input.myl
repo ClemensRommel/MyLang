@@ -1,13 +1,10 @@
-enum Test where 
-    A(Number), B();
+fun test() : String do
+    print "test 2";
+    val fst : String := return "hello";
+    print "test 1";
+    fst
 end
 
 fun main() : Void do
-    val first := "Hello ";
-    val second := " world";
-    match (first, second) do 
-        case ("Hello ", world) := do print "hello "+world; end;
-        case (some, " world") := do print "some "+some+" world"; end;
-        case (hello , world) := do print "other: "+hello+world; end;
-    end;
+    print test();
 end

@@ -206,6 +206,7 @@ fun parameter(p : Parser) : Ast.Parameter do
 end
 
 fun var_decl(p : Parser, mutable : Bool) : Ast.Decl do 
+    val keyword := p.previous();
     val setter_unconverted := expr(p);
     val ty := Ast.late_type();
     if p.matches(Tokenizer.COLON()) do 
@@ -217,8 +218,8 @@ fun var_decl(p : Parser, mutable : Bool) : Ast.Decl do
     if p.matches(Tokenizer.ELSE()) then do 
         val else_br := expr(p);
         p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration with else branch");
-        Ast.ValElseDeclaration(convert_pattern(setter_unconverted), initializer, elseBr, mutable, true, ty, 
-                               Ast.late_type(), Ast.late_env());
+        Ast.ValElseDeclaration(convert_pattern(setter_unconverted), initializer.expect("Require initializer in val-else declaration at "+keyword.pos.line), else_br, mutable, true, ty, 
+                               Ast.late_type(), Ast.late_env())
     end else do 
         p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration");
         Ast.VarDecl(convert_setter(setter_unconverted), ty, initializer, mutable, true)
@@ -350,6 +351,9 @@ fun primary(p : Parser) : Ast.Expr :=
         while_loop(p)
     end else if p.matches(Tokenizer.MATCH()) then do 
         match_expr(p)
+    end else if p.matches(Tokenizer.RETURN()) then do 
+        val arg := expr(p);
+        Ast.ReturnExpr(arg, Ast.late_type())
     end else do 
         literal(p)
     end;
@@ -480,6 +484,19 @@ fun convert_setter(s : Ast.Expr) : Ast.Setter := match s do
     case ? := panic("Invalid setter: "+s);
 end;
 
+fun convert_pattern(p : Ast.Expr) : Ast.Pattern := match p do 
+    case NumberLiteral(n) := Ast.NumericPattern(n);
+    case StringLiteral(s) := Ast.StringPattern(s);
+    case Boolean(b) := Ast.BooleanPattern(b);
+    case Identifier(i) := Ast.NamePattern(i);
+    case TupleExpr(exprs, ?) := Ast.TuplePattern(for e in exprs yield convert_pattern(e) end);
+    case FunctionCall(callee, args) := do 
+        val Identifier(name) := callee else panic("Invalid constructor: "+callee);
+        Ast.ConstructorPattern(name, for arg in args yield convert_pattern(arg) end, Util.LateInitialized.[Ast.EnumConstructor]())
+    end;
+    case ? := panic("Invalid pattern: "+p);
+end;
+
 fun is_stmt_start(p : Parser) : Bool := is_decl_start(p) or
                                         p.peek().kind = Tokenizer.PRINT() or 
                                         p.peek().kind = Tokenizer.SEMICOLON();
@@ -534,6 +551,8 @@ fun literal(p : Parser) : Ast.Expr :=
         Ast.FunctionExpr(params, return_type, body, Ast.late_env())
     end else if p.matches(Tokenizer.VALUE_THIS()) then do 
         Ast.ThisExpr()
+    end else if p.matches(Tokenizer.QUESTION_MARK()) then do 
+        Ast.WildCardExpression()
     end else do 
         panic("Invalid literal: "+p.peek().kind)
     end;

@@ -26,12 +26,14 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
         return outer;
     }
 
-    public TypeRep getTypeOfValue(String name) {
+    public TypeRep getTypeOfValue(String name, Typechecker t) {
+        this.tc = t;
         if(values.containsKey(name)) {
             return values.get(name);
         } else if(outer != null) {
-            return outer.getTypeOfValue(name);
+            return outer.getTypeOfValue(name, tc);
         } else {
+            tc.error("Tried to get type of non-existent value '"+name+"'");
             return Typechecker.unknown();
         }
     }
@@ -92,6 +94,7 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
         } else if(outer != null) {
             return outer.getTypeByName(name);
         } else {
+            tc.error("Tried to get unknown type" + name);
             return Typechecker.unknown();
         }
     }
@@ -229,7 +232,7 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
         if(callee instanceof TypeFunction tf2) {
             tf = tf2;
         } else {
-            tc.error("Tried to apply non-type-function "+tc.p.prettyPrint(callee)+" to type parameters "+t.params()
+            tc.error("Tried to apply non-type-function "+tc.p.prettyPrint(callee)+"of type"+ callee.getClass()+" to type parameters "+t.params()
                 .stream().map(tc.p::prettyPrint).toList());
             return Typechecker.unknown();
         }

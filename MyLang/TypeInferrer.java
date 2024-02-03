@@ -152,7 +152,7 @@ public class TypeInferrer
             return tc.listMethodType(p.name().lexeme(), l);
         } else if(classType instanceof MyLangAST.Module m) {
             //if(m.enviroment().valueExported(p.name().lexeme()) && m.enviroment().valueExists(p.name().lexeme())) {
-                return m.enviroment().getTypeOfValue(p.name().lexeme());
+                return m.enviroment().getTypeOfValue(p.name().lexeme(), tc);
             /*} else {
                 return Typechecker.unknown();
             }*/

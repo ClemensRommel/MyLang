@@ -39,7 +39,7 @@ public class Typechecker implements
         declareBuiltins();
     }
 
-    public static boolean typechecks(MyLangRunner runner,MyLangFile program, String name) {
+    public static boolean typechecks(MyLangRunner runner, MyLangFile program, String name) {
         Typechecker tc = new Typechecker(runner);
         tc.currentFileName = runner.unresolve(name);
         tc.gatherImports(program.imports());
@@ -220,7 +220,6 @@ public class Typechecker implements
     void declare(DeclarationOrStatement decl) {
         if(decl instanceof VariableDeclaration v) {
             checkIrrefutablePattern(v.pat(), variableDeclarationTypeOf(v), v.export(), v.isReassignable());
-
         } else if(decl instanceof ValElseDeclaration v) {
             var matched = inferType(v.initializer());
             checkPattern(matched, v.pat(), false);
@@ -243,7 +242,8 @@ public class Typechecker implements
                 env.exportType(t.Name().lexeme());
             }
         } else if(decl instanceof EnumDeclaration e) {
-            declareNewType(e.Name().lexeme(), enumTypeOf(e));
+            TypeIdentifierRep ti = new TypeIdentifierRep(e.Name(), env);
+            declareNewType(e.Name().lexeme(), ti); // Declare placeholder type
             for(var constructor: e.variants()) {
                 declareType(constructor.name().lexeme(),
                     enumConstructorTypeOf(e.args(), constructor, e.Name(), true), false);
@@ -251,6 +251,7 @@ public class Typechecker implements
                     env.exportValue(constructor.name().lexeme());
                 }
             }
+            env.addType(e.Name().lexeme(), enumTypeOf(e)); // Overwrite with actual type
             if(e.export()) {
                 env.exportType(e.Name().lexeme());
             }
@@ -357,7 +358,7 @@ public class Typechecker implements
         );
         closeScope();
         if(args != null && function) {
-            return new GenericType(new TypeFunction(args, this.env.normalize(body, this), env));
+            return new GenericType(new TypeFunction(args, body, env));
         } else {
             return body;
         }
@@ -378,7 +379,7 @@ public class Typechecker implements
                 env);
         closeScope();
         if(!f.typeParams().isEmpty()) {
-            var result = new GenericType((TypeFunction) env.normalize(new TypeFunction(f.typeParams(), type, env), this));
+            var result = new GenericType(new TypeFunction(f.typeParams(), type, env));
             return result;
         } else {
             return type;
@@ -586,7 +587,7 @@ public class Typechecker implements
         error("Expected '"+showType(expected)+"', got '"+showType(given)+"' in '"+expr+"'");
     }
 
-    boolean isAssigneableTo(TypeRep to, TypeRep from) {
+    boolean isAssigneableTo(TypeRep to, TypeRep from, String expr) {
         if(to == null || from == null) {
             hadError = true;
             return true;
@@ -597,11 +598,14 @@ public class Typechecker implements
         from = env.normalize(from, this);
         if(to.equals(unknown()) || from.equals(unknown())) {
             hadError = true;
-            System.out.println(to);
-            System.out.println(toBefore);
-            System.out.println(from);
-            System.out.println(fromBefore);
-            throw new RuntimeException("Had unknown" + (to.equals(unknown()) ? " to" : " from"));
+            System.out.println("to: "+to);
+            System.out.println("to before: "+toBefore);
+            System.out.println("from: "+from);
+            System.out.println("from before: "+fromBefore);
+            for(var error : errors) {
+                System.out.println(error);
+            }
+            throw new RuntimeException("Had unknown" + (to.equals(unknown()) ? " to" : " from") + "in expression" + expr);
         }
         if(to.equals(voidType)) {
             return true;
@@ -664,7 +668,7 @@ public class Typechecker implements
         return getTypeOf(name, false);
     }
     TypeRep getTypeOf(Token name, boolean inferMode) {
-        var result = env.getTypeOfValue(name.lexeme());
+        var result = env.getTypeOfValue(name.lexeme(), this);
         if(result instanceof UnknownType && !inferMode) {
             unknownVariable(name);
         }
@@ -977,7 +981,7 @@ public class Typechecker implements
         if(checkTarget instanceof UnknownType || checkTarget == null || checkTarget.equals(unknown())) {
             throw new RuntimeException("Tried checking of unknown type");
         }
-        if(!isAssigneableTo(checkTarget, t)) {
+        if(!isAssigneableTo(checkTarget, t, expr)) {
             typeMismatch(checkTarget, t, expr);
         }
     }
@@ -1110,7 +1114,7 @@ public class Typechecker implements
                 hasType(methodType, this.p.prettyPrint(p));
             }
         } else if(leftType instanceof MyLangAST.Module m) {
-            var type = m.enviroment().getTypeOfValue(p.name().lexeme());
+            var type = m.enviroment().getTypeOfValue(p.name().lexeme(), this);
             if(type instanceof UnknownType || /*(!m.enviroment().valueExported(p.name().lexeme()))*/ false) {
                 error("["+p.name().line()+"] Module "+m.name()+" does not export '"+p.name().lexeme()+"'");
             } else {
@@ -1498,7 +1502,7 @@ public class Typechecker implements
                 error("["+p.name().line()+"]: Property "+
                     p.name().lexeme()+" of type "+this.p.prettyPrint(c)+" is not reassigneable");
             }
-            if(!isAssigneableTo(propertyType, checkTarget)) {
+            if(!isAssigneableTo(propertyType, checkTarget, this.p.prettyPrint(p))) {
                 typeMismatch(propertyType, checkTarget, this.p.prettyPrint(p));
             }           
         } else {
@@ -1513,7 +1517,7 @@ public class Typechecker implements
         if(!reassigneable) {
             error("["+s.name().line()+"]: Cannot reassign variable "+s.name().lexeme()+" because it is immutable");
         }
-        if(!isAssigneableTo(variableType, checkTarget)) {
+        if(!isAssigneableTo(variableType, checkTarget, p.prettyPrint(s))) {
             typeMismatch(variableType, checkTarget, p.prettyPrint(s));
         }
         return null;

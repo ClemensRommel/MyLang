@@ -515,7 +515,27 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case PropertyExpr(obj, name, la, lt, lft) := compile_property(c, obj, name, la.get(), lt.get(), lft.get(), target);
     case IndexExpr(lst, idx) := compile_index(c, lst, idx, target);
     case MatchExpr(matched, arms, lmatchty, lretty) := compile_match(c, matched, arms, lmatchty.get(), lretty.get(), target);
+    case ReturnExpr(ret, lty) := compile_return(c, ret, lty.get(), target);
 end;
+
+fun compile_return(c : Compiler, ret : Ast.Expr, needed_ty : Ast.Type, target : Target) : String do 
+    
+    c.append("if(true) "); // Suppress unreachable code error
+    compile_expr(c, ret, Return());
+    use_with_target(c, default_value(needed_ty), target)
+end
+
+fun default_value(ty : Ast.Type) : String := match ty do 
+        case NumberT() := "0.0"; 
+        case BooleanT() := "false"; 
+        case StringT() := "\"\""; 
+        case VoidT() := "null";
+        case Tuple(?) := "null"; 
+        case Name(?) := "null"; // Types that are refered to by name are objects, so nullable
+        case Function(?, ?) := "null"; 
+        case ListOf(?) := "null"; 
+        case Never() := "null";
+    end;
 
 fun compile_match(
     c : Compiler, 
@@ -663,7 +683,7 @@ do
         c.append("final double "+end_var+";"); compile_expr(c, end_expr, AssignTo(Ast.Variable(end_var)));
         c.append("if("+start_var+" < "+end_var+") "); c.newline();
         c.append("for(double "+internal_loop_var+" = "+start_var+"; "); 
-        c.append(internal_loop_var+ " < "+end_var+"; "+internal_loop_var+"++) {")
+        c.append(internal_loop_var+ " < "+end_var+"; "+internal_loop_var+"++) {");
         c.indent(); c.newline();
     end else do 
         val iterated_compiled := compile_expr(c, iterated, UsedDirectly());
@@ -1350,6 +1370,7 @@ fun compile_type(c : Compiler, t : Ast.Type) : String := match t do
     case Function(?, ?) := create_enqueued_type(c, t);
     case Tuple(?) := create_enqueued_type(c, t);
     case Name(name) := name; // Classes are compiled with their name
+    case Never() := "Void";
 end;
 
 fun compile_upvalue_type(c : Compiler, t : Ast.Type) : String := match t do 
