@@ -19,7 +19,7 @@ export enum TokenType where
     IDENTIFIER(),
 
     // Value kexwords
-    VAR(), VAL(), VALUE_THIS(), NEW(), FUN(), IF(), THEN(), ELSE(), WHILE(), FOR(), IN(), YIELD(),
+    VAR(), VAL(), VALUE_THIS(), NEW(), FUN(), IF(), THEN(), ELSE(), WHILE(), FOR(), IN(), YIELD(), BREAK(),
     RETURN(), MATCH(), CASE(),
 
     // Namespacing Keywords
@@ -246,6 +246,7 @@ class Tokenizer where
         case "String" := STRING();
         case "Void" := VOID();
         case "print" := PRINT();
+        case "break" := BREAK();
         case id := IDENTIFIER();
     end;
 

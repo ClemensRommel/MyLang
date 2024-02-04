@@ -83,6 +83,7 @@ fun stmt(p : Parser) : Ast.Stmt do
        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after print statement");
        Ast.PrintStmt(arg)
     end else if val SEMICOLON() := nxt.kind then do 
+        p.next();
         Ast.EmptyStmt()
     end else do 
         val arg := expr(p);
@@ -360,6 +361,8 @@ fun primary(p : Parser) : Ast.Expr :=
     end else if p.matches(Tokenizer.RETURN()) then do 
         val arg := expr(p);
         Ast.ReturnExpr(arg, Ast.late_type())
+    end else if p.matches(Tokenizer.BREAK()) then do 
+        Ast.Break(Ast.late_type())
     end else do 
         literal(p)
     end;
@@ -423,10 +426,20 @@ fun pattern(p : Parser) : Ast.Pattern :=
 
 
 fun while_loop(p : Parser) : Ast.Expr do
-    val cond := expr(p);
-    p.consume(Tokenizer.DO(), "Expect 'do' before while loop body");
-    val body := block_expr(p);
-    Ast.WhileExpr(cond, body, Ast.late_env(), Ast.late_type())
+    if p.matches(Tokenizer.VAL()) then do 
+        val pat := pattern(p);
+        p.consume(Tokenizer.ASSIGN(), "Expect ':=' after pattern of while val loop");
+        val matched := expr(p);
+        p.consume(Tokenizer.DO(), "Expect 'do' before while loop body");
+        val body := block_expr(p);
+        val expr := Ast.WhileValExpr(pat, matched, body, Ast.late_type(), Ast.late_env(), Ast.late_type());
+        p.wrap_sugared_expr(expr)
+    end else do 
+        val cond := expr(p);
+        p.consume(Tokenizer.DO(), "Expect 'do' before while loop body");
+        val body := block_expr(p);
+        Ast.WhileExpr(cond, body, Ast.late_env(), Ast.late_type())
+    end
 end
 
 fun for_loop(p : Parser) : Ast.Expr do 

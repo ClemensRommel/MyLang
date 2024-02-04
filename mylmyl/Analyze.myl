@@ -45,6 +45,7 @@ fun mentions_var(expr : Ast.Expr, name : String) : Bool := match expr do
         mentions
     end;
     case ReturnExpr(ret, lty) := mentions_var(ret, name);
+    case Break(?) := false;
 end;
 
 fun stmt_mentions_var(stmt : Ast.Stmt, name : String) : Bool := match stmt do
@@ -175,7 +176,7 @@ fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
         end;
         case ReturnExpr(ret, lty) := do analyze_expr(scan_env, ret); end;
         case NumberLiteral(?) := do end; case Identifier(?, ?) := do end; case StringLiteral(?) := do end; 
-        case Boolean(?) := do end; case NullLiteral() := do end; case ThisExpr() := do end;
+        case Boolean(?) := do end; case NullLiteral() := do end; case ThisExpr() := do end; case Break(?) := do end;
     end;
 end
 
@@ -247,7 +248,7 @@ fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
         end;
         case ReturnExpr(ret, lty) := do scan_expr(scan_env, ret); end;
         case NumberLiteral(?) := do end; case StringLiteral(?) := do end; case Boolean(?) := do end; 
-        case NullLiteral() := do end; case ThisExpr() := do end;
+        case NullLiteral() := do end; case ThisExpr() := do end; case Break(?) := do end;
     end;
 end
 

@@ -23,6 +23,8 @@ class Compiler where
 
     var env : Env.Env(VariableInfo) := Env.Env.[VariableInfo]();
 
+    val loop_labels : String[] := [];
+
     new(globals : Env.Env(Ast.VarInfo), nameg : NameGen.NameGenerator) do 
         this.current_env := globals;
         this.name_gen := nameg;
@@ -178,6 +180,7 @@ fun compile_stmt(c : Compiler, stmt : Ast.Stmt) := match stmt do
     case ExprStmt(expr) := do 
         val arg := compile_expr(c, expr, Ignore());
     end;
+    case EmptyStmt() := do end;
     case PrintStmt(expr) := do 
         if val NullLiteral() := expr then do 
             c.append("System.out.println(\"null\");"); c.newline();
@@ -521,7 +524,13 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case IndexExpr(lst, idx) := compile_index(c, lst, idx, target);
     case MatchExpr(matched, arms, lmatchty, lretty) := compile_match(c, matched, arms, lmatchty.get(), lretty.get(), target);
     case ReturnExpr(ret, lty) := compile_return(c, ret, lty.get(), target);
+    case Break(lty) := compile_break(c, lty.get(), target);
 end;
+
+fun compile_break(c : Compiler, expected_ty : Ast.Type, target : Target) : String do 
+    c.append("if(true) break "+c.loop_labels.last+";"); c.newline();
+    use_with_target(c, default_value(expected_ty), target)
+end
 
 fun compile_return(c : Compiler, ret : Ast.Expr, needed_ty : Ast.Type, target : Target) : String do 
     
@@ -681,18 +690,21 @@ do
         assign(c, Ast.Variable(list_var), "new ArrayList<>()");
     end
 
+    val loop_label := c.new_var();
+    c.loop_labels.push(loop_label);
+
     if val RangeExpr(start_expr, end_expr) := iterated then do 
         val start_var := c.new_var();
         c.append("final double "+start_var+";"); compile_expr(c, start_expr, AssignTo(Ast.Variable(start_var)));
         val end_var := c.new_var();
         c.append("final double "+end_var+";"); compile_expr(c, end_expr, AssignTo(Ast.Variable(end_var)));
         c.append("if("+start_var+" < "+end_var+") "); c.newline();
-        c.append("for(double "+internal_loop_var+" = "+start_var+"; "); 
+        c.append(loop_label+": for(double "+internal_loop_var+" = "+start_var+"; "); 
         c.append(internal_loop_var+ " < "+end_var+"; "+internal_loop_var+"++) {");
         c.indent(); c.newline();
     end else do 
         val iterated_compiled := compile_expr(c, iterated, UsedDirectly());
-        c.append("for(var "+internal_loop_var+" : "+iterated_compiled+") {"); c.indent(); c.newline();
+        c.append(loop_label+": for(var "+internal_loop_var+" : "+iterated_compiled+") {"); c.indent(); c.newline();
     end;
         val prv := c.open_scope(env);
         val BlockExpr(stmts, end_expr, ?, ?) := body else panic("Internal error: non-block-expression as body of for");
@@ -714,6 +726,7 @@ do
         c.close_scope(prv);
         c.dedent(); c.newline();
     c.append("}");
+    c.loop_labels.pop();
     c.newline();
     use_with_target(c, if result_ty = Ast.VoidT() then "null" else list_var, target)
 end
@@ -734,11 +747,13 @@ do
     if target != Ignore() and result_ty != Ast.VoidT() do 
         assign(c, Ast.Variable(list_var), "new ArrayList<>()");
     end
-    c.append("while(true) {"); c.indent(); c.newline();
-    val cond := compile_expr(c, cond, UsedDirectly());
-    c.append("if(!"+cond+") { break; }"); c.newline();
+    val loop_label := c.new_var();
+    c.loop_labels.push(loop_label);
+    c.append(loop_label+": while(true) {"); c.indent(); c.newline();
+        val cond_compiled := compile_expr(c, cond, UsedDirectly());
+        if val Boolean(b) := cond then do if !b do c.append("break;"); end; end else do c.append("if(!"+cond_compiled+") { break; }"); c.newline(); end;
         val prv := c.open_scope(env);
-        val BlockExpr(stmts, end_expr, ?, ?) := body else panic("Internal error: non-block-expression as body of for");
+        val BlockExpr(stmts, end_expr, ?, ?) := body else panic("Internal error: non-block-expression as body of while");
         val captures := Analyze.analyze_captures(stmts, end_expr); // There are no loop variables
         for (name, is_captured) in captures.bindings do 
             if is_captured do 
@@ -755,6 +770,7 @@ do
         c.dedent(); c.newline();
     c.append("}");
     c.newline();
+    c.loop_labels.pop();
     use_with_target(c, if result_ty = Ast.VoidT() then "null" else list_var, target)
 end
 

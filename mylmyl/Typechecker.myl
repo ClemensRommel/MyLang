@@ -19,6 +19,7 @@ class Typechecker where
     var env : Env.Env(Ast.VarInfo) := Env.Env.[Ast.VarInfo]();
     var ty_env : Env.Env(Ast.TyInfo) := Env.Env.[Ast.TyInfo]();
     val return_tys : (Bool, Ast.Type)[] := [(false, Ast.Never())]; // Global variables can't return, so push false first
+    val in_loops : Bool[] := [false];
     var is_in_class : Bool := false;
     fun error[A](message : String) : A := panic(message);
     fun require_assigneable(to : Ast.Type, from : Ast.Type, violating_section : Fun() : String) do 
@@ -89,6 +90,7 @@ fun check_stmt(tc : Typechecker, stmt : Ast.Stmt) := match stmt do
     end;
     case Declaration(decl) := check_decl(tc, decl);
     case SetStatement(setter, value) := check_set_stmt(tc, setter, value);
+    case EmptyStmt() := do end;
 end;
 
 fun check_set_stmt(tc : Typechecker, setter : Ast.Setter, value : Ast.Expr) do 
@@ -226,6 +228,7 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
             tc.declare(name, fun_type, false);
         end;
         tc.open_scope();
+            tc.in_loops.push(false);
             tc.return_tys.push((true, return_type));
             for param in params do 
                 declare_param(tc, param);
@@ -233,6 +236,7 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
             check(tc, body, return_type);
             lenv.init(tc.env);
             tc.return_tys.pop();
+            tc.in_loops.pop();
         tc.close_scope();
         if tc.is_global() and name = "main" and return_type != Ast.VoidT() do 
             panic("Main may not return anything other than Void");
@@ -248,12 +252,14 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
             methods_in_class(tc, members)
         ));
         tc.open_scope();
+            tc.in_loops.push(false);
             tc.return_tys.push((false, Ast.Never()));
             tc.declare("this", Ast.Name(name), false);
             check_body(tc, members);
             val constr_type := check_constructor(tc, constructor, name);
             val body_env := tc.env;
             tc.return_tys.pop();
+            tc.in_loops.pop();
         tc.close_scope();
         lenv.init(body_env);
         
@@ -265,11 +271,13 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
         tc.declare_type(name, Ast.EnumInfo(name, variants, funs));
         declare_enum_constructors(tc, name, variants);
         tc.open_scope();
+            tc.in_loops.push(false);
             tc.return_tys.push((false, Ast.Never()));
             tc.declare("this", Ast.Name(name), false);
             check_body(tc, members);
             val body_env := tc.env;
             tc.return_tys.pop();
+            tc.in_loops.pop();
         tc.close_scope();
         lenv.init(body_env);
     end;
@@ -432,6 +440,7 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
     end;
     case ForExpr(setter, iterated, body, lenv, lt, lit) := check_for(tc, t, setter, iterated, body, lenv, lt, lit);
     case WhileExpr(cond, body, lenv, lty) := check_while(tc, t, cond, body, lenv, lty);
+    case WhileValExpr(pat, matched, body, lmatched_ty, lenv, lty) := check_while_val(tc, t, pat, matched, body, lmatched_ty, lenv, lty);
     case FunctionCall(callee, args) := do 
         val callee_type := infer(tc, callee);
         val Function(param_types, ret_type) := callee_type else do 
@@ -507,6 +516,10 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
         val (can_return, return_ty) := tc.return_tys.last;
         if !can_return do panic("Cannot return outside of functions or methods: "+e) end
         check(tc, ret, return_ty);
+    end;
+    case Break(lty) := do 
+        if !tc.in_loops.last do panic("Cannot break outside of loops"); end;
+        lty.init(t);
     end;
 end;
 
@@ -630,6 +643,7 @@ fun check_for(
 do 
     val iterated_ty := infer(tc, iterated);
     tc.open_scope();
+        tc.in_loops.push(true);
         val ListOf(elem_ty) := iterated_ty else panic("Cannot iterate non-list-type "+iterated_ty);
         lit.init(elem_ty);
         check_declaration_setter(tc, setter, elem_ty, false);
@@ -643,6 +657,7 @@ do
         end;
         lenv.init(tc.env);
         lt.init(result_ty);
+        tc.in_loops.pop();
     tc.close_scope();
 end
 
@@ -656,6 +671,7 @@ fun check_while(
 do 
     check(tc, cond, Ast.BooleanT());
     tc.open_scope();
+        tc.in_loops.push(true);
         if val VoidT() := expected then do 
             check(tc, body, Ast.VoidT());
         end else if val ListOf(elem_ty) := expected then do 
@@ -666,6 +682,36 @@ do
         end;
         lty.init(expected); // The resulting type of the entire expression, not the element type
         lenv.init(tc.env);
+        tc.in_loops.pop();
+    tc.close_scope();
+end
+
+fun check_while_val(
+    tc : Typechecker, 
+    expected : Ast.Type, 
+    pat : Ast.Pattern, 
+    matched : Ast.Expr, 
+    body : Ast.Expr, 
+    lmatched_ty : Util.LateInitialized(Ast.Type), 
+    lenv : Util.LateInitialized(Env.Env(Ast.VarInfo)), 
+    lty : Util.LateInitialized(Ast.Type)) 
+do 
+    val matched_ty := infer(tc, matched);
+    lmatched_ty.init(matched_ty);
+    tc.open_scope();
+        tc.in_loops.push(true);
+        check_pattern(tc, pat, matched_ty);
+        if val VoidT() := expected then do 
+            check(tc, body, Ast.VoidT());
+        end else if val ListOf(elem_ty) := expected then do
+            check(tc, body, elem_ty);
+        end else do 
+            val elem_ty := infer(tc, body);
+            tc.error.[Void]("Expected "+expected+", got "+Ast.ListOf(elem_ty)+" in "+Ast.WhileValExpr(pat, matched, body, lmatched_ty, lenv, lty));
+        end;
+        lty.init(expected);
+        lenv.init(tc.env);
+        tc.in_loops.pop();
     tc.close_scope();
 end
 
@@ -715,6 +761,7 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
     case BlockExpr(stmts, end_expr, lt, lenv) := infer_block(t, stmts, end_expr, lt, lenv);
     case ForExpr(setter, iterated, body, lenv, lt, lit) := infer_for(t, setter, iterated, body, lenv, lt, lit);
     case WhileExpr(cond, body, lenv, lty) := infer_while(t, cond, body, lenv, lty);
+    case WhileValExpr(pat, matched, body, lmatched_ty, lenv, lty) := infer_while_val(t, pat, matched, body, lmatched_ty, lenv, lty);
     case FunctionCall(callee, args) := do 
         val callee_type := infer(t, callee);
         val Function(param_types, ret_type) := callee_type else do 
@@ -813,6 +860,11 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         check(t, ret, return_ty);
         Ast.Never()
     end;
+    case Break(lty) := do 
+        if !t.in_loops.last do panic("Cannot break outside of loops"); end;
+        lty.init(Ast.Never());
+        Ast.Never()
+    end;
 end;
 
 fun infer_function(
@@ -823,11 +875,13 @@ fun infer_function(
     lenv : Util.LateInitialized(Env.Env(Ast.VarInfo))) : Ast.Type
 do 
     t.open_scope();
+        t.in_loops.push(false);
         for param in params do 
             declare_param(t, param);
         end;
         check(t, body, return_type);
         lenv.init(t.env);
+        t.in_loops.pop();
     t.close_scope();
     Ast.Function(param_types(params), return_type)
 end
@@ -864,11 +918,13 @@ fun infer_for(
 do 
     val iterated_ty := infer(tc, iterated);
     tc.open_scope();
+        tc.in_loops.push(true);
         val ListOf(elem_ty) := iterated_ty else panic("Cannot iterate non-list-type "+iterated_ty);
         lit.init(elem_ty);
         check_declaration_setter(tc, loop_var, elem_ty, false);
         val resulting_elem_ty := infer(tc, body);
         lenv.init(tc.env);
+        tc.in_loops.pop();
     tc.close_scope();
     val resulting := Ast.ListOf(resulting_elem_ty);
     lt.init(resulting);
@@ -884,10 +940,35 @@ fun infer_while(
 do 
     check(tc, cond, Ast.BooleanT());
     tc.open_scope();
+        tc.in_loops.push(true);
         val elem_ty := infer(tc, body);
         val resulting := Ast.ListOf(elem_ty);
         lenv.init(tc.env);
         lty.init(resulting);
+        tc.in_loops.pop();
+    tc.close_scope();
+    resulting
+end
+
+fun infer_while_val(
+    tc : Typechecker,
+    pat : Ast.Pattern,
+    matched : Ast.Expr,
+    body : Ast.Expr,
+    lmatched_ty : Util.LateInitialized(Ast.Type),
+    lenv : Util.LateInitialized(Env.Env(Ast.VarInfo)), 
+    lty : Util.LateInitialized(Ast.Type)) : Ast.Type
+do 
+    val matched := infer(tc, matched);
+    lmatched_ty.init(matched);
+    tc.open_scope();
+        tc.in_loops.push(true);
+        check_pattern(tc, pat, matched);
+        val elem_ty := infer(tc, body);
+        val resulting := Ast.ListOf(elem_ty);
+        lenv.init(tc.env);
+        lty.init(resulting);
+        tc.in_loops.pop();
     tc.close_scope();
     resulting
 end

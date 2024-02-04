@@ -32,6 +32,25 @@ fun desugar_expr(d : Desugarer, e : Ast.Expr) : Ast.Expr := match e do
         match_ty,
         return_ty
     );
+    case WhileValExpr(pat, matched, body, lmatched_ty, lenv, lresult_ty) := do
+        val elem_ty := Util.wrap_linit.[Ast.Type](if val ListOf(elem_ty) := lresult_ty.get() then elem_ty else Ast.VoidT());
+        Ast.WhileExpr(
+            Ast.Boolean(true),
+            Ast.BlockExpr(
+                [],
+                Util.Some.[Ast.Expr](Ast.MatchExpr(
+                    	matched,
+                    [(pat, body, lenv), (Ast.WildcardPattern(), Ast.Break(elem_ty), lenv)],
+                    lmatched_ty, 
+                    elem_ty
+                )),
+                elem_ty,
+                lenv
+            ),
+            lenv,
+            lresult_ty
+        )
+    end;
 end;
 
 fun get_outer_env(e : Util.LateInitialized(Env.Env(Ast.VarInfo))) : Util.LateInitialized(Env.Env(Ast.VarInfo)) do 

@@ -2,11 +2,14 @@ enum Test where
     A(String), B(Number);
 end
 
-fun test() : String do
-    val y := panic("error");
-    y
-end
-
-fun main() : Void do
-    print test();
+fun main() : Void do 
+    val tests : Test[] := [A("a"), A("b"), A("c"), B(6)];
+    var index := -1;
+    fun get_next_test() : Test do 
+        index := index + 1;
+        tests[index]
+    end;
+    while val A(str) := get_next_test() do 
+        print str;
+    end;
 end

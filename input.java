@@ -24,18 +24,47 @@ class Main {
             return __builder.toString();
         } 
     }
-    public static String test() {
-        final Void y;
-        y = panic("error");
-        return "";
-    }
     public static void main() {
-        var __var0 = test();
-        System.out.println(__var0);
+        final ArrayList<Test> tests;
+        tests = new ArrayList<>(4);
+        var __var0 = new A("a");
+        tests.add(__var0);
+        var __var1 = new A("b");
+        tests.add(__var1);
+        var __var2 = new A("c");
+        tests.add(__var2);
+        var __var3 = new B(6.0);
+        tests.add(__var3);
+        NumberUpvalue index = new NumberUpvalue();
+        index.value = -1.0;
+        final __var4 get_next_test = () -> {
+            index.value = index.value + 1.0;
+            return tests.get(__toIndex(index.value));
+        }
+        ;
+        __var5: while(true) {
+            {
+                var __var6 = get_next_test.call();
+                switch(__var6) {
+                    case A(String str) -> {
+                        {
+                            System.out.println(str);
+                        }
+                    }
+                    case Test __var7 -> {
+                        if(true) break __var5;
+                    }
+                }
+            }
+            
+        }
     }
     
     public static void main(String[] args) {
         main();
+    }
+    @FunctionalInterface static interface __var4 {
+        Test call();
     }
     
 }

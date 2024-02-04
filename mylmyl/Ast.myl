@@ -27,10 +27,12 @@ enum Expr where
     TupleExpr(Expr[], Util.LateInitialized(Type)),
     BlockExpr(Stmt[], Util.Optional(Expr), Util.LateInitialized(Type), Util.LateInitialized(Env.Env(VarInfo))),
     WhileExpr(Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type)),
+    WhileValExpr(Pattern, Expr, Expr, Util.LateInitialized(Type), Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type)),
     ForExpr(Setter, Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type), 
                                 Util.LateInitialized(Type)),
     WildCardExpression(),
     ReturnExpr(Expr, Util.LateInitialized(Type)),
+    Break(Util.LateInitialized(Type)),
     ThisExpr();
 end
 
