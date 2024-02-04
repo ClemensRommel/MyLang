@@ -91,6 +91,9 @@ public class Typechecker implements
         TypeRep previousTarget = checkTarget;
         checkTarget = target;
         if(checkTarget instanceof UnknownType) {
+            for(var err : errors) {
+                System.out.println(err);
+            }
             throw new RuntimeException("Tried checking of unknown type: "+p.prettyPrint(tested)+" or: "+tested);
         }
 
@@ -538,7 +541,7 @@ public class Typechecker implements
 
     @Override
     public Void visitClassDeclaration(ClassDeclaration value) {
-        var classType = env.getTypeByName(value.Name().lexeme());
+        var classType = env.getTypeByName(value.Name().lexeme(), this);
 
         openScope();
             boolean prevInClass = inClass;
@@ -1288,7 +1291,7 @@ public class Typechecker implements
 
     @Override
     public Void visitTypeDefDeclaration(TypeDefDeclaration t) {
-        env.normalize(env.getTypeByName(t.Name().lexeme()), this);
+        env.normalize(env.getTypeByName(t.Name().lexeme(), this), this);
         return null;
     }
 
@@ -1316,7 +1319,7 @@ public class Typechecker implements
         for(var constructor : e.variants()) { // Check that all Constructors are Well-Formed
             env.normalize(enumConstructorTypeOf(e.args(), constructor, e.Name(), false), this); 
         }
-        var enumType = env.getTypeByName(e.Name().lexeme());
+        var enumType = env.getTypeByName(e.Name().lexeme(), this);
 
         openScope();
             boolean prevInClass = inClass;

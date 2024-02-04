@@ -22,7 +22,7 @@ fun mentions_var(expr : Ast.Expr, name : String) : Bool := match expr do
     case StringLiteral(?) := false;
     case Boolean(?) := false;
     case NullLiteral() := false;
-    case Identifier(n) := n = name;
+    case Identifier(n, ?) := n = name;
     case BinaryOperation(?, left, right) := mentions_var(left, name) or mentions_var(right, name);
     case UnaryOperation(?, part) := mentions_var(part, name);
     case FunctionCall(callee, called) := mentions_var(callee, name) or 
@@ -85,6 +85,7 @@ end
 // Search for possible captures in this declaration
 fun analyze_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do 
     match decl do 
+        case DesugarableDecl(md) := analyze_decl(scan_env, md.get());
         case VarDecl(setter, ty, init, mut, ?) := do 
             if mut do 
                 insert_vars(scan_env, setter); // Possible mutable variable that is captured
@@ -173,7 +174,7 @@ fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
             end;
         end;
         case ReturnExpr(ret, lty) := do analyze_expr(scan_env, ret); end;
-        case NumberLiteral(?) := do end; case Identifier(?) := do end; case StringLiteral(?) := do end; 
+        case NumberLiteral(?) := do end; case Identifier(?, ?) := do end; case StringLiteral(?) := do end; 
         case Boolean(?) := do end; case NullLiteral() := do end; case ThisExpr() := do end;
     end;
 end
@@ -208,7 +209,7 @@ fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
         case FunctionExpr(?, ?, body, ?) := do 
             scan_expr(scan_env, body); // Important part : Switch to scan mode
         end;
-        case Identifier(name) := do 
+        case Identifier(name, ?) := do 
             mark(scan_env, name);
         end;
         case ListExpr(exprs, ?) := do
@@ -279,6 +280,7 @@ end
 
 fun scan_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do 
     match decl do 
+        case DesugarableDecl(md) := scan_decl(scan_env, md.get());
         case VarDecl(?, ?, init, ?, ?) := if val Some(e) := init then scan_expr(scan_env, e) else do end;
         case FunDecl(?, ?, ?, body, ?, ?) := scan_expr(scan_env, body);
     end;

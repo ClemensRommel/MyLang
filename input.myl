@@ -1,8 +1,10 @@
+enum Test where 
+    A(String), B(Number);
+end
+
 fun test() : String do
-    print "test 2";
-    val fst : String := return "hello";
-    print "test 1";
-    fst
+    val y := panic("error");
+    y
 end
 
 fun main() : Void do

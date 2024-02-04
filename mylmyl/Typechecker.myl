@@ -6,6 +6,9 @@ import Util;
 
 fun typecheck(ast : Ast.Program) : Env.Env(Ast.VarInfo) do 
     val tc := new Typechecker();
+
+    declare_builtins(tc);
+
     for decl in ast.decls do 
         check_decl(tc, decl);
     end;
@@ -21,8 +24,8 @@ class Typechecker where
     fun require_assigneable(to : Ast.Type, from : Ast.Type, violating_section : Fun() : String) do 
         require_types_exist(this, to);
         require_types_exist(this, from);
-        if to = Ast.Never() do return null; end;
-        if to != from do 
+        if from = Ast.Never() do return null; end;
+        if to != from do
             this.error.[Void](from+" is not assigneable to "+to+" in "+violating_section());
         end;
     end
@@ -70,8 +73,12 @@ fun require_types_exist(tc : Typechecker, ty : Ast.Type) := match ty do
         end
     end;
     case ListOf(elem_ty) := require_types_exist(tc, elem_ty);
-    case NumberT() := do end; case BooleanT() := do end; case StringT() := do end; case VoidT() := do end;
+    case NumberT() := do end; case BooleanT() := do end; case StringT() := do end; case VoidT() := do end; case Never() := do end;
 end;
+
+fun declare_builtins(tc : Typechecker) do 
+    tc.declare("panic", Ast.Function([Ast.StringT()], Ast.Never()), false);
+end
 
 fun check_stmt(tc : Typechecker, stmt : Ast.Stmt) := match stmt do 
     case PrintStmt(arg) := do 
@@ -184,6 +191,23 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
         end;
         require_types_exist(tc, lt.get());
         check_declaration_setter(tc, setter, lt.get(), mutable);
+    end;
+    case DesugarableDecl(md) := check_decl(tc, md.get());
+    case ValElseDeclaration(pat, matched, else_br, is_mut, is_export, ldecl_ty, lmatched_ty, lenv) := do 
+        if ldecl_ty.is_init() then do 
+            check_pattern(tc, pat, ldecl_ty.get());
+            check(tc, matched, ldecl_ty.get());
+            check(tc, else_br, Ast.Never());
+            lmatched_ty.init(ldecl_ty.get());
+            lenv.init(tc.env);
+        end else do 
+            val matched_ty := infer(tc, matched);
+            lmatched_ty.init(matched_ty);
+            ldecl_ty.init(matched_ty);
+            check_pattern(tc, pat, matched_ty);
+            check(tc, else_br, Ast.Never());
+            lenv.init(tc.env);
+        end;
     end;
     case FunDecl(name, params, return_type, body, ?, lenv) := do 
         if matches(name, "__.*") do 
@@ -376,7 +400,8 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
         end
         tc.require_assigneable(t, tc.type_of_var("this"), lazy_str(e));
     end;
-    case Identifier(name) := do 
+    case Identifier(name, lty) := do 
+        lty.init(t);
         tc.require_assigneable(t, tc.type_of_var(name), lazy_str(e));
         if matches(name, "__.*") do 
             panic("Names may not start with __: '"+name+"'")
@@ -657,11 +682,12 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         end
         t.type_of_var("this")
     end;
-    case Identifier(name) := do 
+    case Identifier(name, lty) := do 
         if matches(name, "__.*") do 
             panic("Names may not start with __: '"+name+"'")
         end;
         val res := t.type_of_var(name);
+        lty.init(res);
         res
     end;
     case BinaryOperation(op, lhs, rhs) := infer_binary(t, op, lhs, rhs);

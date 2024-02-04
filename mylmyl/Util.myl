@@ -33,9 +33,24 @@ export class LateInitialized(T) where
     fun is_init() : Bool := this.field != None.[T]();
 end
 
+fun wrap_linit[T](t : T) : LateInitialized(T) do 
+    val linit := LateInitialized.[T]();
+    linit.init(t);
+    linit
+end
+
 fun any[T](list : T[], pred : Fun(T) : Bool) : Bool do
     for t in list do
         if pred(t) do return true; end;
     end;
     false
+end
+
+fun snd[A, B](tuple : (A, B)) : B do 
+    val (a, b) := tuple;
+    b
+end;
+fun fst[A, B](tuple : (A, B)) : A do 
+    val (a, b) := tuple;
+    a
 end

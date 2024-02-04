@@ -4,12 +4,12 @@ import Env;
 import Util;
 
 enum Expr where 
-    DesugarableExpr(MutExpr),
+    DesugarableExpr(Mut(Expr)),
     NumberLiteral(Number),
     StringLiteral(String),
     Boolean(Bool),
     NullLiteral(),
-    Identifier(String),
+    Identifier(String, Util.LateInitialized(Type)),
     BinaryOperation(BinOp, Expr, Expr),
     UnaryOperation(UnOp, Expr),
     FunctionCall(Expr, Expr[]),
@@ -34,12 +34,12 @@ enum Expr where
     ThisExpr();
 end
 
-class MutExpr where 
-    var expr : Expr;
-    new(e : Expr) do this.expr := e; end
+class Mut(E) where 
+    var expr : E;
+    new(e : E) do this.expr := e; end
 
-    fun get() : Expr := this.expr;
-    fun set(e : Expr) do this.expr := e; end;
+    fun get() : E := this.expr;
+    fun set(e : E) do this.expr := e; end;
 end
 
 enum Pattern where 
@@ -84,6 +84,7 @@ export enum BlockPart where
 end
 
 export enum Decl where 
+    DesugarableDecl(Mut(Decl)),
     VarDecl(Setter, Util.LateInitialized(Type), Util.Optional(Expr), Bool /* mut */, Bool /* export */),
     ValElseDeclaration(Pattern, Expr, Expr, Bool /* mut */, Bool /* export */, Util.LateInitialized(Type), 
                        Util.LateInitialized(Type), Util.LateInitialized(Env.Env(VarInfo))),

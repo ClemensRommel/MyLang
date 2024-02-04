@@ -4,11 +4,12 @@ import Ast;
 import Env;
 import Analyze;
 import Util;
+import NameGen;
 
 class Compiler where 
     var buf : String := "";
     var indent_level : Number := 0;
-    var counter : Number := 0;
+    var name_gen : NameGen.NameGenerator;
 
     var is_class : Bool := true;
     var is_static : Bool := true;
@@ -22,8 +23,11 @@ class Compiler where
 
     var env : Env.Env(VariableInfo) := Env.Env.[VariableInfo]();
 
-    new(globals : Env.Env(Ast.VarInfo)) do 
+    new(globals : Env.Env(Ast.VarInfo), nameg : NameGen.NameGenerator) do 
         this.current_env := globals;
+        this.name_gen := nameg;
+
+        declare_builtins(this);
     end
 
     fun append(str : String) do
@@ -52,11 +56,7 @@ class Compiler where
         this.buf := strip(this.buf);
     end
 
-    fun new_var() : String do 
-        val c := this.counter;
-        this.counter := this.counter + 1;
-        "__a" + c 
-    end
+    fun new_var() : String := this.name_gen.next_name();
 
     fun enqueue_type(t : Ast.Type, type_name : String) do 
         match t do 
@@ -143,8 +143,12 @@ class VariableInfo where
     var is_upvalue : Bool := false;
 end
 
-fun compile(ast : Ast.Program, globals : Env.Env(Ast.VarInfo)) : String do 
-    val c := Compiler(globals);
+fun declare_builtins(c : Compiler) do 
+    c.env.insert("panic", do val panic_info := VariableInfo(); panic_info.is_no_fc_fn := true; panic_info end);
+end
+
+fun compile(ast : Ast.Program, globals : Env.Env(Ast.VarInfo), name_gen : NameGen.NameGenerator) : String do 
+    val c := Compiler(globals, name_gen);
     import_implicits(c);
     c.append("class Main {");
     c.indent(); c.newline();
@@ -188,6 +192,7 @@ fun compile_stmt(c : Compiler, stmt : Ast.Stmt) := match stmt do
 end;
 
 fun compile_decl(c : Compiler, decl : Ast.Decl) := match decl do 
+    case DesugarableDecl(md) := compile_decl(c, md.get());
     case VarDecl(setter, lt, init, mutable, ?) := compile_var_decl(c, setter, lt, init, mutable);
     case FunDecl(name, params, return_type, body, ?, lenv) := compile_fun_decl(c, name, params, return_type, body, lenv);
     case ClassDecl(name, members, opt_constr, ?, lenv) := compile_class_decl(c, name, members, opt_constr, lenv.get());
@@ -500,7 +505,7 @@ fun compile_expr(c : Compiler, expr : Ast.Expr, target : Target) : String := mat
     case RangeExpr(start, end_expr) := compile_range_expr(c, start, end_expr, target);
     case Boolean(b) := use_with_target(c, if b then "true" else "false", target);
     case NullLiteral() := use_with_target(c, "null", target);
-    case Identifier(name) := compile_identifier(c, name, target);
+    case Identifier(name, lty) := compile_identifier(c, name, lty.get(), target);
     case BinaryOperation(op, left, right) := compile_binary(c, op, left, right, target);
     case UnaryOperation(op, operand) := compile_unary(c, op, operand, target);
     case IfExpr(lt, cond, thenBr, elseBr) := compile_if(c, lt, cond, thenBr, elseBr, target);
@@ -1093,7 +1098,7 @@ fun maybe_upvalue(c : Compiler, name : String) : String :=
     else 
         name;
 
-fun compile_identifier(c : Compiler, fname : String, target : Target) : String do
+fun compile_identifier(c : Compiler, fname : String, expected_ty : Ast.Type, target : Target) : String do
     if Ignore() = target do // Identifier has no side effects, so ignore means nothing has to be compiled
         return "";
     end;
@@ -1147,6 +1152,8 @@ fun compile_identifier(c : Compiler, fname : String, target : Target) : String d
         c.append(");");
         c.newline();
         name
+    end else if val Never() := c.current_env.get(fname).ty then do 
+        use_with_target(c, default_value(expected_ty), target)
     end else do 
         // Normal variable, might be an upvalue
         use_with_target(c, maybe_upvalue(c, fname), target)
@@ -1164,7 +1171,7 @@ fun create_enqueued_type(c : Compiler, ty : Ast.Type) : String do
 end
 
 fun compile_call(c : Compiler, callee : Ast.Expr, args : Ast.Expr[], target : Target) : String do 
-    val callee_compiled := if val Identifier(name) := callee then do 
+    val callee_compiled := if val Identifier(name, ?) := callee then do 
         val info := c.env.get(name);
         if info.is_constructor then 
             "new " + name

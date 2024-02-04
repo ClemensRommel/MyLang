@@ -4,17 +4,34 @@ import std.runtime.*;
 import java.util.ArrayList;
 
 class Main {
+    public static  sealed interface Test {
+    }
+    public static  record A(String __field0) implements Test {
+        @Override public String toString() {
+            StringBuilder __builder = new StringBuilder();
+            __builder.append("A(");
+            __builder.append(__field0());
+            __builder.append(")");
+            return __builder.toString();
+        } 
+    }
+    public static  record B(double __field0) implements Test {
+        @Override public String toString() {
+            StringBuilder __builder = new StringBuilder();
+            __builder.append("B(");
+            __builder.append(__field0());
+            __builder.append(")");
+            return __builder.toString();
+        } 
+    }
     public static String test() {
-        System.out.println("test 2");
-        final String fst;
-        if(true) return "hello";
-        fst = "";
-        System.out.println("test 1");
-        return fst;
+        final Void y;
+        y = panic("error");
+        return "";
     }
     public static void main() {
-        var __a0 = test();
-        System.out.println(__a0);
+        var __var0 = test();
+        System.out.println(__var0);
     }
     
     public static void main(String[] args) {

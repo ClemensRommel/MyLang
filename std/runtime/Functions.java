@@ -23,4 +23,8 @@ public class Functions {
         }
         return lst;
     }
+
+    public static Void panic(String message) {
+        throw new RuntimeException(message);
+    }
 }

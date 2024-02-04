@@ -88,13 +88,13 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
         return exportedTypes.contains(name);
     }
 
-    public TypeRep getTypeByName(String name) {
+    public TypeRep getTypeByName(String name, Typechecker t) {
         if(types.containsKey(name)) {
             return types.get(name);
         } else if(outer != null) {
-            return outer.getTypeByName(name);
+            return outer.getTypeByName(name, t);
         } else {
-            tc.error("Tried to get unknown type" + name);
+            t.error("Tried to get unknown type" + name);
             return Typechecker.unknown();
         }
     }
@@ -174,7 +174,7 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
         if(!fromEnv.typeExists(ti.name().lexeme())) {
             tc.error("["+ti.name().line()+"] Unknown Type '"+ti.name().lexeme()+"'");
         }
-        return fromEnv.getTypeByName(ti.name().lexeme());
+        return fromEnv.getTypeByName(ti.name().lexeme(), tc);
     }
     @Override
     public TypeRep visitAccessRep(AccessRep a) {
@@ -187,7 +187,7 @@ public class TypeEnv implements TypeRepVisitor<TypeRep> {
             if(!m.enviroment().typeExists(a.name().lexeme())) {
                 tc.error("Tried to access non-existent type '"+a.name().lexeme()+"'");
             }
-            return normalize(m.enviroment().getTypeByName(a.name().lexeme()), tc);
+            return normalize(m.enviroment().getTypeByName(a.name().lexeme(), tc), tc);
         } else {
             tc.error("Cannot access type from non-Module-Type '"+from+"'");
             return Typechecker.unknown();

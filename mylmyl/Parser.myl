@@ -9,7 +9,8 @@ class Parser where
     val tokens : Tokenizer.Token[];
     var pos : Number;
 
-    val to_be_desugared : Ast.MutExpr[] := [];
+    val undesugared_exprs : Ast.Mut(Ast.Expr)[] := [];
+    val undesugared_decls : Ast.Mut(Ast.Decl)[] := [];
 
     new(source : String) do
         this.tokens := Tokenizer.tokenize(source);
@@ -45,17 +46,22 @@ class Parser where
     fun previous() : Tokenizer.Token := this.tokens[this.pos - 1];
     fun at_end() : Bool := this.peek().kind = Tokenizer.EOF();
 
-    fun wrap_sugared(e : Ast.Expr) : Ast.Expr := do 
-        val mut_expr := Ast.MutExpr(e);
-        this.to_be_desugared.push(mut_expr);
+    fun wrap_sugared_expr(e : Ast.Expr) : Ast.Expr := do 
+        val mut_expr := Ast.Mut.[Ast.Expr](e);
+        this.undesugared_exprs.push(mut_expr);
         Ast.DesugarableExpr(mut_expr)
+    end;
+    fun wrap_sugared_decl(d : Ast.Decl) : Ast.Decl := do 
+        val mut_decl  := Ast.Mut.[Ast.Decl](d);
+        this.undesugared_decls.push(mut_decl);
+        Ast.DesugarableDecl(mut_decl)
     end;
 end;
 
-export fun parse(source : String) : (Ast.Program, Ast.MutExpr[]) do 
+export fun parse(source : String) : (Ast.Program, (Ast.Mut(Ast.Expr)[], Ast.Mut(Ast.Decl)[])) do 
     val parser := Parser(source);
     val prg := program(parser); 
-    (prg, parser.to_be_desugared)
+    (prg, (parser.undesugared_exprs, parser.undesugared_decls))
 end
 
 fun program(p : Parser) : Ast.Program do 
@@ -218,8 +224,8 @@ fun var_decl(p : Parser, mutable : Bool) : Ast.Decl do
     if p.matches(Tokenizer.ELSE()) then do 
         val else_br := expr(p);
         p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration with else branch");
-        Ast.ValElseDeclaration(convert_pattern(setter_unconverted), initializer.expect("Require initializer in val-else declaration at "+keyword.pos.line), else_br, mutable, true, ty, 
-                               Ast.late_type(), Ast.late_env())
+        p.wrap_sugared_decl(Ast.ValElseDeclaration(convert_pattern(setter_unconverted), initializer.expect("Require initializer in val-else declaration at "+keyword.pos.line), else_br, mutable, true, ty, 
+                               Ast.late_type(), Ast.late_env()))
     end else do 
         p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration");
         Ast.VarDecl(convert_setter(setter_unconverted), ty, initializer, mutable, true)
@@ -476,7 +482,7 @@ fun assign_stmt_to(p : Parser, unconverted_setter : Ast.Expr) : Ast.Stmt do
 end
 
 fun convert_setter(s : Ast.Expr) : Ast.Setter := match s do 
-    case Identifier(name) := Ast.Variable(name);
+    case Identifier(name, ?) := Ast.Variable(name);
     case TupleExpr(subexprs, lt) := Ast.TupleSetter(for expr in subexprs yield convert_setter(expr) end, lt);
     case PropertyExpr(obj, name, ?, ?, ?) := do 
         Ast.Property(obj, name, Ast.late_type())
@@ -488,10 +494,10 @@ fun convert_pattern(p : Ast.Expr) : Ast.Pattern := match p do
     case NumberLiteral(n) := Ast.NumericPattern(n);
     case StringLiteral(s) := Ast.StringPattern(s);
     case Boolean(b) := Ast.BooleanPattern(b);
-    case Identifier(i) := Ast.NamePattern(i);
+    case Identifier(i, ?) := Ast.NamePattern(i);
     case TupleExpr(exprs, ?) := Ast.TuplePattern(for e in exprs yield convert_pattern(e) end);
     case FunctionCall(callee, args) := do 
-        val Identifier(name) := callee else panic("Invalid constructor: "+callee);
+        val Identifier(name, ?) := callee else panic("Invalid constructor: "+callee);
         Ast.ConstructorPattern(name, for arg in args yield convert_pattern(arg) end, Util.LateInitialized.[Ast.EnumConstructor]())
     end;
     case ? := panic("Invalid pattern: "+p);
@@ -511,7 +517,7 @@ fun if_expr(p : Parser) : Ast.Expr do
         val thenBranch := expr(p);
         p.consume(Tokenizer.ELSE(), "Expect else branch in if val expression");
         val elseBranch := expr(p);
-        p.wrap_sugared(Ast.IfValExpr(
+        p.wrap_sugared_expr(Ast.IfValExpr(
                         Ast.late_type(), 
                         pat, matched, 
                         thenBranch, elseBranch, 
@@ -539,7 +545,7 @@ fun literal(p : Parser) : Ast.Expr :=
         Ast.Boolean(false)
     end else if p.matches(Tokenizer.IDENTIFIER()) then do 
         val token := p.previous();
-        Ast.Identifier(token.src)
+        Ast.Identifier(token.src, Ast.late_type())
     end else if p.matches(Tokenizer.NULL()) then do 
         Ast.NullLiteral()
     end else if p.matches(Tokenizer.LPAREN()) then do 

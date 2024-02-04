@@ -4,6 +4,7 @@ import Parser;
 import Compiler;
 import Typechecker;
 import Desugar;
+import NameGen;
 
 fun main() do 
     val cli_args := args();
@@ -16,7 +17,8 @@ fun main() do
     end;
     val (ast, to_be_desugared) := Parser.parse(source);
     val globals := Typechecker.typecheck(ast);
-    Desugar.desugar(to_be_desugared);
-    val compiled := Compiler.compile(ast, globals);
+    val name_gen := NameGen.NameGenerator();
+    Desugar.desugar(to_be_desugared, name_gen);
+    val compiled := Compiler.compile(ast, globals, name_gen);
     print(compiled);
 end

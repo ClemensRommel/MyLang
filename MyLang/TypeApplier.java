@@ -43,7 +43,7 @@ public class TypeApplier implements TypeRepVisitor<TypeRep> {
     @Override
     public TypeRep visitTypeIdentifierRep(TypeIdentifierRep i) {
         if (i.env().typeExists(i.name().lexeme())) {
-            if (i.env().getTypeByName(i.name().lexeme()) instanceof TypeVar v) {
+            if (i.env().getTypeByName(i.name().lexeme(), tc) instanceof TypeVar v) {
                 return v.accept(this);
             }
         }
