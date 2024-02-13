@@ -95,6 +95,10 @@ export enum Decl where
     EnumDecl(String, EnumConstructor[], Decl[], Bool /* export */, Util.LateInitialized(Env.Env(VarInfo)));
 end;
 
+enum Import where 
+    BasicImport(String[]);
+end
+
 export class EnumConstructor where 
     val name : String;
     val fields : Type[];
@@ -119,6 +123,7 @@ class VarInfo where
     val ty : Type;
     val is_mutable : Bool;
     val name : String;
+    var is_exported : Bool := false;
     var is_constructor : Bool := false;
     new(m : Bool, t : Type, n : String) do 
         this.is_mutable := m; this.ty := t; this.name := n;
@@ -135,6 +140,7 @@ enum Parameter where
 end
 
 export class Program where 
+    val imports : Import[] := [];
     val decls : Decl[] := [];
 end
 

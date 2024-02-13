@@ -3,24 +3,165 @@ module Typechecker;
 import Ast;
 import Env;
 import Util;
+import SourceFileGatherer;
 
-fun typecheck(ast : Ast.Program) : Env.Env(Ast.VarInfo) do 
-    val tc := new Typechecker();
+fun typecheck(file : SourceFileGatherer.SourceFile) do 
+    val tc := new Typechecker(file);
 
     declare_builtins(tc);
 
-    for decl in ast.decls do 
+    for decl in file.ast.decls do 
         check_decl(tc, decl);
     end;
-    tc.env
+    file.globals_env.init(tc.env);
+end
+
+fun declare_globals(file : SourceFileGatherer.SourceFile) do 
+    file.globals_env.init(Env.Env.[Ast.VarInfo]());
+    file.types_env.init(Env.Env.[Ast.TyInfo]());
+    declare_functions_and_types(file); // Need to do functions and types first,
+    declare_global_variables(file);    // as information about enum constructors is needed for val-else
+end
+
+fun declare_global_variables(file : SourceFileGatherer.SourceFile) do
+    fun declare_global_variable(decl : Ast.Decl) do 
+        match decl do 
+            case VarDecl(setter, tyd, ?, mutable, exported) := do 
+                if !tyd.is_init() do 
+                    panic("Error: Top level declaration of "+setter+"requires type declaration");
+                end;
+                declare_setter(file, setter, tyd.get(), mutable, exported);
+            end;
+            case ValElseDeclaration(pat, ?, ?, mutable, exported, lty, ?, ?) := do 
+                if !lty.is_init() do 
+                    panic("Error: Top level declaration of"+pat+"requires type declaration");
+                end;
+                declare_pattern(file, pat, lty.get(), mutable, exported);
+            end;
+            case DesugarableDecl(mutdecl) := declare_global_variable(mutdecl.get());
+            case FunDecl(?, ?, ?, ?, ?, ?) := do end;
+            case ClassDecl(?, ?, ?, ?, ?) := do end;
+            case EnumDecl(?, ?, ?, ?, ?) := do end;
+        end;
+    end;
+    for decl in file.ast.decls do 
+        declare_global_variable(decl);
+    end;
+end
+
+fun declare_functions_and_types(file : SourceFileGatherer.SourceFile) do 
+    fun declare_function_and_type(decl : Ast.Decl) do 
+        match decl do 
+            case DesugarableDecl(mutdecl) := declare_function_and_type(mutdecl.get());
+            case VarDecl(setter, tyd, ?, mutable, exported) := do end;
+            case ValElseDeclaration(pat, ?, ?, mutable, exported, lty, ?, ?) := do end;
+            case FunDecl(name, parameters, return_ty, ?, exported, ?) := do 
+                val ty := Ast.Function(param_types(parameters), return_ty);
+                val info := Ast.VarInfo(false, ty, name);
+                info.is_exported := exported;
+                file.globals_env.get().insert(name, info);
+            end;
+            case ClassDecl(name, body, constr, exported, ?) := do 
+                val info := Ast.ClassInfo(
+                    name, 
+                    fields_in_class(body),
+                    methods_in_class(body)
+                );
+                file.types_env.get().insert(name, info);
+                val constr_ty := if val Some(con) := constr 
+                    then Ast.Function(param_types(con.params), Ast.Name(name))
+                    else Ast.Function([], Ast.Name(name));
+                val varinf := Ast.VarInfo(false, constr_ty, name);
+                varinf.is_constructor := true;
+                varinf.is_exported := exported;
+                file.globals_env.get().insert(name, varinf);
+            end;
+            case EnumDecl(name, constructors, members, exported, ?) := do 
+                val funs := methods_in_class(members);
+                file.types_env.get().insert(name, Ast.EnumInfo(name, constructors, funs));
+                for constr in constructors do 
+                    val info := Ast.VarInfo(false, Ast.Function(constr.fields, Ast.Name(name)), constr.name);
+                    info.is_constructor := true;
+                    info.is_exported := exported;
+                    file.globals_env.get().insert(constr.name, info);
+                end;
+            end;
+        end;
+    end;
+    for decl in file.ast.decls do 
+        declare_function_and_type(decl);
+    end;
+end
+
+fun declare_setter(file : SourceFileGatherer.SourceFile, setter : Ast.Setter, ty : Ast.Type, mutable : Bool, exported : Bool) do 
+    match setter do 
+        case Variable(name) := do 
+            val info := Ast.VarInfo(mutable, ty, name);
+            info.is_exported := exported;
+            file.globals_env.get().insert(name, info);
+        end;
+        case Property(?, ?, ?) := panic("Error: top level declaration cannot be property");
+        case TupleSetter(parts, lty) := do 
+            if val Tuple(tys) := ty then do 
+                if tys.length = parts.length do 
+                    for i in [0..tys.length] do 
+                        declare_setter(file, parts[i], tys[i], mutable, exported);
+                    end;
+                end;
+            end else do end; // Error will be detected by typechecker
+        end;
+    end;
+end
+
+fun declare_pattern(file : SourceFileGatherer.SourceFile, pat : Ast.Pattern, ty : Ast.Type, mutable : Bool, exported : Bool) do 
+    match pat do 
+        case NumericPattern(?) := do end;
+        case StringPattern(?) := do end;
+        case BooleanPattern(?) := do end;
+        case NamePattern(name) := do 
+            val info := Ast.VarInfo(mutable, ty, name);
+            info.is_exported := exported;
+            file.globals_env.get().insert(name, info);
+        end;
+        case WildcardPattern() := do end;
+        case TuplePattern(pats) := do 
+            if val Tuple(tys) := ty then do 
+                if tys.length = pats.length do 
+                    for i in [0..tys.length] do 
+                        declare_pattern(file, pats[i], tys[i], mutable, exported);
+                    end;
+                end;
+            end else do end;
+        end;
+        case ConstructorPattern(constr, patterns, lenumconstr) := do 
+            val Name(enum_name) := ty else return null; // All enums must be represented by names
+            val EnumInfo(name, constructors, methods) := file.types_env.get().get(enum_name) else return null;
+            for enum_constr in constructors do 
+                if enum_constr.name = constr do // Found correct constructor
+                    if enum_constr.fields.length = patterns.length do 
+                        for i in [0..patterns.length] do 
+                            declare_pattern(file, patterns[i], enum_constr.fields[i], mutable, exported);
+                        end;
+                    end;
+                end;
+            end;
+        end;
+    end;
 end
 
 class Typechecker where 
-    var env : Env.Env(Ast.VarInfo) := Env.Env.[Ast.VarInfo]();
-    var ty_env : Env.Env(Ast.TyInfo) := Env.Env.[Ast.TyInfo]();
+    var env : Env.Env(Ast.VarInfo);
+    var ty_env : Env.Env(Ast.TyInfo);
     val return_tys : (Bool, Ast.Type)[] := [(false, Ast.Never())]; // Global variables can't return, so push false first
     val in_loops : Bool[] := [false];
     var is_in_class : Bool := false;
+    var scope_depth := 0; // 0 means global
+
+    new(file : SourceFileGatherer.SourceFile) do 
+        this.env := file.globals_env.get();
+        this.ty_env := file.types_env.get();
+    end
+
     fun error[A](message : String) : A := panic(message);
     fun require_assigneable(to : Ast.Type, from : Ast.Type, violating_section : Fun() : String) do 
         require_types_exist(this, to);
@@ -34,10 +175,12 @@ class Typechecker where
     fun open_scope() do 
         this.env := this.env.open_scope();
         this.ty_env := this.ty_env.open_scope();
+        this.scope_depth := this.scope_depth + 1;
     end
     fun close_scope() do 
         this.env := this.env.close_scope();
         this.ty_env := this.ty_env.close_scope();
+        this.scope_depth := this.scope_depth - 1;
     end
 
     fun type_of_var(name : String) : Ast.Type := this.env.get(name).ty;
@@ -48,7 +191,11 @@ class Typechecker where
     fun var_declared(name : String) : Bool := this.env.has(name);
     fun type_declared(name : String) : Bool := this.ty_env.has(name);
 
-    fun declare(name : String, ty : Ast.Type, m : Bool) := this.env.insert(name, Ast.VarInfo(m, ty, name));
+    fun declare(name : String, ty : Ast.Type, m : Bool) do 
+        if this.scope_depth > 0 do // Top level names are already declared
+            this.env.insert(name, Ast.VarInfo(m, ty, name));
+        end;
+    end
     fun declare_type(name : String, ty_info : Ast.TyInfo) := this.ty_env.insert(name, ty_info);
 
     fun is_global() : Bool := this.env.outer = Util.None.[Env.Env(Ast.VarInfo)]();
@@ -150,7 +297,7 @@ end;
 fun check_declaration_setter(tc : Typechecker, setter : Ast.Setter, ty : Ast.Type, mut : Bool) do 
     match setter do 
         case Variable(name) := do 
-            if tc.env.has(name) do 
+            if tc.env.has(name) and tc.scope_depth > 0 do 
                 panic("Variable '"+name+"' is already declared");
             end
             tc.declare(name, ty, mut);
@@ -222,7 +369,7 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
             end;
         end;
         val fun_type := Ast.Function(param_types(params), return_type);
-        if tc.var_declared(name) then do 
+        if tc.var_declared(name) and tc.scope_depth > 0 then do 
             panic("Function already declared: '"+name+"'");
         end else do 
             tc.declare(name, fun_type, false);
@@ -248,8 +395,8 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
     case ClassDecl(name, members, constructor, exported, lenv) := do 
         tc.declare_type(name, Ast.ClassInfo(
             name, 
-            fields_in_class(tc, members),
-            methods_in_class(tc, members)
+            fields_in_class(members),
+            methods_in_class(members)
         ));
         tc.open_scope();
             tc.in_loops.push(false);
@@ -267,7 +414,7 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
     end;
     case EnumDecl(name, variants, members, is_export, lenv) := do 
         disallow_fields_in_enum(tc, members, name);
-        val funs := methods_in_class(tc, members);
+        val funs := methods_in_class(members);
         tc.declare_type(name, Ast.EnumInfo(name, variants, funs));
         declare_enum_constructors(tc, name, variants);
         tc.open_scope();
@@ -301,7 +448,7 @@ fun disallow_fields_in_enum(tc : Typechecker, members : Ast.Decl[], name : Strin
     end;
 end
 
-fun fields_in_class(tc : Typechecker, members : Ast.Decl[]) : Env.AList(Ast.VarInfo) do 
+fun fields_in_class(members : Ast.Decl[]) : Env.AList(Ast.VarInfo) do 
     val types : Env.AList(Ast.VarInfo) := Env.AList.[Ast.VarInfo]();
     for member in members do 
         match member do 
@@ -330,7 +477,7 @@ fun gather_types(setter : Ast.Setter, ty : Ast.Type, mutable : Bool, list : Env.
     end
 end
 
-fun methods_in_class(tc : Typechecker, members : Ast.Decl[]) : Env.AList(Ast.VarInfo) do 
+fun methods_in_class(members : Ast.Decl[]) : Env.AList(Ast.VarInfo) do 
     val types : Env.AList(Ast.VarInfo) := Env.AList.[Ast.VarInfo]();
     for member in members do 
         match member do 

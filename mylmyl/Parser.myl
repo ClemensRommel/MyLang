@@ -66,10 +66,23 @@ end
 
 fun program(p : Parser) : Ast.Program do 
     val prgm := Ast.Program();
+    while p.matches(Tokenizer.IMPORT()) do 
+        prgm.imports.push(import_decl(p));
+    end;
     while !p.at_end() do 
         prgm.decls.push(decl(p));
     end;
     prgm
+end
+
+fun import_decl(p : Parser) : Ast.Import do 
+    val parts : String[] := [];
+    parts.push(p.consume(Tokenizer.IDENTIFIER(), "Expect identifier as beginning of path after 'import'").src);
+    while p.matches(Tokenizer.DOT()) do 
+        parts.push(p.consume(Tokenizer.IDENTIFIER(), "Expect identifier after '.'").src);
+    end;
+    p.consume(Tokenizer.SEMICOLON(), "Expect ';' after import declaration");
+    Ast.BasicImport(parts)
 end
 
 fun stmt(p : Parser) : Ast.Stmt do 

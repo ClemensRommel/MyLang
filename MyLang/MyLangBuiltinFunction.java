@@ -135,6 +135,24 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
         }
 };
 
+    public static final MyLangBuiltinFunction join = new MyLangBuiltinFunction("join",
+        new FunctionTypeRep(
+            List.of(Typechecker.stringType, new ListOfRep(Typechecker.stringType)),
+            List.of(),
+            Map.of(),
+            Map.of(),
+            null,
+            Typechecker.stringType,
+            new TypeEnv()
+        )) {
+            @Override
+            public Object call(MyLangInterpreter i, List<Object> args, Map<String, Object> named) {
+                String separator =  (String) args.get(0);
+                ArrayList list = (ArrayList) args.get(1);
+                return String.join(separator, list);
+            }
+        };
+
     public static final MyLangBuiltinFunction strip = new MyLangBuiltinFunction("strip", 
         new FunctionTypeRep(
             List.of(Typechecker.stringType),
@@ -189,6 +207,31 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
                 }
             }
     };
+
+    public static final MyLangBuiltinFunction writeToFile = new MyLangBuiltinFunction(
+        "writeToFile",
+        new FunctionTypeRep(
+            List.of(Typechecker.stringType, Typechecker.stringType),
+            List.of(),
+            Map.of(),
+            Map.of(),
+            null,
+            Typechecker.voidType, new TypeEnv())
+        ) {
+
+            @Override
+            public Object call(MyLangInterpreter interpreter, List<Object> posArgs, Map<String, Object> namedArgs) {
+                noNamedArgs(namedArgs, interpreter);
+                var path = Paths.get((String) posArgs.get(0));
+                try {
+                    Files.writeString(path, (String) posArgs.get(1));
+                } catch (IOException e) {
+                    panic.call(interpreter, List.of("Could not write to file: "+posArgs.get(0)), Map.of());
+                }
+                return null;
+            }
+
+        };
 
     public static final MyLangBuiltinFunction print = new MyLangBuiltinFunction(
             "print", 

@@ -69,7 +69,9 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
         MyLangBuiltinFunction.len,
         MyLangBuiltinFunction.panic,
         MyLangBuiltinFunction.matches,
-        MyLangBuiltinFunction.replace
+        MyLangBuiltinFunction.replace,
+        MyLangBuiltinFunction.join,
+        MyLangBuiltinFunction.writeToFile,
     };
 
     private void loadBuiltins() {

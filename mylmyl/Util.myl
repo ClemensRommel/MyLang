@@ -54,3 +54,11 @@ fun fst[A, B](tuple : (A, B)) : A do
     val (a, b) := tuple;
     a
 end
+
+// Typesafe wrapper around builtin function (Temporary)
+fun read_file(path : String) : Optional(String) do 
+    val maybe_content := openFile(path);
+    if isNull(maybe_content) 
+        then None.[String]()
+        else Some.[String](maybe_content)
+end

@@ -3,7 +3,9 @@ import std.runtime.*;
 
 import java.util.ArrayList;
 
-class Main {
+import test.Test;
+
+public class input {
     public static  sealed interface Test {
     }
     public static  record A(String __field0) implements Test {
@@ -35,37 +37,38 @@ class Main {
         tests.add(__var2);
         var __var3 = new B(6.0);
         tests.add(__var3);
-        NumberUpvalue index = new NumberUpvalue();
-        index.value = -1.0;
-        final __var4 get_next_test = () -> {
-            index.value = index.value + 1.0;
-            return tests.get(__toIndex(index.value));
-        }
-        ;
-        __var5: while(true) {
+        double index;
+        index = -1.0;
+        __var4: while(true) {
             {
-                var __var6 = get_next_test.call();
-                switch(__var6) {
+                final double __var5;
+                {
+                    index = index + 1.0;
+                    __var5 = index;
+                }
+                switch(tests.get(__toIndex(__var5))) {
                     case A(String str) -> {
                         {
                             System.out.println(str);
                         }
                     }
-                    case Test __var7 -> {
-                        if(true) break __var5;
+                    case Test __var6 -> {
+                        if(true) break __var4;
                     }
+                    
                 }
             }
             
         }
+        __ignore(test_function());
     }
     
     public static void main(String[] args) {
         main();
     }
-    @FunctionalInterface static interface __var4 {
-        Test call();
+    public static Void test_function() {
+        System.out.println("Hello World");
+        return null;
     }
     
 }
-

@@ -1,0 +1,66 @@
+module SourceFileGatherer;
+// Gathers all source files for a program and parses them
+
+import Parser;
+import Ast;
+import Util;
+import Env;
+
+class SFGatherer where 
+    val files_not_found : String[] := [];
+
+    val parsed_sourcefiles : Env.AList(SourceFile) := Env.AList.[SourceFile](); // Map of all parsed files to be reused
+end
+
+// Parsed source file, ready for further processing
+class SourceFile where 
+    val ast : Ast.Program;
+    val undesugared_exprs : Ast.Mut(Ast.Expr)[];
+    val undesugared_decls : Ast.Mut(Ast.Decl)[];
+    val globals_env : Util.LateInitialized(Env.Env(Ast.VarInfo)) := Ast.late_env();
+    val types_env : Util.LateInitialized(Env.Env(Ast.TyInfo)) := Util.LateInitialized.[Env.Env(Ast.TyInfo)]();
+    val path : String;
+    new(a : Ast.Program, ue : Ast.Mut(Ast.Expr)[], ud : Ast.Mut(Ast.Decl)[], path : String) do 
+        this.ast := a;
+        this.undesugared_exprs := ue;
+        this.undesugared_decls := ud;
+        this.path := path;
+    end
+end;
+
+fun open_and_parse(sfg : SFGatherer, file : String) : Util.Optional(SourceFile) do 
+    print("Processing: "+file);
+    val Some(source) := Util.read_file(file) else do 
+        sfg.files_not_found.push(file);
+        return Util.None.[SourceFile]()
+    end;
+    val (ast, (undesugared_exprs, undesugared_decls)) := Parser.parse(source);
+    Util.Some.[SourceFile](SourceFile(ast, undesugared_exprs, undesugared_decls, file))
+end
+
+fun get_all_files(sfg : SFGatherer, starting_file : String) do 
+    val Some(file) := open_and_parse(sfg, starting_file) else return null;
+    sfg.parsed_sourcefiles.insert(starting_file, file);
+    for imported in file.ast.imports do 
+        val path := path_to(imported);
+        if !sfg.parsed_sourcefiles.has(path) do 
+            get_all_files(sfg, path);
+        end
+    end
+end
+
+fun gather_files(start : String) : Env.AList(SourceFile) do 
+    val sfg := SFGatherer();
+    get_all_files(sfg, start);
+    if sfg.files_not_found.length != 0 do 
+        for file in sfg.files_not_found do 
+            print("Could not find or open file: "+file);
+        end
+        panic("Error while importing");
+    end;
+    sfg.parsed_sourcefiles
+end
+
+fun path_to(i : Ast.Import) : String := match i do 
+    case BasicImport(parts) := join("/", parts) + ".myl";
+end;

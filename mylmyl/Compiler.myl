@@ -5,6 +5,7 @@ import Env;
 import Analyze;
 import Util;
 import NameGen;
+import SourceFileGatherer;
 
 class Compiler where 
     var buf : String := "";
@@ -149,12 +150,18 @@ fun declare_builtins(c : Compiler) do
     c.env.insert("panic", do val panic_info := VariableInfo(); panic_info.is_no_fc_fn := true; panic_info end);
 end
 
-fun compile(ast : Ast.Program, globals : Env.Env(Ast.VarInfo), name_gen : NameGen.NameGenerator) : String do 
-    val c := Compiler(globals, name_gen);
+fun compile(file : SourceFileGatherer.SourceFile, name_gen : NameGen.NameGenerator) : String do 
+    val c := Compiler(file.globals_env.get(), name_gen);
+    val path_parts := split(file.path, "/"); // Parts of path
+    val file_name_parts := split(path_parts.last, "\\."); // Name before extension
+    val file_name := file_name_parts.first;
+    declare_package(c, path_parts);
     import_implicits(c);
-    c.append("class Main {");
+    compile_imports(c, file.ast.imports);
+    c.append("public class "+file_name+" {");
     c.indent(); c.newline();
-    for decl in ast.decls do 
+    gather_variable_info(c, file.ast.decls);
+    for decl in file.ast.decls do 
         compile_decl(c, decl);
     end;
     compile_enqueued_types(c);
@@ -162,6 +169,73 @@ fun compile(ast : Ast.Program, globals : Env.Env(Ast.VarInfo), name_gen : NameGe
     c.append("}");
     c.newline();
     c.buf
+end
+
+fun gather_variable_info(c : Compiler, decls : Ast.Decl[]) do 
+    fun gather_info(decl : Ast.Decl) do 
+        match decl do 
+            case DesugarableDecl(mutdecl) := gather_info(mutdecl.get());
+            case FunDecl(name, ?, ?, ?, ?, ?) := do 
+                val info := VariableInfo();
+                info.is_no_fc_fn := true; // Global functions cant be lambdas
+                c.env.insert(name, info);
+            end;
+            case ClassDecl(name, ?, ?, ?, ?) := do 
+                val info := VariableInfo();
+                info.is_constructor := true;
+                info.is_no_fc_fn := true;
+                c.env.insert(name, info);
+            end;
+            case EnumDecl(?, constrs, ?, ?, ?) := do 
+                for constr in constrs do 
+                    val info := VariableInfo();
+                    info.is_constructor := true;
+                    info.is_no_fc_fn := true;
+                    c.env.insert(constr.name, info);
+                end;
+            end;
+            case VarDecl(setter, ?, ?, ?, ?) := do 
+                gather_info_for_setter(c, setter);
+            end;
+            case ValElseDeclaration(pat, ?, ?, ?, ?, ?, ?, ?) := do 
+                gather_info_for_pattern(c, pat);
+            end;
+        end;
+    end
+    for decl in decls do 
+        gather_info(decl);
+    end
+end
+
+fun gather_info_for_setter(c : Compiler, setter : Ast.Setter) do 
+    match setter do 
+        case Variable(name) := do c.env.insert(name, VariableInfo()); end; //Globals cant be upvalues
+        case TupleSetter(parts, ?) := do for part in parts do gather_info_for_setter(c, part); end; end;
+        case Property(?, ?, ?) := do end;
+    end;
+end
+
+fun gather_info_for_pattern(c : Compiler, pat : Ast.Pattern) do 
+    match pat do 
+        case NumericPattern(?) := do end;
+        case StringPattern(?) := do end;
+        case BooleanPattern(?) := do end;
+        case NamePattern(name) := do c.env.insert(name, VariableInfo()); end;
+        case WildcardPattern() := do end;
+        case TuplePattern(parts) := do for part in parts do gather_info_for_pattern(c, part); end; end;
+        case ConstructorPattern(?, parts, ?) := do for part in parts do gather_info_for_pattern(c, part); end; end;
+    end;
+end;
+
+fun declare_package(c : Compiler, path : String[]) do 
+    if path.length > 1 do 
+        c.append("package ");
+        for i in [0..path.length - 1] do 
+            c.append(path[i]);
+        end
+        c.append(";"); c.newline(); 
+        c.newline();
+    end
 end
 
 fun import_implicits(c : Compiler) do 
@@ -173,6 +247,24 @@ fun import_implicits(c : Compiler) do
     c.append("import java.util.ArrayList;");
     c.newline();
 
+    c.newline();
+end
+
+fun compile_imports(c : Compiler, imports : Ast.Import[]) do 
+    for i in imports do 
+        match i do 
+            case BasicImport(parts) := do 
+                c.append("import ");
+                var needs_dot := false;
+                for part in parts do 
+                    if needs_dot do c.append("."); end;
+                    c.append(part);
+                    needs_dot := true;
+                end;
+                c.append(";"); c.newline();
+            end;
+        end;
+    end;
     c.newline();
 end
 

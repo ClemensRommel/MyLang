@@ -1,3 +1,5 @@
+import test.Test;
+
 enum Test where 
     A(String), B(Number);
 end
@@ -5,11 +7,12 @@ end
 fun main() : Void do 
     val tests : Test[] := [A("a"), A("b"), A("c"), B(6)];
     var index := -1;
-    fun get_next_test() : Test do 
-        index := index + 1;
-        tests[index]
-    end;
-    while val A(str) := get_next_test() do 
+    while val A(str) := tests[do index := index + 1; index end] do 
         print str;
     end;
+    test_function();
+end
+
+fun test_function() : Void do 
+    print("Hello World");
 end

@@ -1,24 +1,35 @@
 module Main;
 
-import Parser;
 import Compiler;
 import Typechecker;
 import Desugar;
 import NameGen;
+import SourceFileGatherer;
 
 fun main() do 
     val cli_args := args();
     if cli_args.length != 1 do 
         panic("Invalid argument count: Only 1 is allowed (input file)");
     end
-    val source := openFile(cli_args[0]);
-    if isNull(source) do 
-        panic("Could not open file");
+    val files := SourceFileGatherer.gather_files(cli_args[0]);
+    for (?, file) in files.bindings do 
+        Typechecker.declare_globals(file);
     end;
-    val (ast, to_be_desugared) := Parser.parse(source);
-    val globals := Typechecker.typecheck(ast);
+    for (?, file) in files.bindings do 
+        Typechecker.typecheck(file);
+    end
     val name_gen := NameGen.NameGenerator();
-    Desugar.desugar(to_be_desugared, name_gen);
-    val compiled := Compiler.compile(ast, globals, name_gen);
-    print(compiled);
+    for (?, file) in files.bindings do 
+        Desugar.desugar((file.undesugared_exprs, file.undesugared_decls), name_gen);
+    end
+    for (path, file) in files.bindings do 
+        val compiled := Compiler.compile(file, name_gen);
+        outputFile(path, compiled);
+    end
+end
+
+fun outputFile(path : String, compiled : String) do 
+    val initial := split(path, "\\.").first; // Only file extension can contain . as it is not a valid part of a name
+    print("Writing to "+initial+".java");
+    writeToFile(initial+".java", compiled);
 end
