@@ -15,7 +15,7 @@ fun main() do
     for (?, file) in files.bindings do 
         Typechecker.declare_globals(file);
     end;
-    for (?, file) in files.bindings do 
+    for (?, file) in files.bindings do
         Typechecker.typecheck(file);
     end
     val name_gen := NameGen.NameGenerator();

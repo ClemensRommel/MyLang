@@ -66,6 +66,13 @@ end
 
 fun program(p : Parser) : Ast.Program do 
     val prgm := Ast.Program();
+    if p.matches(Tokenizer.MODULE()) do 
+        p.consume(Tokenizer.IDENTIFIER(), "Expect module name after module declaration");
+        while p.matches(Tokenizer.DOT()) do 
+            p.consume(Tokenizer.IDENTIFIER(), "Expect submodule name after '.'");
+        end;
+        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after module declaration");
+    end
     while p.matches(Tokenizer.IMPORT()) do 
         prgm.imports.push(import_decl(p));
     end;
@@ -203,8 +210,9 @@ end
 
 fun end_of_function(p : Parser, consume_semi : Bool) : (Ast.Parameter[], Ast.Type, Ast.Expr) do
     val params := parse_parameters(p);
-    p.consume(Tokenizer.COLON(), "Expect ':' at start of function return type");
-    val return_type := type_literal(p);
+    val return_type := if p.matches(Tokenizer.COLON()) 
+        then type_literal(p)
+        else Ast.VoidT();
     val body := if p.matches(Tokenizer.ASSIGN()) then do
         val b := expr(p);
         if consume_semi do 
