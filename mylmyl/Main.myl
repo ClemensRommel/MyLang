@@ -16,14 +16,15 @@ fun main() do
         Typechecker.declare_globals(file);
     end;
     for (?, file) in files.bindings do
-        Typechecker.typecheck(file);
+        Typechecker.typecheck(file, files);
     end
     val name_gen := NameGen.NameGenerator();
     for (?, file) in files.bindings do 
         Desugar.desugar((file.undesugared_exprs, file.undesugared_decls), name_gen);
     end
+    val global_info := Compiler.gather_global_variable_info(files);
     for (path, file) in files.bindings do 
-        val compiled := Compiler.compile(file, name_gen);
+        val compiled := Compiler.compile(file, name_gen, global_info);
         outputFile(path, compiled);
     end
 end

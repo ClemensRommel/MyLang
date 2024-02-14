@@ -145,6 +145,7 @@ public class TypeInferrer
             if(t.accessors().containsKey(p.name().lexeme())) {
                 return t.accessors().get(p.name().lexeme());
             } else {
+                tc.error("Property "+p.name().lexeme()+" not found in class "+t.name());
                 return Typechecker.unknown();
             }
         } else if(classType instanceof ListOfRep l) {
@@ -160,6 +161,7 @@ public class TypeInferrer
             if(e.methods().containsKey(p.name().lexeme())) {
                 return e.methods().get(p.name().lexeme());
             } else {
+                tc.error("Property "+p.name().lexeme()+" not found in enum "+e.name());
                 return Typechecker.unknown();
             }
         } else {

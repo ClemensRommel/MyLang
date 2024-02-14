@@ -1,18 +1,6 @@
-import test.Test;
+import OtherFile;
 
-enum Test where 
-    A(String), B(Number);
-end
-
-fun main() : Void do 
-    val tests : Test[] := [A("a"), A("b"), A("c"), B(6)];
-    var index := -1;
-    while val A(str) := tests[do index := index + 1; index end] do 
-        print str;
-    end;
-    test_function();
-end
-
-fun test_function() : Void do 
-    print("Hello World");
+fun main() do 
+    val test_object : OtherFile.TestClass := OtherFile.TestClass();
+    print test_object.test_field; // 3
 end

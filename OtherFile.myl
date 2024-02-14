@@ -1,0 +1,3 @@
+class TestClass where 
+    val test_field : Number := 3;
+end

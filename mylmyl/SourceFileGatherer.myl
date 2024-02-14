@@ -62,5 +62,7 @@ fun gather_files(start : String) : Env.AList(SourceFile) do
 end
 
 fun path_to(i : Ast.Import) : String := match i do 
-    case BasicImport(parts) := join("/", parts) + ".myl";
+    case BasicImport(parts) := path_to_module(parts);
 end;
+
+fun path_to_module(parts : String[]) : String := join("/", parts) + ".myl";

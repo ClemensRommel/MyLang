@@ -5,15 +5,29 @@ import Env;
 import Util;
 import SourceFileGatherer;
 
-fun typecheck(file : SourceFileGatherer.SourceFile) do 
+fun typecheck(file : SourceFileGatherer.SourceFile, other_files : Env.AList(SourceFileGatherer.SourceFile)) do 
     val tc := new Typechecker(file);
 
     declare_builtins(tc);
+
+    add_imports(tc, file.ast.imports, other_files);
 
     for decl in file.ast.decls do 
         check_decl(tc, decl);
     end;
     file.globals_env.init(tc.env);
+end
+
+fun add_imports(tc : Typechecker, imports : Ast.Import[], other_files : Env.AList(SourceFileGatherer.SourceFile)) do 
+    for imported in imports do 
+        match imported do 
+            case BasicImport(path) := do
+                val path := SourceFileGatherer.path_to(imported);
+                val file := other_files.get(path);
+                tc.imported_modules.insert(path, (file.globals_env.get(), file.types_env.get()));
+            end;
+        end;
+    end
 end
 
 fun declare_globals(file : SourceFileGatherer.SourceFile) do 
@@ -65,12 +79,13 @@ fun declare_functions_and_types(file : SourceFileGatherer.SourceFile) do
                 val info := Ast.ClassInfo(
                     name, 
                     fields_in_class(body),
-                    methods_in_class(body)
+                    methods_in_class(body),
+                    exported
                 );
                 file.types_env.get().insert(name, info);
                 val constr_ty := if val Some(con) := constr 
-                    then Ast.Function(param_types(con.params), Ast.Name(name))
-                    else Ast.Function([], Ast.Name(name));
+                    then Ast.Function(param_types(con.params), Ast.Name(name, file.types_env))
+                    else Ast.Function([], Ast.Name(name, file.types_env));
                 val varinf := Ast.VarInfo(false, constr_ty, name);
                 varinf.is_constructor := true;
                 varinf.is_exported := exported;
@@ -78,9 +93,9 @@ fun declare_functions_and_types(file : SourceFileGatherer.SourceFile) do
             end;
             case EnumDecl(name, constructors, members, exported, ?) := do 
                 val funs := methods_in_class(members);
-                file.types_env.get().insert(name, Ast.EnumInfo(name, constructors, funs));
+                file.types_env.get().insert(name, Ast.EnumInfo(name, constructors, funs, exported));
                 for constr in constructors do 
-                    val info := Ast.VarInfo(false, Ast.Function(constr.fields, Ast.Name(name)), constr.name);
+                    val info := Ast.VarInfo(false, Ast.Function(constr.fields, Ast.Name(name, file.types_env)), constr.name);
                     info.is_constructor := true;
                     info.is_exported := exported;
                     file.globals_env.get().insert(constr.name, info);
@@ -134,8 +149,9 @@ fun declare_pattern(file : SourceFileGatherer.SourceFile, pat : Ast.Pattern, ty 
             end else do end;
         end;
         case ConstructorPattern(constr, patterns, lenumconstr) := do 
-            val Name(enum_name) := ty else return null; // All enums must be represented by names
-            val EnumInfo(name, constructors, methods) := file.types_env.get().get(enum_name) else return null;
+            //TODO: Correct name lookup
+            val Name(enum_name, ltype_env) := ty else return null; // All enums must be represented by names
+            val EnumInfo(name, constructors, methods, exported) := ltype_env.get().get(enum_name) else return null;
             for enum_constr in constructors do 
                 if enum_constr.name = constr do // Found correct constructor
                     if enum_constr.fields.length = patterns.length do 
@@ -157,6 +173,9 @@ class Typechecker where
     var is_in_class : Bool := false;
     var scope_depth := 0; // 0 means global
 
+    val imported_modules : Env.AList((Env.Env(Ast.VarInfo), Env.Env(Ast.TyInfo))) 
+                        := Env.AList.[(Env.Env(Ast.VarInfo), Env.Env(Ast.TyInfo))]();
+
     new(file : SourceFileGatherer.SourceFile) do 
         this.env := file.globals_env.get();
         this.ty_env := file.types_env.get();
@@ -167,7 +186,7 @@ class Typechecker where
         require_types_exist(this, to);
         require_types_exist(this, from);
         if from = Ast.Never() do return null; end;
-        if to != from do
+        if !types_equal(to, from) do
             this.error.[Void](from+" is not assigneable to "+to+" in "+violating_section());
         end;
     end
@@ -201,6 +220,39 @@ class Typechecker where
     fun is_global() : Bool := this.env.outer = Util.None.[Env.Env(Ast.VarInfo)]();
 end
 
+fun types_equal(to : Ast.Type, from : Ast.Type) : Bool := match (to, from) do 
+    case (NumberT(), NumberT()) := true;
+    case (BooleanT(), BooleanT()) := true;
+    case (StringT(), StringT()) := true;
+    case (VoidT(), VoidT()) := true;
+    case (Tuple(tys1), Tuple(tys2)) := if tys1.length = tys2.length then true 
+        else do 
+            for i in [0..tys1.length] do 
+                if !types_equal(tys1[i], tys2[i]) do 
+                    return false;
+                end;
+            end;
+            true
+        end;
+    case (Name(name1, lenv1), Name(name2, lenv2)) := name1 = name2 
+        and if lenv1.is_init() and lenv2.is_init() 
+            then lenv1.get() = lenv2.get()
+            else panic("Cannot compare names from unknown namespace for equality: "+name1+", "+name2);
+    case (Function(args1, retty1), (Function(args2, retty2))) := types_equal(retty1, retty2)
+        and args1.length = args2.length 
+        and do 
+            for i in [0..args1.length] do 
+                if !types_equal(args1[i], args2[i]) do return false end;
+            end;
+            true
+        end;
+    case (ListOf(elem_ty1), ListOf(elem_ty2)) := types_equal(elem_ty1, elem_ty2);
+    case (Never(), Never()) := true;
+    case (ModuleAccess(?, ?, lty), other_ty) := if lty.is_init() then types_equal(lty.get(), other_ty) else false;
+    case (other_ty, ModuleAccess(?, ?, lty)) := if lty.is_init() then types_equal(other_ty, lty.get()) else false;
+    case ? := false; 
+end;
+
 fun lazy_str(e : Ast.Expr) : Fun() : String := fun() := "" + e;
 
 fun require_types_exist(tc : Typechecker, ty : Ast.Type) := match ty do 
@@ -215,11 +267,13 @@ fun require_types_exist(tc : Typechecker, ty : Ast.Type) := match ty do
         end
         require_types_exist(tc, ret_type);
     end;
-    case Name(str) := do 
-        if !tc.type_declared(str) do 
+    // TODO: Correct name lookup
+    case Name(str, ltypes_env) := do 
+        if !ltypes_env.get().has(str) do 
             panic("Unknown type "+str);
         end
     end;
+    case ModuleAccess(?, ?, ?) := do end;
     case ListOf(elem_ty) := require_types_exist(tc, elem_ty);
     case NumberT() := do end; case BooleanT() := do end; case StringT() := do end; case VoidT() := do end; case Never() := do end;
 end;
@@ -258,8 +312,8 @@ fun check_mutability(tc : Typechecker, setter : Ast.Setter) := match setter do
         end;
     end;
     case Property(obj, name, lt) := do 
-        val Name(class_name) := lt.get() else panic("Should be unreachable: Property with non-class-type");
-        val ClassInfo(?, fields, methods) := tc.type_info_for(class_name) 
+        //TODO: Correct name lookup
+        val ClassInfo(class_name, fields, methods, ?) := info_for(tc, lt.get(), fun(ty) := "Cannot read assign to property "+name+" of non_class_type"+ty)
             else panic("Should be unreachable: Non-class info in setter");
         val field_info := fields.get(name);
         if not field_info.is_mutable do 
@@ -281,10 +335,12 @@ fun infer_setter(tc : Typechecker, s : Ast.Setter) : Ast.Type := match s do
     end;
     case Property(obj, name, lcty) := do
         val obj_ty := infer(tc, obj);
-        val Name(class_name) := obj_ty else panic("Cannot set property of non-class-type "+obj_ty);
+        // TODO: Correct name lookup
+        val ClassInfo(name, fields, method) := info_for(tc, obj_ty, fun(ty) := "Cannot assign to property "+name+" of non-class-type"+ty);
+        val Name(class_name, lty_env) := obj_ty else panic("Cannot set property of non-class-type "+obj_ty);
         lcty.init(obj_ty);
-        val class_info := tc.type_info_for(class_name);
-        val ClassInfo(?, fields, methods) := class_info else panic("Unimplemented type information in property setter");
+        val class_info := lty_env.get().get(class_name);
+        val ClassInfo(?, fields, methods, ?) := class_info else panic("Unimplemented type information in property setter");
         if methods.has(name) do 
             panic("Cannot change a method: method "+name+" of class "+class_name);
         end
@@ -319,8 +375,9 @@ end
 fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do 
     case VarDecl(setter, lt, init, mutable, ?) := do 
         if lt.is_init() then do 
+            val ty := resolve(tc, lt.get());
             if val Some(e) := init then do 
-                check(tc, e, lt.get());
+                check(tc, e, ty);
             end else do
                 if not mutable do 
                     panic("Immutable variable requires initializer: "+setter);
@@ -344,10 +401,11 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
     case DesugarableDecl(md) := check_decl(tc, md.get());
     case ValElseDeclaration(pat, matched, else_br, is_mut, is_export, ldecl_ty, lmatched_ty, lenv) := do 
         if ldecl_ty.is_init() then do 
-            check_pattern(tc, pat, ldecl_ty.get());
-            check(tc, matched, ldecl_ty.get());
+            val ty := resolve(tc, ldecl_ty.get());
+            check_pattern(tc, pat, ty);
+            check(tc, matched, ty);
             check(tc, else_br, Ast.Never());
-            lmatched_ty.init(ldecl_ty.get());
+            lmatched_ty.init(ty);
             lenv.init(tc.env);
         end else do 
             val matched_ty := infer(tc, matched);
@@ -368,7 +426,8 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
                 case NormalParam(?, ty) := do require_types_exist(tc, ty); end;
             end;
         end;
-        val fun_type := Ast.Function(param_types(params), return_type);
+        val resolved_ret_ty := resolve(tc, return_type);
+        val fun_type := Ast.Function(for ty in param_types(params) yield resolve(tc, ty) end, resolved_ret_ty);
         if tc.var_declared(name) and tc.scope_depth > 0 then do 
             panic("Function already declared: '"+name+"'");
         end else do 
@@ -376,11 +435,11 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
         end;
         tc.open_scope();
             tc.in_loops.push(false);
-            tc.return_tys.push((true, return_type));
+            tc.return_tys.push((true, resolved_ret_ty));
             for param in params do 
                 declare_param(tc, param);
             end;
-            check(tc, body, return_type);
+            check(tc, body, resolved_ret_ty);
             lenv.init(tc.env);
             tc.return_tys.pop();
             tc.in_loops.pop();
@@ -396,12 +455,13 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
         tc.declare_type(name, Ast.ClassInfo(
             name, 
             fields_in_class(members),
-            methods_in_class(members)
+            methods_in_class(members),
+            exported
         ));
         tc.open_scope();
             tc.in_loops.push(false);
             tc.return_tys.push((false, Ast.Never()));
-            tc.declare("this", Ast.Name(name), false);
+            tc.declare("this", Ast.Name(name, Util.wrap_linit.[Env.Env(Ast.TyInfo)](tc.ty_env)), false);
             check_body(tc, members);
             val constr_type := check_constructor(tc, constructor, name);
             val body_env := tc.env;
@@ -415,12 +475,12 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
     case EnumDecl(name, variants, members, is_export, lenv) := do 
         disallow_fields_in_enum(tc, members, name);
         val funs := methods_in_class(members);
-        tc.declare_type(name, Ast.EnumInfo(name, variants, funs));
+        tc.declare_type(name, Ast.EnumInfo(name, variants, funs, is_export));
         declare_enum_constructors(tc, name, variants);
         tc.open_scope();
             tc.in_loops.push(false);
             tc.return_tys.push((false, Ast.Never()));
-            tc.declare("this", Ast.Name(name), false);
+            tc.declare("this", Ast.Name(name, Util.wrap_linit.[Env.Env(Ast.TyInfo)](tc.ty_env)), false);
             check_body(tc, members);
             val body_env := tc.env;
             tc.return_tys.pop();
@@ -431,10 +491,11 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
 end;
 
 fun declare_enum_constructors(tc : Typechecker, name : String, variants : Ast.EnumConstructor[]) do 
-    val enum_ty := Ast.Name(name);
+    val enum_ty := Ast.Name(name, Util.wrap_linit.[Env.Env(Ast.TyInfo)](tc.ty_env));
     for constr in variants do 
         for field in constr.fields do 
             require_types_exist(tc, field);
+            resolve(tc, field);
         end
         tc.declare(constr.name, Ast.Function(constr.fields, enum_ty), false);
     end;
@@ -514,9 +575,9 @@ fun check_constructor(tc : Typechecker, constructor : Util.Optional(Ast.Construc
             check(tc, constr.body, Ast.VoidT());
             constr.lenv.init(tc.env);
         tc.close_scope();
-        Ast.Function(param_types(constr.params), Ast.Name(className))
+        Ast.Function(param_types(constr.params), Ast.Name(className, Util.wrap_linit.[Env.Env(Ast.TyInfo)](tc.ty_env)))
     end else do 
-        Ast.Function([], Ast.Name(className))
+        Ast.Function([], Ast.Name(className, Util.wrap_linit.[Env.Env(Ast.TyInfo)](tc.ty_env)))
     end;
     tc.is_in_class := prev_in_class;
     result
@@ -530,9 +591,67 @@ fun declare_param(tc : Typechecker, param : Ast.Parameter) := match param do
         if tc.var_declared(name) then do 
             panic("Parameter already declared: '"+name+"'");
         end else do 
+            resolve(tc, ty);
             tc.declare(name, ty, false);
         end
     end;
+end;
+
+fun info_for(tc : Typechecker, ty : Ast.Type, error_message : Fun(Ast.Type) : String) : Ast.TyInfo do 
+    match ty do 
+        case Name(name, lenv) := lenv.get().get(name);
+        case ModuleAccess(path, name, lty) := info_for(tc, lty.get(), fun(other_ty) := error_message(ty));
+        case ? := panic(error_message(ty));
+    end
+end
+
+// resolve funktioniert über side effects (d.h. der parameter wird verändert),
+// gibt den parameter aber zurück
+// Macht auch das was require_types_exist tut
+fun resolve(tc : Typechecker, ty : Ast.Type) : Ast.Type do 
+    match ty do 
+        case NumberT() := do end;
+        case BooleanT() := do end;
+        case StringT() := do end;
+        case VoidT() := do end;
+        case Tuple(parts) := do for part in parts do resolve(tc, part) end; end;
+        case Name(name, lenv) := do 
+            if !lenv.is_init() do // Name belongs to current scope
+                if !tc.ty_env.has(name) do panic("Unknown type "+name); end
+                lenv.init(tc.ty_env.env_defined_in(name));
+            end;
+            if !lenv.get().has(name) do // Typ existiert nicht im ziel / derzeitigen scope
+                panic("Unknown type "+name);
+            end
+        end;
+        case Function(params, ret_ty) := do 
+            for param in params do resolve(tc, param); end;
+            resolve(tc, ret_ty);
+        end;
+        case ListOf(tys) := do resolve(tc, tys); end;
+        case ModuleAccess(path, name, laccessed) := if laccessed.is_init() then do end else do 
+            val file_path := SourceFileGatherer.path_to_module(path);
+            if !tc.imported_modules.has(file_path) do
+                panic("Unknown module "+join(".", path)+" in "+ty);
+            end;
+            val (globals_env, types_env) := tc.imported_modules.get(file_path);
+            if !types_env.has(name) do  // Type is not declared
+                panic("Module "+join(".", path)+" does not declare "+name);
+            end
+            val ty_info := types_env.get(name); 
+            if !is_type_exported(ty_info) do  // Type is not visible from this module
+                panic("Module "+join(".", path)+" does not export "+name);
+            end
+            laccessed.init(Ast.Name(name, Util.wrap_linit.[Env.Env(Ast.TyInfo)](types_env)));
+        end;
+        case Never() := do end;
+    end;
+    ty
+end
+
+fun is_type_exported(info : Ast.TyInfo) : Bool := match info do 
+    case ClassInfo(?, ?, ?, exported) := exported;
+    case EnumInfo(?, ?, ?, exported) := exported;
 end;
 
 fun param_types(params : Ast.Parameter[]) : Ast.Type[] := 
@@ -634,13 +753,8 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
         tc.require_assigneable(t, Ast.ListOf(Ast.NumberT()), lazy_str(e));
     end;
     case PropertyExpr(obj, name, la, lt, lft) := do
-        val obj_ty := infer(tc, obj);
-        lt.init(obj_ty);
-
-        val (member_ty, acc_ty) := get_property_ty(tc, name, obj_ty, e);
-        lft.init(member_ty);
-        la.init(acc_ty);
-        tc.require_assigneable(t, member_ty, lazy_str(e))
+        val infered_type := infer(tc, e);
+        tc.require_assigneable(t, infered_type, lazy_str(e));
     end;
     case IndexExpr(lst, idx) := do
         check(tc, idx, Ast.NumberT());
@@ -699,8 +813,8 @@ fun check_pattern(tc : Typechecker, pattern : Ast.Pattern, matched_ty : Ast.Type
             end;
         end;
         case ConstructorPattern(name, subpatterns, lconstr) := do 
-            val Name(enum_name) := matched_ty else panic("Cannot match on non-enum-type "+matched_ty+" in "+pattern);
-            val EnumInfo(?, constructors, methods) := tc.type_info_for(enum_name) 
+            //TODO: Correct name lookup
+            val EnumInfo(enum_name, constructors, methods, exported) := info_for(tc, matched_ty, fun(ty) := "Cannot match on non-enum-type "+matched_ty+" in "+pattern)
                 else panic("Cannot match on class type "+matched_ty+"in "+pattern);
             for constr in constructors do 
                 if constr.name = name do 
@@ -721,28 +835,29 @@ fun check_pattern(tc : Typechecker, pattern : Ast.Pattern, matched_ty : Ast.Type
 end
 
 fun get_property_ty(tc : Typechecker, name : String, ty : Ast.Type, e : Ast.Expr) : (Ast.Type, Ast.AccessType) := match ty do  
-    case Name(class_name) := do
-        val class_info := tc.type_info_for(class_name);
-        match class_info do 
-            case ClassInfo(?, fields, methods) := do 
-                if fields.has(name) then do 
-                    val ty := fields.get(name).ty;
-                    (ty, Ast.FieldAccess())
-                end else if methods.has(name) then do 
-                    val ty := methods.get(name).ty;
-                    (ty, Ast.MethodAccess())
-                end else panic("Type "+class_name+" has no field or method called "+name)
-            end;
-            case EnumInfo(?, ?, methods) := do 
-                if methods.has(name) then do 
-                    (methods.get(name).ty, Ast.MethodAccess())
-                end else panic("Type "+class_name+" has no method called "+name)
-            end;
-        end
-    end;
+    // TODO: Correct name lookup
     case ListOf(elem_ty) := builtin_list_property(elem_ty, name, e);
-    case ? := panic("Cannot read property of non-class-type "+ty+"in expression "+e);
+    case ? := get_property_of_info(info_for(tc, ty, fun(ty) := "Cannot read property of non-class-type "+ty+"in expression "+e), name, e);
 end;
+
+fun get_property_of_info(class_info : Ast.TyInfo, name : String, e : Ast.Expr) : (Ast.Type, Ast.AccessType) do 
+    match class_info do 
+        case ClassInfo(class_name, fields, methods, exported) := do 
+            if fields.has(name) then do 
+                val ty := fields.get(name).ty;
+                (ty, Ast.FieldAccess())
+            end else if methods.has(name) then do 
+                val ty := methods.get(name).ty;
+                (ty, Ast.MethodAccess())
+            end else panic("Type "+class_name+" has no field or method called "+name)
+        end;
+        case EnumInfo(enum_name, ?, methods, exported) := do 
+            if methods.has(name) then do 
+                (methods.get(name).ty, Ast.MethodAccess())
+            end else panic("Type "+enum_name+" has no method called "+name)
+        end;
+    end
+end
 
 fun builtin_list_property(elem_ty : Ast.Type, name : String, e : Ast.Expr) : (Ast.Type, Ast.AccessType) := match name do 
     case "length" := (Ast.NumberT(), Ast.FieldAccess());
@@ -862,6 +977,7 @@ do
     tc.close_scope();
 end
 
+// Return type is always fully resolved
 fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do 
     case WildCardExpression() := panic("Error: ? is not a valid expression");
     case DesugarableExpr(content) := infer(t, content.get());
@@ -952,7 +1068,20 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         check(t, end_expr, Ast.NumberT());
         Ast.ListOf(Ast.NumberT())
     end;
-    case PropertyExpr(obj, name, la, lt, lft) := do 
+    case PropertyExpr(obj, name, la, lt, lft) := if val Module(path) := accessed_object(t, obj) then do  
+        val (accessed_globals, ?) := t.imported_modules.get(SourceFileGatherer.path_to_module(path));
+        la.init(Ast.ModuleAccessed());
+        lt.init(Ast.Never());
+        if !accessed_globals.has(name) do 
+            panic("Module "+join(".", path)+" does not declare "+name);
+        end;
+        val accessed := accessed_globals.get(name);
+        if !accessed.is_exported do 
+            panic("Module "+join(".", path)+" does not export "+name);
+        end
+        lft.init(accessed.ty);
+        accessed.ty
+    end else do 
         val obj_ty := infer(t, obj);
         lt.init(obj_ty);
 
@@ -1013,6 +1142,18 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         Ast.Never()
     end;
 end;
+
+
+
+fun accessed_object(tc : Typechecker, expr : Ast.Expr) : Ast.AccessedObjectType do 
+    val Module(path) := Ast.get_as_path(expr) else return Ast.NormalObject(); // Expression has to be a path
+    if tc.imported_modules.has(SourceFileGatherer.path_to_module(path)) then // Expression is an imported object
+        Ast.Module(path)
+    else 
+        Ast.NormalObject()
+end
+
+
 
 fun infer_function(
     t : Typechecker,

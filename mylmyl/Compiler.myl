@@ -24,11 +24,14 @@ class Compiler where
 
     var env : Env.Env(VariableInfo) := Env.Env.[VariableInfo]();
 
+    val all_modules : Env.AList(Env.Env(VariableInfo));
+
     val loop_labels : String[] := [];
 
-    new(globals : Env.Env(Ast.VarInfo), nameg : NameGen.NameGenerator) do 
+    new(globals : Env.Env(Ast.VarInfo), nameg : NameGen.NameGenerator, modules : Env.AList(Env.Env(VariableInfo))) do 
         this.current_env := globals;
         this.name_gen := nameg;
+        this.all_modules := modules;
 
         declare_builtins(this);
     end
@@ -150,8 +153,19 @@ fun declare_builtins(c : Compiler) do
     c.env.insert("panic", do val panic_info := VariableInfo(); panic_info.is_no_fc_fn := true; panic_info end);
 end
 
-fun compile(file : SourceFileGatherer.SourceFile, name_gen : NameGen.NameGenerator) : String do 
-    val c := Compiler(file.globals_env.get(), name_gen);
+fun gather_global_variable_info(files : Env.AList(SourceFileGatherer.SourceFile)) : Env.AList(Env.Env(VariableInfo)) do 
+    val list := Env.AList.[Env.Env(VariableInfo)]();
+    for (?, file) in files.bindings do 
+        val env := Env.Env.[VariableInfo]();
+        gather_variable_info(env, file.ast.decls);
+        list.insert(file.path, env);
+    end
+    list
+end
+
+fun compile(file : SourceFileGatherer.SourceFile, name_gen : NameGen.NameGenerator, infos : Env.AList(Env.Env(VariableInfo))) : String do 
+    val c := Compiler(file.globals_env.get(), name_gen, infos);
+    c.env := infos.get(file.path);
     val path_parts := split(file.path, "/"); // Parts of path
     val file_name_parts := split(path_parts.last, "\\."); // Name before extension
     val file_name := file_name_parts.first;
@@ -160,7 +174,6 @@ fun compile(file : SourceFileGatherer.SourceFile, name_gen : NameGen.NameGenerat
     compile_imports(c, file.ast.imports);
     c.append("public class "+file_name+" {");
     c.indent(); c.newline();
-    gather_variable_info(c, file.ast.decls);
     for decl in file.ast.decls do 
         compile_decl(c, decl);
     end;
@@ -171,34 +184,34 @@ fun compile(file : SourceFileGatherer.SourceFile, name_gen : NameGen.NameGenerat
     c.buf
 end
 
-fun gather_variable_info(c : Compiler, decls : Ast.Decl[]) do 
+fun gather_variable_info(env : Env.Env(VariableInfo), decls : Ast.Decl[]) do 
     fun gather_info(decl : Ast.Decl) do 
         match decl do 
             case DesugarableDecl(mutdecl) := gather_info(mutdecl.get());
             case FunDecl(name, ?, ?, ?, ?, ?) := do 
                 val info := VariableInfo();
                 info.is_no_fc_fn := true; // Global functions cant be lambdas
-                c.env.insert(name, info);
+                env.insert(name, info);
             end;
             case ClassDecl(name, ?, ?, ?, ?) := do 
                 val info := VariableInfo();
                 info.is_constructor := true;
                 info.is_no_fc_fn := true;
-                c.env.insert(name, info);
+                env.insert(name, info);
             end;
             case EnumDecl(?, constrs, ?, ?, ?) := do 
                 for constr in constrs do 
                     val info := VariableInfo();
                     info.is_constructor := true;
                     info.is_no_fc_fn := true;
-                    c.env.insert(constr.name, info);
+                    env.insert(constr.name, info);
                 end;
             end;
             case VarDecl(setter, ?, ?, ?, ?) := do 
-                gather_info_for_setter(c, setter);
+                gather_info_for_setter(env, setter);
             end;
             case ValElseDeclaration(pat, ?, ?, ?, ?, ?, ?, ?) := do 
-                gather_info_for_pattern(c, pat);
+                gather_info_for_pattern(env, pat);
             end;
         end;
     end
@@ -207,23 +220,23 @@ fun gather_variable_info(c : Compiler, decls : Ast.Decl[]) do
     end
 end
 
-fun gather_info_for_setter(c : Compiler, setter : Ast.Setter) do 
+fun gather_info_for_setter(env : Env.Env(VariableInfo), setter : Ast.Setter) do 
     match setter do 
-        case Variable(name) := do c.env.insert(name, VariableInfo()); end; //Globals cant be upvalues
-        case TupleSetter(parts, ?) := do for part in parts do gather_info_for_setter(c, part); end; end;
+        case Variable(name) := do env.insert(name, VariableInfo()); end; //Globals cant be upvalues
+        case TupleSetter(parts, ?) := do for part in parts do gather_info_for_setter(env, part); end; end;
         case Property(?, ?, ?) := do end;
     end;
 end
 
-fun gather_info_for_pattern(c : Compiler, pat : Ast.Pattern) do 
+fun gather_info_for_pattern(env : Env.Env(VariableInfo), pat : Ast.Pattern) do 
     match pat do 
         case NumericPattern(?) := do end;
         case StringPattern(?) := do end;
         case BooleanPattern(?) := do end;
-        case NamePattern(name) := do c.env.insert(name, VariableInfo()); end;
+        case NamePattern(name) := do env.insert(name, VariableInfo()); end;
         case WildcardPattern() := do end;
-        case TuplePattern(parts) := do for part in parts do gather_info_for_pattern(c, part); end; end;
-        case ConstructorPattern(?, parts, ?) := do for part in parts do gather_info_for_pattern(c, part); end; end;
+        case TuplePattern(parts) := do for part in parts do gather_info_for_pattern(env, part); end; end;
+        case ConstructorPattern(?, parts, ?) := do for part in parts do gather_info_for_pattern(env, part); end; end;
     end;
 end;
 
@@ -254,14 +267,16 @@ fun compile_imports(c : Compiler, imports : Ast.Import[]) do
     for i in imports do 
         match i do 
             case BasicImport(parts) := do 
-                c.append("import ");
-                var needs_dot := false;
-                for part in parts do 
-                    if needs_dot do c.append("."); end;
-                    c.append(part);
-                    needs_dot := true;
+                if parts.length > 1 do // Classes without package before them dont need to be imported
+                    c.append("import ");
+                    var needs_dot := false;
+                    for part in parts do 
+                        if needs_dot do c.append("."); end;
+                        c.append(part);
+                        needs_dot := true;
+                    end;
+                    c.append(";"); c.newline();
                 end;
-                c.append(";"); c.newline();
             end;
         end;
     end;
@@ -637,7 +652,7 @@ fun default_value(ty : Ast.Type) : String := match ty do
         case StringT() := "\"\""; 
         case VoidT() := "null";
         case Tuple(?) := "null"; 
-        case Name(?) := "null"; // Types that are refered to by name are objects, so nullable
+        case Name(?, ?) := "null"; // Types that are refered to by name are objects, so nullable
         case Function(?, ?) := "null"; 
         case ListOf(?) := "null"; 
         case Never() := "null";
@@ -937,6 +952,18 @@ do
                         resulting_var
                     end;
                 end
+            end;
+            case ModuleAccessed() := do 
+                val Module(path) := Ast.get_as_path(obj) else panic("Unknown module access: "+obj);
+                val mod_path := SourceFileGatherer.path_to_module(path);
+                val mod_info := c.all_modules.get(mod_path);
+                val accessed_info := mod_info.get(name);
+                val access_compiled := if accessed_info.is_constructor 
+                    then join(".", path)+"."+name+"::new"
+                    else if accessed_info.is_no_fc_fn
+                        then join(".", path)+"::"+name 
+                        else join(".", path)+"."+name;
+                use_with_target(c, access_compiled, target)
             end;
         end
     end
@@ -1288,14 +1315,26 @@ fun compile_call(c : Compiler, callee : Ast.Expr, args : Ast.Expr[], target : Ta
         else
             compile_expr(c, callee, UsedDirectly()) + ".call"
     end else if val PropertyExpr(obj, name, la, lt, lft) := callee then do 
-        val obj_expr := compile_expr(c, obj, UsedDirectly());
-        val obj_ty := lt.get();
-        if val ListOf(?) := obj_ty then 
-            return builtin_list_method_call(c, obj_expr, name, args, target) // builtin list methods have to be compiled specially
-        else 
-        if val MethodAccess() := la.get() then 
-             obj_expr + "." + name
-        else obj_expr + "." + name  + ".call"
+        if val ModuleAccessed := la.get() then do 
+            val Module(path) := Ast.get_as_path(obj) else panic("Unknown module access: "+obj);
+            val mod_info := c.all_modules.get(SourceFileGatherer.path_to_module(path));
+            val accessed_info := mod_info.get(name);
+            val accessed_path := join(".", path);
+            if accessed_info.is_constructor 
+                then "new "+accessed_path+"."+name
+            else if accessed_info.is_no_fc_fn 
+                then accessed_path + "." + name 
+            else accessed_path + "." + name + ".call" 
+        end else do 
+            val obj_expr := compile_expr(c, obj, UsedDirectly());
+            val obj_ty := lt.get();
+            if val ListOf(?) := obj_ty then 
+                return builtin_list_method_call(c, obj_expr, name, args, target) // builtin list methods have to be compiled specially
+            else 
+            if val MethodAccess() := la.get() then 
+                 obj_expr + "." + name
+            else obj_expr + "." + name  + ".call"
+        end
     end else do 
         compile_expr(c, callee, UsedDirectly()) + ".call"
     end;
@@ -1484,7 +1523,8 @@ fun compile_type(c : Compiler, t : Ast.Type) : String := match t do
     end;
     case Function(?, ?) := create_enqueued_type(c, t);
     case Tuple(?) := create_enqueued_type(c, t);
-    case Name(name) := name; // Classes are compiled with their name
+    case Name(name, ?) := name; // Classes are compiled with their name
+    case ModuleAccess(path, accessed, ?) := join(".", path)+"."+accessed;
     case Never() := "Void";
 end;
 

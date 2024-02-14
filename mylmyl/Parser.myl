@@ -670,7 +670,15 @@ fun type_literal(p : Parser) : Ast.Type do
         else 
             Ast.Tuple(types)
     end else if p.matches(Tokenizer.IDENTIFIER()) then do 
-        Ast.Name(p.previous().src)
+        var last_ident := p.previous().src;
+        val path : String[] := [];
+        while p.matches(Tokenizer.DOT()) do 
+            path.push(last_ident);
+            last_ident := p.consume(Tokenizer.IDENTIFIER(), "Expect accessed name after '.'").src;
+        end;
+        if path.length = 0 
+            then Ast.Name(last_ident, Ast.late_ty_env())
+            else Ast.ModuleAccess(path, last_ident, Util.LateInitialized.[Ast.Type]())
     end else do         
         panic("Invalid type: "+p.peek().kind)
     end;

@@ -55,7 +55,7 @@ enum Pattern where
 end
 
 enum AccessType where 
-    FieldAccess(), MethodAccess();
+    FieldAccess(), MethodAccess(), ModuleAccessed();
 end
 
 enum BinOp where 
@@ -131,8 +131,8 @@ class VarInfo where
 end
 
 enum TyInfo where 
-    ClassInfo(String, Env.AList(VarInfo) /* fields */, Env.AList(VarInfo) /* methods */),
-    EnumInfo(String, EnumConstructor[], Env.AList(VarInfo) /* methods, doesn't have fields */);
+    ClassInfo(String, Env.AList(VarInfo) /* fields */, Env.AList(VarInfo) /* methods */, Bool /* exported */),
+    EnumInfo(String, EnumConstructor[], Env.AList(VarInfo) /* methods, doesn't have fields */, Bool /* exported */);
 end
 
 enum Parameter where 
@@ -146,8 +146,10 @@ end
 
 enum Type where 
     NumberT(), BooleanT(), StringT(), VoidT(),
-    Tuple(Type[]), Name(String),
+    Tuple(Type[]), 
+    Name(String, Util.LateInitialized(Env.Env(TyInfo))), // Enviroment the name is defined in
     Function(Type[], Type), ListOf(Type),
+    ModuleAccess(String[], String, Util.LateInitialized(Type)), // Fully resolved type at end
     Never();
 end
 
@@ -169,3 +171,18 @@ end
 
 export fun late_env() : Util.LateInitialized(Env.Env(VarInfo)) := Util.LateInitialized.[Env.Env(VarInfo)]();
 export fun late_type() : Util.LateInitialized(Type) := Util.LateInitialized.[Type]();
+export fun late_ty_env() : Util.LateInitialized(Env.Env(TyInfo)) := Util.LateInitialized.[Env.Env(TyInfo)]();
+
+fun get_as_path(e : Expr) : AccessedObjectType := match e do 
+    case DesugarableExpr(mute) := get_as_path(mute.get());
+    case Identifier(name, ?) := Module([name]);
+    case PropertyExpr(path, name, ?, ?, ?) := if val Module(path_until_now) := get_as_path(path) then do 
+        path_until_now.push(name);
+        Module(path_until_now)
+    end else NormalObject();
+    case ? := NormalObject();
+end;
+
+enum AccessedObjectType where 
+    Module(String[]), NormalObject();
+end
