@@ -1,6 +1,5 @@
-import OtherFile;
+fun apply[A, B](f : Fun(A) : B, a : A) : B := f(a);
 
 fun main() do 
-    val test_object : OtherFile.TestClass := OtherFile.TestClass();
-    print test_object.test_field; // 3
+    print apply.[Number, Bool](fun (n : Number) : Bool := n > 3, 2);
 end

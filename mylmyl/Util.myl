@@ -62,3 +62,9 @@ fun read_file(path : String) : Optional(String) do
         then None.[String]()
         else Some.[String](maybe_content)
 end
+
+fun outputFile(path : String, compiled : String) do 
+    val initial := split(path, "\\.").first; // Only file extension can contain . as it is not a valid part of a name
+    print("Writing to "+initial+".java");
+    writeToFile(initial+".java", compiled);
+end

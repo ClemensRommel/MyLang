@@ -192,8 +192,20 @@ end
 
 fun fun_decl(p : Parser) : Ast.Decl do 
     val name := p.consume(Tokenizer.IDENTIFIER(), "Expect name in function declaration");
+    val typarams : Ast.TypeParameter[] := if p.matches(Tokenizer.LBRACKET())
+        then do 
+            val params : Ast.TypeParameter[] := [];
+            var needs_comma := false;
+            while !p.matches(Tokenizer.RBRACKET()) do 
+                if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate type parameters"); end;
+                val name := p.consume(Tokenizer.IDENTIFIER(), "Expect type parameter name");
+                params.push(Ast.TypeParameter(name.src));
+                needs_comma := true;
+            end;
+            params
+        end else [];
     val (params, return_type, body) := end_of_function(p, true);
-    Ast.FunDecl(name.src, params, return_type, body, true, Ast.late_env())
+    Ast.FunDecl(name.src, typarams, params, return_type, body, true, Ast.late_env())
 end
 
 fun parse_parameters(p : Parser) : Ast.Parameter[] do 
@@ -360,9 +372,20 @@ fun use_expr(p : Parser) : Ast.Expr do
             lhs := Ast.IndexExpr(lhs, idx);
         end else do
             p.next();
-            val property := p.consume(Tokenizer.IDENTIFIER(), "Expect property name after .");
-            lhs := Ast.PropertyExpr(lhs, property.src, 
+            if p.matches(Tokenizer.LBRACKET()) then do 
+                val args : Ast.Type[] := [];
+                var needs_comma := false;
+                while !p.matches(Tokenizer.RBRACKET()) do 
+                    if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate type parameters") end
+                    args.push(type_literal(p));
+                    needs_comma := true;
+                end;
+                lhs := Ast.InstantiationExpr(lhs, args, Ast.late_type());
+            end else do 
+                val property := p.consume(Tokenizer.IDENTIFIER(), "Expect property name after .");
+                lhs := Ast.PropertyExpr(lhs, property.src, 
                                     Util.LateInitialized.[Ast.AccessType](), Ast.late_type(), Ast.late_type());
+            end;
         end
     end;
     lhs
@@ -654,7 +677,7 @@ fun type_literal(p : Parser) : Ast.Type do
         end;
         p.consume(Tokenizer.COLON(), "Expect ':' before function return type");
         val ret_type := type_literal(p);
-        Ast.Function(arg_types, ret_type)
+        Ast.Function([], arg_types, ret_type)
     end else if p.matches(Tokenizer.LPAREN()) then do 
         val types : Ast.Type[] := [];
         var needs_comma := false;

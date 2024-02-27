@@ -1,0 +1,144 @@
+module Compilation.TypeGenerator;
+
+import Util;
+import Compilation.CodeBuffers;
+import NameGen;
+
+class TypeGenerator where 
+    val buf : Compilation.CodeBuffers.StringBuffer := Compilation.CodeBuffers.StringBuffer();
+    val name_gen : NameGen.NameGenerator;
+    new(ng : NameGen.NameGenerator) do 
+        this.name_gen := ng;
+    end
+
+    fun append(str : String) do
+        this.buf.append(str);
+    end
+
+    fun newline() do 
+        this.buf.newline();
+    end
+
+    fun indent() do 
+        this.buf.indent();
+    end
+    
+    fun dedent() do 
+        this.buf.dedent();
+    end
+
+    fun strip_trailing() do 
+        this.buf.strip_trailing();
+    end
+
+    fun new_var() : String := this.name_gen.next_name();
+end
+
+fun compile_types(out_path : String, types : Compilation.CodeBuffers.UncreatedTypes[], name_gen : NameGen.NameGenerator) do 
+    val tgen := TypeGenerator(name_gen);
+
+    val path_parts := split(out_path, "/");
+    val className := split(path_parts.last, "\\.").first;
+    if path_parts.length > 1 do 
+        tgen.append("package ");
+        var need_dot := false;
+        for i in [0..path_parts.length - 2] do 
+            if need_dot do tgen.append("."); end
+            tgen.append(path_parts[i]);
+            need_dot := true;
+        end
+        tgen.append(";");
+        tgen.newline();
+    end
+    tgen.append("import java.util.ArrayList;"); tgen.newline();
+
+    tgen.append("public class "+className+"{"); tgen.indent(); tgen.newline();
+    for tys in types do
+        for lambda_ty in tys.ungenerated_functions do 
+            compile_function_type(tgen, lambda_ty);
+        end
+        for tuple_ty in tys.ungenerated_tuples do 
+            compile_tuple_type(tgen, tuple_ty);
+        end
+    end
+    tgen.dedent();tgen.newline();
+    tgen.append("}");
+    Util.outputFile(out_path, tgen.buf.buf);
+end
+
+fun compile_function_type(c : TypeGenerator, ty : Compilation.CodeBuffers.UncreatedFunctionType) do 
+    c.append("@FunctionalInterface static interface "); c.append(ty.name);
+    c.append("<");
+    var need_comma := false;
+    val typarams : String[] := [];
+    for i in [0..ty.param_count+1] do 
+        val tyname := c.new_var();
+        typarams.push(tyname);
+        if need_comma do c.append(", "); end
+        c.append(tyname);
+        need_comma := true;
+    end
+    c.append("> {"); c.indent(); c.newline();
+    c.append(typarams.last); // Last type parameter is return type
+    c.append(" call(");
+    need_comma := false;
+    for i in [0..ty.param_count] do 
+        if need_comma do c.append(", "); end
+        c.append(typarams[i]); c.append(" "); c.append(c.new_var());
+    end
+    c.append(");"); c.dedent(); c.newline();
+    c.append("}");
+    c.newline();
+end
+
+
+fun compile_tuple_type(c : TypeGenerator, ty : Compilation.CodeBuffers.UncreatedTupleType) do 
+    c.append("static record "); c.append(ty.name);
+    val tys : String[] := if ty.elem_count != 0 then do 
+        c.append("<");
+        var need_comma := false;
+        val typarams : String[] := [];
+        for i in [0..ty.elem_count] do 
+            val param := c.new_var();
+            typarams.push(param);
+            if need_comma do c.append(", "); end
+            c.append(param);
+            need_comma := true;
+        end
+        c.append(">");
+        typarams
+    end else [];
+    c.append("(");
+    var need_comma := false;
+    for i in [0..ty.elem_count] do 
+        if need_comma do c.append(", "); end
+        c.append(tys[i]); c.append(" field"+i);
+        need_comma := true;
+    end
+    c.append(") {"); 
+    c.indent(); c.newline();
+    c.append("public String toString() {");
+    c.indent(); c.newline();
+    c.append("StringBuilder builder = new StringBuilder();");
+    c.newline();
+    c.append("builder.append(\"(\");");
+    c.newline();
+    var needs_comma := false;
+    for i in [0..ty.elem_count] do 
+        if needs_comma do 
+            c.append("builder.append(\", \");");
+            c.newline();
+        end;
+        c.append("builder.append("); c.append("field"+i); c.append(");");
+        c.newline();
+        needs_comma := true;
+    end; 
+    c.append("builder.append(\")\");");
+    c.newline();
+    c.append("return builder.toString();");
+    c.dedent(); c.newline();
+    c.append("}");
+    c.dedent(); c.newline();
+    c.append("}");
+    c.newline();
+end

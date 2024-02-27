@@ -49,6 +49,18 @@ fun get_all_files(sfg : SFGatherer, starting_file : String) do
     end
 end
 
+fun generated_code_path(starting_file : String) : String[] do 
+    val parts := split(starting_file, "/");
+    val output_parts : String[] := [];
+    print(parts);
+    val file_name := "__generated_"+split(parts.last, "\\.").first;
+    for i in [0..parts.length - 2] do // Alles außer dem letzten
+        output_parts.push(parts[i]);
+    end
+    output_parts.push(file_name);
+    output_parts
+end
+
 fun gather_files(start : String) : Env.AList(SourceFile) do 
     val sfg := SFGatherer();
     get_all_files(sfg, start);

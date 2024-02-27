@@ -1,0 +1,58 @@
+module Compilation.CodeBuffers;
+
+class StringBuffer where 
+    var buf := "";
+    var indent_level := 0;
+
+    fun append(str : String) do 
+        this.buf := this.buf + str;
+    end
+
+    fun newline() do 
+        this.append("\n");
+        for i in [0..this.indent_level] do 
+            this.append("    ");
+        end;
+    end
+    fun indent() do 
+        this.indent_level := this.indent_level + 1;
+    end
+    fun dedent() do 
+        if this.indent_level <= 0 do 
+            panic("Error: Negative indent_level impossible");
+        end
+        this.indent_level := this.indent_level - 1;
+    end
+
+    fun strip_trailing() do 
+        this.buf := strip(this.buf);
+    end
+end
+
+// Task for functional interface with param_count parameters and a return type
+class UncreatedFunctionType where 
+    val name : String;
+    val param_count : Number;
+    new(p : Number, nm : String) do 
+        this.param_count := p;
+        this.name := nm;
+    end
+end
+
+class UncreatedTupleType where 
+    val name : String;
+    val elem_count : Number;
+    new(p : Number, nm : String) do 
+        this.elem_count := p;
+        this.name := nm;
+    end
+end
+
+class UncreatedTypes where 
+    val ungenerated_functions : UncreatedFunctionType[];
+    val ungenerated_tuples : UncreatedTupleType[];
+    new(uf : UncreatedFunctionType[], ut : UncreatedTupleType[]) do 
+        this.ungenerated_functions := uf;
+        this.ungenerated_tuples := ut;
+    end
+end

@@ -12,6 +12,7 @@ enum Expr where
     Identifier(String, Util.LateInitialized(Type)),
     BinaryOperation(BinOp, Expr, Expr),
     UnaryOperation(UnOp, Expr),
+    InstantiationExpr(Expr, Type[], Util.LateInitialized(Type)),
     FunctionCall(Expr, Expr[]),
     FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Env.Env(VarInfo))),
     IfExpr(Util.LateInitialized(Type), Expr, Expr, Expr),
@@ -90,7 +91,7 @@ export enum Decl where
     VarDecl(Setter, Util.LateInitialized(Type), Util.Optional(Expr), Bool /* mut */, Bool /* export */),
     ValElseDeclaration(Pattern, Expr, Expr, Bool /* mut */, Bool /* export */, Util.LateInitialized(Type), 
                        Util.LateInitialized(Type), Util.LateInitialized(Env.Env(VarInfo))),
-    FunDecl(String, Parameter[], Type, Expr, Bool /* export */, Util.LateInitialized(Env.Env(VarInfo))),
+    FunDecl(String, TypeParameter[], Parameter[], Type, Expr, Bool /* export */, Util.LateInitialized(Env.Env(VarInfo))),
     ClassDecl(String, Decl[], Util.Optional(Constructor), Bool /* export */, Util.LateInitialized(Env.Env(VarInfo))),
     EnumDecl(String, EnumConstructor[], Decl[], Bool /* export */, Util.LateInitialized(Env.Env(VarInfo)));
 end;
@@ -132,7 +133,8 @@ end
 
 enum TyInfo where 
     ClassInfo(String, Env.AList(VarInfo) /* fields */, Env.AList(VarInfo) /* methods */, Bool /* exported */),
-    EnumInfo(String, EnumConstructor[], Env.AList(VarInfo) /* methods, doesn't have fields */, Bool /* exported */);
+    EnumInfo(String, EnumConstructor[], Env.AList(VarInfo) /* methods, doesn't have fields */, Bool /* exported */),
+    TypeParameterInfo(String);
 end
 
 enum Parameter where 
@@ -148,9 +150,16 @@ enum Type where
     NumberT(), BooleanT(), StringT(), VoidT(),
     Tuple(Type[]), 
     Name(String, Util.LateInitialized(Env.Env(TyInfo))), // Enviroment the name is defined in
-    Function(Type[], Type), ListOf(Type),
+    Function(TypeParameter[], Type[], Type), ListOf(Type),
     ModuleAccess(String[], String, Util.LateInitialized(Type)), // Fully resolved type at end
     Never();
+end
+
+class TypeParameter where 
+    val name : String;
+    new(n : String) do 
+        this.name := n;
+    end
 end
 
 /*

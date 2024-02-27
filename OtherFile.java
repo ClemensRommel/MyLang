@@ -5,11 +5,8 @@ import java.util.ArrayList;
 
 
 public class OtherFile {
-    public static class TestClass {
-        public final double test_field;
-        {
-            test_field = 3.0;
-        }
+    public static double test()  {
+        return 3.0;
     }
     
 }

@@ -53,7 +53,7 @@ fun declare_global_variables(file : SourceFileGatherer.SourceFile) do
                 declare_pattern(file, pat, lty.get(), mutable, exported);
             end;
             case DesugarableDecl(mutdecl) := declare_global_variable(mutdecl.get());
-            case FunDecl(?, ?, ?, ?, ?, ?) := do end;
+            case FunDecl(?, ?, ?, ?, ?, ?, ?) := do end;
             case ClassDecl(?, ?, ?, ?, ?) := do end;
             case EnumDecl(?, ?, ?, ?, ?) := do end;
         end;
@@ -69,8 +69,8 @@ fun declare_functions_and_types(file : SourceFileGatherer.SourceFile) do
             case DesugarableDecl(mutdecl) := declare_function_and_type(mutdecl.get());
             case VarDecl(setter, tyd, ?, mutable, exported) := do end;
             case ValElseDeclaration(pat, ?, ?, mutable, exported, lty, ?, ?) := do end;
-            case FunDecl(name, parameters, return_ty, ?, exported, ?) := do 
-                val ty := Ast.Function(param_types(parameters), return_ty);
+            case FunDecl(name, typarams, parameters, return_ty, ?, exported, ?) := do
+                val ty := Ast.Function(typarams, param_types(parameters), return_ty);
                 val info := Ast.VarInfo(false, ty, name);
                 info.is_exported := exported;
                 file.globals_env.get().insert(name, info);
@@ -84,8 +84,9 @@ fun declare_functions_and_types(file : SourceFileGatherer.SourceFile) do
                 );
                 file.types_env.get().insert(name, info);
                 val constr_ty := if val Some(con) := constr 
-                    then Ast.Function(param_types(con.params), Ast.Name(name, file.types_env))
-                    else Ast.Function([], Ast.Name(name, file.types_env));
+                    // TODO: Typparameter handlen
+                    then Ast.Function([], param_types(con.params), Ast.Name(name, file.types_env))
+                    else Ast.Function([], [], Ast.Name(name, file.types_env));
                 val varinf := Ast.VarInfo(false, constr_ty, name);
                 varinf.is_constructor := true;
                 varinf.is_exported := exported;
@@ -95,7 +96,8 @@ fun declare_functions_and_types(file : SourceFileGatherer.SourceFile) do
                 val funs := methods_in_class(members);
                 file.types_env.get().insert(name, Ast.EnumInfo(name, constructors, funs, exported));
                 for constr in constructors do 
-                    val info := Ast.VarInfo(false, Ast.Function(constr.fields, Ast.Name(name, file.types_env)), constr.name);
+                    // TODO: Typparameter handlen
+                    val info := Ast.VarInfo(false, Ast.Function([], constr.fields, Ast.Name(name, file.types_env)), constr.name);
                     info.is_constructor := true;
                     info.is_exported := exported;
                     file.globals_env.get().insert(constr.name, info);
@@ -238,7 +240,8 @@ fun types_equal(to : Ast.Type, from : Ast.Type) : Bool := match (to, from) do
         and if lenv1.is_init() and lenv2.is_init() 
             then lenv1.get() = lenv2.get()
             else panic("Cannot compare names from unknown namespace for equality: "+name1+", "+name2);
-    case (Function(args1, retty1), (Function(args2, retty2))) := types_equal(retty1, retty2)
+    case (Function(typparams1, args1, retty1), (Function(typparams2, args2, retty2))) := types_equal(retty1, retty2)
+        and (if typparams1.length != 0 or typparams2.length != 0 then panic("Cannot decide equality of types with type parameters") else true)
         and args1.length = args2.length 
         and do 
             for i in [0..args1.length] do 
@@ -261,7 +264,8 @@ fun require_types_exist(tc : Typechecker, ty : Ast.Type) := match ty do
             require_types_exist(tc, part);
         end
     end;
-    case Function(params, ret_type) := do 
+    // TODO: typparameter
+    case Function(type_params, params, ret_type) := do 
         for param in params do 
             require_types_exist(tc, param);
         end
@@ -279,7 +283,7 @@ fun require_types_exist(tc : Typechecker, ty : Ast.Type) := match ty do
 end;
 
 fun declare_builtins(tc : Typechecker) do 
-    tc.declare("panic", Ast.Function([Ast.StringT()], Ast.Never()), false);
+    tc.declare("panic", Ast.Function([], [Ast.StringT()], Ast.Never()), false);
 end
 
 fun check_stmt(tc : Typechecker, stmt : Ast.Stmt) := match stmt do 
@@ -416,24 +420,28 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
             lenv.init(tc.env);
         end;
     end;
-    case FunDecl(name, params, return_type, body, ?, lenv) := do 
+    case FunDecl(name, typarams, params, return_type, body, ?, lenv) := do 
         if matches(name, "__.*") do 
             panic("Names may not start with __: '"+name+"'")
         end
-        require_types_exist(tc, return_type); // Require all types to exist
-        for param in params do 
-            match param do 
-                case NormalParam(?, ty) := do require_types_exist(tc, ty); end;
-            end;
-        end;
-        val resolved_ret_ty := resolve(tc, return_type);
-        val fun_type := Ast.Function(for ty in param_types(params) yield resolve(tc, ty) end, resolved_ret_ty);
-        if tc.var_declared(name) and tc.scope_depth > 0 then do 
+        if tc.var_declared(name) and tc.scope_depth > 0  do 
             panic("Function already declared: '"+name+"'");
-        end else do 
-            tc.declare(name, fun_type, false);
         end;
         tc.open_scope();
+            for param in typarams do 
+                if tc.ty_env.has(param.name) do 
+                    panic("Type name already declared: "+param.name);
+                end
+                tc.declare_type(param.name, Ast.TypeParameterInfo(param.name));
+            end
+            val resolved_ret_ty := resolve(tc, return_type);
+            val fun_type := Ast.Function(typarams, for ty in param_types(params) yield resolve(tc, ty) end, resolved_ret_ty);
+        tc.close_scope();
+        tc.declare(name, fun_type, false);
+        tc.open_scope();
+            for param in typarams do //Redeclare type parameters for body
+                tc.declare_type(param.name, Ast.TypeParameterInfo(param.name));
+            end
             tc.in_loops.push(false);
             tc.return_tys.push((true, resolved_ret_ty));
             for param in params do 
@@ -444,6 +452,7 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
             tc.return_tys.pop();
             tc.in_loops.pop();
         tc.close_scope();
+        tc.declare(name, fun_type, false);
         if tc.is_global() and name = "main" and return_type != Ast.VoidT() do 
             panic("Main may not return anything other than Void");
         end
@@ -497,7 +506,8 @@ fun declare_enum_constructors(tc : Typechecker, name : String, variants : Ast.En
             require_types_exist(tc, field);
             resolve(tc, field);
         end
-        tc.declare(constr.name, Ast.Function(constr.fields, enum_ty), false);
+        //TODO: Generics
+        tc.declare(constr.name, Ast.Function([], constr.fields, enum_ty), false);
     end;
 end
 
@@ -542,8 +552,8 @@ fun methods_in_class(members : Ast.Decl[]) : Env.AList(Ast.VarInfo) do
     val types : Env.AList(Ast.VarInfo) := Env.AList.[Ast.VarInfo]();
     for member in members do 
         match member do 
-            case FunDecl(name, params, ret_ty, body, ?, lenv) := do 
-                val fun_ty := Ast.Function(param_types(params), ret_ty);
+            case FunDecl(name, typarams, params, ret_ty, body, ?, lenv) := do
+                val fun_ty := Ast.Function(typarams, param_types(params), ret_ty);
                 types.insert(name, Ast.VarInfo(false, fun_ty, name));
             end;
             case ClassDecl(name, ?, ?, ?, ?) := panic("Error: Do not allow class as member of another class or enum: "+name);
@@ -575,9 +585,10 @@ fun check_constructor(tc : Typechecker, constructor : Util.Optional(Ast.Construc
             check(tc, constr.body, Ast.VoidT());
             constr.lenv.init(tc.env);
         tc.close_scope();
-        Ast.Function(param_types(constr.params), Ast.Name(className, Util.wrap_linit.[Env.Env(Ast.TyInfo)](tc.ty_env)))
+        // TODO: Generics
+        Ast.Function([], param_types(constr.params), Ast.Name(className, Util.wrap_linit.[Env.Env(Ast.TyInfo)](tc.ty_env)))
     end else do 
-        Ast.Function([], Ast.Name(className, Util.wrap_linit.[Env.Env(Ast.TyInfo)](tc.ty_env)))
+        Ast.Function([], [], Ast.Name(className, Util.wrap_linit.[Env.Env(Ast.TyInfo)](tc.ty_env)))
     end;
     tc.is_in_class := prev_in_class;
     result
@@ -624,7 +635,8 @@ fun resolve(tc : Typechecker, ty : Ast.Type) : Ast.Type do
                 panic("Unknown type "+name);
             end
         end;
-        case Function(params, ret_ty) := do 
+        //TODO: Generics
+        case Function(typarams, params, ret_ty) := do 
             for param in params do resolve(tc, param); end;
             resolve(tc, ret_ty);
         end;
@@ -709,7 +721,8 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
     case WhileValExpr(pat, matched, body, lmatched_ty, lenv, lty) := check_while_val(tc, t, pat, matched, body, lmatched_ty, lenv, lty);
     case FunctionCall(callee, args) := do 
         val callee_type := infer(tc, callee);
-        val Function(param_types, ret_type) := callee_type else do 
+        // TODO: Generics
+        val Function(typarams, param_types, ret_type) := callee_type else do 
             panic("Cannot call non-function-type "+callee_type+" in "+e)
         end;
         tc.require_assigneable(t, ret_type, lazy_str(e));
@@ -721,6 +734,7 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
             check(tc, args[i], param_types[i]);
         end
     end;
+    case InstantiationExpr(instantiated, typarams, lty) := tc.require_assigneable(t, infer(tc, e), lazy_str(e));
     case FunctionExpr(params, return_type, body, lenv) := tc.require_assigneable(
         t, 
         infer_function(
@@ -863,13 +877,13 @@ fun builtin_list_property(elem_ty : Ast.Type, name : String, e : Ast.Expr) : (As
     case "length" := (Ast.NumberT(), Ast.FieldAccess());
     case "first" := (elem_ty, Ast.FieldAccess());
     case "last" := (elem_ty, Ast.FieldAccess());
-    case "push" := (Ast.Function([elem_ty], Ast.VoidT()), Ast.MethodAccess());
-    case "pop" := (Ast.Function([], elem_ty), Ast.MethodAccess());
+    case "push" := (Ast.Function([], [elem_ty], Ast.VoidT()), Ast.MethodAccess());
+    case "pop" := (Ast.Function([], [], elem_ty), Ast.MethodAccess());
     // Peekt auf das letzte element. für das erste kann first verwendet werden
-    case "peek" := (Ast.Function([], elem_ty), Ast.MethodAccess()); 
-    case "dequeue" := (Ast.Function([], elem_ty), Ast.MethodAccess()); // Entfernt das erste element
-    case "prepend" := (Ast.Function([elem_ty], Ast.VoidT()), Ast.MethodAccess());
-    case "append" := (Ast.Function([Ast.ListOf(elem_ty)], Ast.VoidT()), Ast.MethodAccess());
+    case "peek" := (Ast.Function([], [], elem_ty), Ast.MethodAccess()); 
+    case "dequeue" := (Ast.Function([], [], elem_ty), Ast.MethodAccess()); // Entfernt das erste element
+    case "prepend" := (Ast.Function([], [elem_ty], Ast.VoidT()), Ast.MethodAccess());
+    case "append" := (Ast.Function([], [Ast.ListOf(elem_ty)], Ast.VoidT()), Ast.MethodAccess());
 end;
 
 fun check_block(
@@ -1027,7 +1041,8 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
     case WhileValExpr(pat, matched, body, lmatched_ty, lenv, lty) := infer_while_val(t, pat, matched, body, lmatched_ty, lenv, lty);
     case FunctionCall(callee, args) := do 
         val callee_type := infer(t, callee);
-        val Function(param_types, ret_type) := callee_type else do 
+        // TODO: Generics
+        val Function(typarams, param_types, ret_type) := callee_type else do 
             panic("Cannot call non-function-type "+callee_type+" in "+e)
         end;
         if param_types.length != args.length do 
@@ -1038,6 +1053,22 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
             check(t, args[i], param_types[i]);
         end
         ret_type
+    end;
+    case InstantiationExpr(instantiated, typarams, lty) := do 
+        val instantiated_ty := infer(t, instantiated);
+        val Function(expected_typarams, valparams, retty) := instantiated_ty 
+            else panic("Cannot instantiate non-generic type: "+instantiated_ty);
+        if typarams.length != expected_typarams.length do 
+            panic("Error: Expected "+expected_typarams.length
+                  +" type parameters, got "+typarams.length+" type parameters in"+e);
+        end 
+        val typaram_substitutes : Env.AList(Ast.Type) := Env.AList.[Ast.Type]();
+        for i in [0..typarams.length] do 
+            typaram_substitutes.insert(expected_typarams[i].name, typarams[i]);
+        end
+        val sty := substitute(instantiated_ty, typaram_substitutes);
+        lty.init(sty);
+        sty
     end;
     case TupleExpr(subexprs, lt) := do 
         val types : Ast.Type[] := [];
@@ -1143,6 +1174,25 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
     end;
 end;
 
+fun substitute(ty : Ast.Type, substitutes : Env.AList(Ast.Type)) : Ast.Type := match ty do 
+    case NumberT() := ty;
+    case BooleanT() := ty;
+    case StringT() := ty;
+    case VoidT() := ty;
+    case Tuple(tys) := Ast.Tuple(for t in tys yield substitute(t, substitutes) end);
+    // tylevelparams has to be either [] or the types we substitute, because you cant return generic functions
+    case Function(tylevelparams, argtypes, rettype) := 
+        Ast.Function([], 
+                     for t in argtypes yield substitute(t, substitutes) end, 
+                     substitute(rettype, substitutes));
+    case ListOf(elem_ty) := Ast.ListOf(substitute(elem_ty, substitutes));
+    case ModuleAccess(?, ?, ?) := ty;
+    case Never() := ty;
+    case Name(name, lenv) := if substitutes.has(name) 
+            then substitutes.get(name)
+            else ty; // Not a type parameter to be replaced, leave it alone
+end;
+
 
 
 fun accessed_object(tc : Typechecker, expr : Ast.Expr) : Ast.AccessedObjectType do 
@@ -1171,7 +1221,7 @@ do
         lenv.init(t.env);
         t.in_loops.pop();
     t.close_scope();
-    Ast.Function(param_types(params), return_type)
+    Ast.Function([], param_types(params), return_type)
 end
 
 fun infer_block(
