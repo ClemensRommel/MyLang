@@ -26,11 +26,10 @@ fun main() do
         Desugar.desugar((file.undesugared_exprs, file.undesugared_decls), name_gen);
     end
     val global_info := Compiler.gather_global_variable_info(files);
-    val ungenerated_types : Compilation.CodeBuffers.UncreatedTypes[] := [];
+    val ungenerated_types : Compilation.CodeBuffers.UncreatedTypes := Compilation.CodeBuffers.UncreatedTypes();
     for (path, file) in files.bindings do 
-        val (compiled, ungenerated) := Compiler.compile(file, name_gen, global_info, path_to_generated_code);
+        val compiled := Compiler.compile(file, name_gen, global_info, path_to_generated_code, ungenerated_types);
         Util.outputFile(path, compiled);
-        ungenerated_types.push(ungenerated);
     end
     Compiler.generate_types(join("/", path_to_generated_code) + ".myl", ungenerated_types, name_gen);
 end

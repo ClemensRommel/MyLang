@@ -1,5 +1,8 @@
 module Compilation.CodeBuffers;
 
+import Ast;
+import Util;
+
 class StringBuffer where 
     var buf := "";
     var indent_level := 0;
@@ -49,10 +52,33 @@ class UncreatedTupleType where
 end
 
 class UncreatedTypes where 
-    val ungenerated_functions : UncreatedFunctionType[];
-    val ungenerated_tuples : UncreatedTupleType[];
-    new(uf : UncreatedFunctionType[], ut : UncreatedTupleType[]) do 
-        this.ungenerated_functions := uf;
-        this.ungenerated_tuples := ut;
+    val ungenerated_functions : UncreatedFunctionType[] := [];
+    val ungenerated_tuples : UncreatedTupleType[] := [];
+
+    fun enqueue_type(t : Ast.Type, type_name : String) do 
+        match t do 
+            case Function(params, args, ret) := do 
+                this.ungenerated_functions.push(UncreatedFunctionType(args.length, type_name));
+            end;
+            case Tuple(parts) := do 
+                this.ungenerated_tuples.push(UncreatedTupleType(parts.length, type_name));
+            end;
+        end;
+    end
+    fun get_enqueued_type(t : Ast.Type) : Util.Optional(String) do
+        if val Function(typarams, args, ret) := t then do 
+            for task in this.ungenerated_functions do 
+                if task.param_count = args.length do 
+                    return Util.Some.[String](task.name);
+                end
+            end
+        end else if val Tuple(parts) := t then do 
+            for task in this.ungenerated_tuples do 
+                if task.elem_count = parts.length do 
+                    return Util.Some.[String](task.name);
+                end
+            end
+        end else panic("Cannot get unsupported enqueued type: "+t);
+        Util.None.[String]()
     end
 end

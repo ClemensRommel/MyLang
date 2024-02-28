@@ -1,5 +1,5 @@
-fun apply[A, B](f : Fun(A) : B, a : A) : B := f(a);
+import OtherFile;
 
 fun main() do 
-    print apply.[Number, Bool](fun (n : Number) : Bool := n > 3, 2);
+    print OtherFile.test(fun() : Number := 3);
 end

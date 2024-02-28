@@ -34,7 +34,7 @@ class TypeGenerator where
     fun new_var() : String := this.name_gen.next_name();
 end
 
-fun compile_types(out_path : String, types : Compilation.CodeBuffers.UncreatedTypes[], name_gen : NameGen.NameGenerator) do 
+fun compile_types(out_path : String, types : Compilation.CodeBuffers.UncreatedTypes, name_gen : NameGen.NameGenerator) do 
     val tgen := TypeGenerator(name_gen);
 
     val path_parts := split(out_path, "/");
@@ -53,14 +53,14 @@ fun compile_types(out_path : String, types : Compilation.CodeBuffers.UncreatedTy
     tgen.append("import java.util.ArrayList;"); tgen.newline();
 
     tgen.append("public class "+className+"{"); tgen.indent(); tgen.newline();
-    for tys in types do
-        for lambda_ty in tys.ungenerated_functions do 
-            compile_function_type(tgen, lambda_ty);
-        end
-        for tuple_ty in tys.ungenerated_tuples do 
-            compile_tuple_type(tgen, tuple_ty);
-        end
+    
+    for lambda_ty in types.ungenerated_functions do 
+        compile_function_type(tgen, lambda_ty);
     end
+    for tuple_ty in types.ungenerated_tuples do 
+        compile_tuple_type(tgen, tuple_ty);
+    end
+    
     tgen.dedent();tgen.newline();
     tgen.append("}");
     Util.outputFile(out_path, tgen.buf.buf);

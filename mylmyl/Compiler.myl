@@ -11,15 +11,16 @@ fun compile(
     file : SourceFileGatherer.SourceFile, 
     name_gen : NameGen.NameGenerator, 
     infos : Env.AList(Env.Env(Compilation.CodeGenerator.VariableInfo)),
-    generated_path : String[]) : (String, Compilation.CodeBuffers.UncreatedTypes) 
+    generated_path : String[], 
+    type_buffer : Compilation.CodeBuffers.UncreatedTypes) : String 
 do 
-    Compilation.CodeGenerator.compile(file, name_gen, infos, generated_path)
+    Compilation.CodeGenerator.compile(file, name_gen, infos, generated_path, type_buffer)
 end
 
 fun gather_global_variable_info(files : Env.AList(SourceFileGatherer.SourceFile)) : Env.AList(Env.Env(Compilation.CodeGenerator.VariableInfo)) do 
     Compilation.CodeGenerator.gather_global_variable_info(files)
 end
 
-fun generate_types(path : String, types : Compilation.CodeBuffers.UncreatedTypes[], name_gen : NameGen.NameGenerator) do 
+fun generate_types(path : String, types : Compilation.CodeBuffers.UncreatedTypes, name_gen : NameGen.NameGenerator) do 
     Compilation.TypeGenerator.compile_types(path, types, name_gen);
 end

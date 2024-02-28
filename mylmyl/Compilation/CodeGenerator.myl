@@ -17,8 +17,7 @@ class Compiler where
     var is_generated_interface : Bool := false;
     var expect_ref_ty : Bool := false; // Wether we're currently compiling a type that is a type parameter
 
-    val lambda_types : Compilation.CodeBuffers.UncreatedFunctionType[] := [];
-    val tuple_types : Compilation.CodeBuffers.UncreatedTupleType[] := [];
+    val ungenerated_types : Compilation.CodeBuffers.UncreatedTypes;
 
     var current_env : Env.Env(Ast.VarInfo);
 
@@ -30,11 +29,17 @@ class Compiler where
 
     val generated_module_path : String;
 
-    new(globals : Env.Env(Ast.VarInfo), nameg : NameGen.NameGenerator, modules : Env.AList(Env.Env(VariableInfo)), gen_mod_path : String) do 
+    new(globals : Env.Env(Ast.VarInfo), 
+        nameg : NameGen.NameGenerator, 
+        modules : Env.AList(Env.Env(VariableInfo)), 
+        gen_mod_path : String,
+        uncreated_types : Compilation.CodeBuffers.UncreatedTypes) 
+    do 
         this.current_env := globals;
         this.name_gen := nameg;
         this.all_modules := modules;
         this.generated_module_path := gen_mod_path;
+        this.ungenerated_types := uncreated_types;
 
         declare_builtins(this);
     end
@@ -62,31 +67,11 @@ class Compiler where
     fun new_var() : String := this.name_gen.next_name();
 
     fun enqueue_type(t : Ast.Type, type_name : String) do 
-        match t do 
-            case Function(params, args, ret) := do 
-                this.lambda_types.push(Compilation.CodeBuffers.UncreatedFunctionType(args.length, type_name));
-            end;
-            case Tuple(parts) := do 
-                this.tuple_types.push(Compilation.CodeBuffers.UncreatedTupleType(parts.length, type_name));
-            end;
-        end;
+        this.ungenerated_types.enqueue_type(t, type_name);
     end
     
     fun get_enqueued_type(t : Ast.Type) : Util.Optional(String) do
-        if val Function(typarams, args, ret) := t then do 
-            for task in this.lambda_types do 
-                if task.param_count = args.length do 
-                    return Util.Some.[String](task.name);
-                end
-            end
-        end else if val Tuple(parts) := t then do 
-            for task in this.tuple_types do 
-                if task.elem_count = parts.length do 
-                    return Util.Some.[String](task.name);
-                end
-            end
-        end else panic("Cannot get unsupported enqueued type: "+t);
-        Util.None.[String]()
+        this.ungenerated_types.get_enqueued_type(t)
     end
 
     fun open_scope(env : Env.Env(Ast.VarInfo)) : ScopeInfo do 
@@ -150,11 +135,17 @@ fun gather_global_variable_info(files : Env.AList(SourceFileGatherer.SourceFile)
     list
 end
 
-fun compile(file : SourceFileGatherer.SourceFile, name_gen : NameGen.NameGenerator, infos : Env.AList(Env.Env(VariableInfo)), generated_path : String[]) : (String, Compilation.CodeBuffers.UncreatedTypes) do 
+fun compile(
+    file : SourceFileGatherer.SourceFile, 
+    name_gen : NameGen.NameGenerator, 
+    infos : Env.AList(Env.Env(VariableInfo)), 
+    generated_path : String[], 
+    ungenerated_types : Compilation.CodeBuffers.UncreatedTypes) : String 
+do 
     val path_parts := split(file.path, "/"); // Parts of path
     val file_name_parts := split(path_parts.last, "\\."); // Name before extension
     val file_name := file_name_parts.first;
-    val c := Compiler(file.globals_env.get(), name_gen, infos, join(".", generated_path));
+    val c := Compiler(file.globals_env.get(), name_gen, infos, join(".", generated_path), ungenerated_types);
     c.env := infos.get(file.path);
     declare_package(c, path_parts);
     import_implicits(c);
@@ -168,7 +159,7 @@ fun compile(file : SourceFileGatherer.SourceFile, name_gen : NameGen.NameGenerat
     c.dedent(); c.newline();
     c.append("}");
     c.newline();
-    (c.buf.buf, Compilation.CodeBuffers.UncreatedTypes(c.lambda_types, c.tuple_types))
+    c.buf.buf
 end
 
 

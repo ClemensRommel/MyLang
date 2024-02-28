@@ -1,1 +1,1 @@
-fun test() : Number := 3;
+fun test(f : Fun() : Number) : Number := f();

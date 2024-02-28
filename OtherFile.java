@@ -5,8 +5,8 @@ import java.util.ArrayList;
 
 
 public class OtherFile {
-    public static double test()  {
-        return 3.0;
+    public static double test(__generated_input.__var1<Double> f)  {
+        return f.call();
     }
     
 }
