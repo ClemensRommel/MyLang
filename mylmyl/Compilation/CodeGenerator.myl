@@ -123,6 +123,7 @@ end
 
 fun declare_builtins(c : Compiler) do 
     c.env.insert("panic", do val panic_info := VariableInfo(); panic_info.is_no_fc_fn := true; panic_info end);
+    c.env.insert("print", do val print_info := VariableInfo(); print_info.is_no_fc_fn := true; print_info end);
 end
 
 fun gather_global_variable_info(files : Env.AList(SourceFileGatherer.SourceFile)) : Env.AList(Env.Env(VariableInfo)) do 
@@ -202,6 +203,7 @@ end
 fun gather_info_for_setter(env : Env.Env(VariableInfo), setter : Ast.Setter) do 
     match setter do 
         case Variable(name) := do env.insert(name, VariableInfo()); end; //Globals cant be upvalues
+        case WildcardSetter() := do end;
         case TupleSetter(parts, ?) := do for part in parts do gather_info_for_setter(env, part); end; end;
         case Property(?, ?, ?) := do end;
     end;
@@ -267,15 +269,6 @@ fun compile_stmt(c : Compiler, stmt : Ast.Stmt) := match stmt do
         val arg := compile_expr(c, expr, Ignore());
     end;
     case EmptyStmt() := do end;
-    case PrintStmt(expr) := do 
-        if val NullLiteral() := expr then do 
-            c.append("System.out.println(\"null\");"); c.newline();
-        end else do 
-            val arg := compile_expr(c, expr, UsedDirectly());
-            c.append("System.out.println(");c.append(arg);c.append(");");
-            c.newline();
-        end
-    end;
     case Declaration(decl) := compile_decl(c, decl);
     case SetStatement(setter, expr) := compile_expr(c, expr, AssignTo(setter));
 end;
@@ -412,6 +405,7 @@ do
             c.append(";");
             c.newline();
         end;
+        case WildcardSetter() := do end;
         case TupleSetter(parts, ?) := do 
             val Tuple(types) := ty else panic("Non-tuple type in tuple setter "+setter);
             for i in [0..parts.length] do 
@@ -461,6 +455,7 @@ fun declare_variables(c : Compiler, setter : Ast.Setter) do
                 declare_variables(c, part);
             end;
         end;
+        case WildcardSetter() := do end;
         case Property(?, ?, ?) := panic("Cannot declare property as variable: Unreachable");
     end;
 end
@@ -474,6 +469,7 @@ fun setter_is_upvalue(c : Compiler, setter : Ast.Setter) : Bool :=
             end
             false
         end;
+        case WildcardSetter() := false;
         case Property(?, ?, ?) := false;
     end;
 
@@ -674,6 +670,7 @@ end
 
 fun default_value(ty : Ast.Type) : String := match ty do 
         case NumberT() := "0.0"; 
+        case Any() := "null";
         case BooleanT() := "false"; 
         case StringT() := "\"\""; 
         case VoidT() := "null";
@@ -1546,6 +1543,7 @@ end
 
 fun compile_type(c : Compiler, t : Ast.Type) : String := match t do 
     case NumberT() := if c.expect_ref_ty then "Double" else "double";
+    case Any() := "Object";
     case BooleanT() := if c.expect_ref_ty then "Boolean" else "boolean";
     case StringT() := "String";
     case VoidT() := "Void";
@@ -1610,6 +1608,7 @@ fun assign(c : Compiler, to : Ast.Setter, from : String) : String do
             c.append(";");
             c.newline();
         end;
+        case WildcardSetter() := do end;
         case TupleSetter(parts, t) := do 
             val temp_var := c.new_var();
             c.append("final "); c.append(compile_type(c, t.get())); c.append(" "); c.append(temp_var);

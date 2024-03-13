@@ -20,17 +20,17 @@ fun main() do
     end;
     for (?, file) in files.bindings do
         Typechecker.typecheck(file, files);
-    end
+    end;
     val name_gen := NameGen.NameGenerator();
     for (?, file) in files.bindings do 
         Desugar.desugar((file.undesugared_exprs, file.undesugared_decls), name_gen);
-    end
+    end;
     val global_info := Compiler.gather_global_variable_info(files);
     val ungenerated_types : Compilation.CodeBuffers.UncreatedTypes := Compilation.CodeBuffers.UncreatedTypes();
     for (path, file) in files.bindings do 
         val compiled := Compiler.compile(file, name_gen, global_info, path_to_generated_code, ungenerated_types);
         Util.outputFile(path, compiled);
-    end
+    end;
     Compiler.generate_types(join("/", path_to_generated_code) + ".myl", ungenerated_types, name_gen);
 end
 

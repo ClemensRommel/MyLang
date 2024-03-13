@@ -13,8 +13,6 @@ export enum TokenType where
     NULL(), TRUE(), FALSE(), STRING_LITERAL(), NUMBER_LITERAL(),
 
     AND(), OR(), XOR(),
-    
-    PRINT(),
 
     IDENTIFIER(),
 
@@ -245,7 +243,6 @@ class Tokenizer where
         case "Bool" := BOOLEAN();
         case "String" := STRING();
         case "Void" := VOID();
-        case "print" := PRINT();
         case "break" := BREAK();
         case id := IDENTIFIER();
     end;

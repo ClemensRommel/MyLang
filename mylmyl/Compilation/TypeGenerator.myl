@@ -42,7 +42,7 @@ fun compile_types(out_path : String, types : Compilation.CodeBuffers.UncreatedTy
     if path_parts.length > 1 do 
         tgen.append("package ");
         var need_dot := false;
-        for i in [0..path_parts.length - 2] do 
+        for i in [0..path_parts.length - 1] do 
             if need_dot do tgen.append("."); end
             tgen.append(path_parts[i]);
             need_dot := true;

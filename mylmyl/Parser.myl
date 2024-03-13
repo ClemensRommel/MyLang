@@ -97,14 +97,20 @@ fun stmt(p : Parser) : Ast.Stmt do
     if is_decl_start(p) do 
         return Ast.Declaration(decl(p));
     end;
-    if val PRINT() := nxt.kind then do 
-       p.next();
-       val arg := expr(p);
-       p.consume(Tokenizer.SEMICOLON(), "Expect ';' after print statement");
-       Ast.PrintStmt(arg)
-    end else if val SEMICOLON() := nxt.kind then do 
+    if val SEMICOLON() := nxt.kind then do 
         p.next();
         Ast.EmptyStmt()
+    end else if val IF() := nxt.kind then do 
+        val pos := p.pos;
+        p.next();
+        val cond := expr(p);
+        if p.matches(Tokenizer.DO()) then do 
+            val body := block_expr(p);
+            Ast.IfStmt(cond, body)
+        end else do 
+            p.pos := pos;
+            Ast.ExprStmt(expr(p))
+        end
     end else do 
         val arg := expr(p);
         if p.matches(Tokenizer.ASSIGN()) then do 
@@ -517,9 +523,7 @@ fun block_expr(p : Parser) : Ast.Expr do
 end
 
 fun block_part(p : Parser) : Ast.BlockPart do 
-    if is_stmt_start(p) then do 
-        Ast.Statement(stmt(p))
-    end else do 
+    fun potential_end_expr() : Ast.BlockPart do 
         val expression := expr(p);
         if p.matches(Tokenizer.SEMICOLON()) then do 
             Ast.Statement(Ast.ExprStmt(expression))
@@ -528,6 +532,22 @@ fun block_part(p : Parser) : Ast.BlockPart do
         end else do 
             Ast.Expression(expression)
         end
+    end;
+    if is_stmt_start(p) then do 
+        Ast.Statement(stmt(p))
+    end else if val IF() := p.peek().kind then do 
+        val pos := p.pos;
+        p.next();
+        val cond := expr(p);
+        if p.matches(Tokenizer.DO()) then do 
+            val body := block_expr(p);
+            Ast.Statement(Ast.IfStmt(cond, body))
+        end else do 
+            p.pos := pos;
+            potential_end_expr()
+        end
+    end else do 
+        potential_end_expr()
     end
 end
 
@@ -540,6 +560,7 @@ end
 
 fun convert_setter(s : Ast.Expr) : Ast.Setter := match s do 
     case Identifier(name, ?) := Ast.Variable(name);
+    case WildCardExpression() := Ast.WildcardSetter();
     case TupleExpr(subexprs, lt) := Ast.TupleSetter(for expr in subexprs yield convert_setter(expr) end, lt);
     case PropertyExpr(obj, name, ?, ?, ?) := do 
         Ast.Property(obj, name, Ast.late_type())
@@ -560,8 +581,7 @@ fun convert_pattern(p : Ast.Expr) : Ast.Pattern := match p do
     case ? := panic("Invalid pattern: "+p);
 end;
 
-fun is_stmt_start(p : Parser) : Bool := is_decl_start(p) or
-                                        p.peek().kind = Tokenizer.PRINT() or 
+fun is_stmt_start(p : Parser) : Bool := is_decl_start(p) or 
                                         p.peek().kind = Tokenizer.SEMICOLON();
 
 // Expects that if is already consumed

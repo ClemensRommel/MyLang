@@ -1,5 +1,6 @@
-import OtherFile;
-
 fun main() do 
-    print OtherFile.test(fun() : Number := 3);
+    val x := 3;
+    if x > 2 then do 
+        print(""+x);
+    end else do end;
 end

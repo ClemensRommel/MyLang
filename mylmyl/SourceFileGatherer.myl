@@ -8,6 +8,7 @@ import Env;
 
 class SFGatherer where 
     val files_not_found : String[] := [];
+    var file_prefix : String := "";
 
     val parsed_sourcefiles : Env.AList(SourceFile) := Env.AList.[SourceFile](); // Map of all parsed files to be reused
 end
@@ -44,7 +45,7 @@ fun get_all_files(sfg : SFGatherer, starting_file : String) do
     for imported in file.ast.imports do 
         val path := path_to(imported);
         if !sfg.parsed_sourcefiles.has(path) do 
-            get_all_files(sfg, path);
+            get_all_files(sfg, sfg.file_prefix + path);
         end
     end
 end
@@ -54,7 +55,7 @@ fun generated_code_path(starting_file : String) : String[] do
     val output_parts : String[] := [];
     print(parts);
     val file_name := "__generated_"+split(parts.last, "\\.").first;
-    for i in [0..parts.length - 2] do // Alles außer dem letzten
+    for i in [0..parts.length - 1] do // Alles außer dem letzten
         output_parts.push(parts[i]);
     end
     output_parts.push(file_name);
@@ -63,6 +64,7 @@ end
 
 fun gather_files(start : String) : Env.AList(SourceFile) do 
     val sfg := SFGatherer();
+    sfg.file_prefix := file_path_prefix(start);
     get_all_files(sfg, start);
     if sfg.files_not_found.length != 0 do 
         for file in sfg.files_not_found do 
@@ -76,5 +78,15 @@ end
 fun path_to(i : Ast.Import) : String := match i do 
     case BasicImport(parts) := path_to_module(parts);
 end;
+
+fun file_path_prefix(path : String) : String do 
+    val parts := split(path, "/");
+    var outs : String[] := [];
+    for i in [0..parts.length - 1] do 
+        outs.push(parts[i]);
+    end
+    val path := join("/", outs);
+    if outs.length = 0 then "" else path + "/"
+end
 
 fun path_to_module(parts : String[]) : String := join("/", parts) + ".myl";

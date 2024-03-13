@@ -27,4 +27,8 @@ public class Functions {
     public static Void panic(String message) {
         throw new RuntimeException(message);
     }
+    public static Void print(String message) {
+        System.out.println(message);
+        return null;
+    }
 }

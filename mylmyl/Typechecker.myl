@@ -92,7 +92,7 @@ fun declare_functions_and_types(file : SourceFileGatherer.SourceFile) do
                 varinf.is_exported := exported;
                 file.globals_env.get().insert(name, varinf);
             end;
-            case EnumDecl(name, constructors, members, exported, ?) := do 
+            case EnumDecl(name, constructors, members, exported, ?) := do
                 val funs := methods_in_class(members);
                 file.types_env.get().insert(name, Ast.EnumInfo(name, constructors, funs, exported));
                 for constr in constructors do 
@@ -117,6 +117,7 @@ fun declare_setter(file : SourceFileGatherer.SourceFile, setter : Ast.Setter, ty
             info.is_exported := exported;
             file.globals_env.get().insert(name, info);
         end;
+        case WildcardSetter() := do end;
         case Property(?, ?, ?) := panic("Error: top level declaration cannot be property");
         case TupleSetter(parts, lty) := do 
             if val Tuple(tys) := ty then do 
@@ -193,6 +194,15 @@ class Typechecker where
         end;
     end
 
+    fun require_kind(to : Ast.Kind, from : Ast.Kind, violating : Ast.Type) do 
+        if from != to do 
+            match to do 
+                case ConcreteType() := panic("Expected concrete type, got generic type"+to+" in"+violating);
+                case GenericType(parts, part) := panic("Expected generic type"+to+", got concrete type in "+violating);
+            end;
+        end
+    end
+
     fun open_scope() do 
         this.env := this.env.open_scope();
         this.ty_env := this.ty_env.open_scope();
@@ -224,6 +234,7 @@ end
 
 fun types_equal(to : Ast.Type, from : Ast.Type) : Bool := match (to, from) do 
     case (NumberT(), NumberT()) := true;
+    case (Any(), ?) := true; // Can assign everything to any
     case (BooleanT(), BooleanT()) := true;
     case (StringT(), StringT()) := true;
     case (VoidT(), VoidT()) := true;
@@ -253,7 +264,7 @@ fun types_equal(to : Ast.Type, from : Ast.Type) : Bool := match (to, from) do
     case (Never(), Never()) := true;
     case (ModuleAccess(?, ?, lty), other_ty) := if lty.is_init() then types_equal(lty.get(), other_ty) else false;
     case (other_ty, ModuleAccess(?, ?, lty)) := if lty.is_init() then types_equal(other_ty, lty.get()) else false;
-    case ? := false; 
+    case ? := false;
 end;
 
 fun lazy_str(e : Ast.Expr) : Fun() : String := fun() := "" + e;
@@ -280,18 +291,21 @@ fun require_types_exist(tc : Typechecker, ty : Ast.Type) := match ty do
     case ModuleAccess(?, ?, ?) := do end;
     case ListOf(elem_ty) := require_types_exist(tc, elem_ty);
     case NumberT() := do end; case BooleanT() := do end; case StringT() := do end; case VoidT() := do end; case Never() := do end;
+    case Any() := do end;
 end;
 
 fun declare_builtins(tc : Typechecker) do 
-    tc.declare("panic", Ast.Function([], [Ast.StringT()], Ast.Never()), false);
+    tc.env.insert("panic", Ast.VarInfo(false, Ast.Function([], [Ast.StringT()], Ast.Never()), "panic"));
+    tc.env.insert("print", Ast.VarInfo(false, Ast.Function([], [Ast.StringT()], Ast.VoidT()), "print"));
 end
 
 fun check_stmt(tc : Typechecker, stmt : Ast.Stmt) := match stmt do 
-    case PrintStmt(arg) := do 
-        infer(tc, arg);
-    end;
     case ExprStmt(arg) := do 
         infer(tc, arg);
+    end;
+    case IfStmt(cond, body) := do 
+        check(tc, cond, Ast.BooleanT());
+        check(tc, body, Ast.VoidT());
     end;
     case Declaration(decl) := check_decl(tc, decl);
     case SetStatement(setter, value) := check_set_stmt(tc, setter, value);
@@ -310,6 +324,7 @@ fun check_mutability(tc : Typechecker, setter : Ast.Setter) := match setter do
             panic("Error: '"+name+"' is not mutable");
         end;
     end;
+    case WildcardSetter() := do end;
     case TupleSetter(parts, ?) := do 
         for part in parts do 
             check_mutability(tc, part);
@@ -317,7 +332,7 @@ fun check_mutability(tc : Typechecker, setter : Ast.Setter) := match setter do
     end;
     case Property(obj, name, lt) := do 
         //TODO: Correct name lookup
-        val ClassInfo(class_name, fields, methods, ?) := info_for(tc, lt.get(), fun(ty) := "Cannot read assign to property "+name+" of non_class_type"+ty)
+        val ClassInfo(class_name, fields, methods, ?) := info_for(tc, lt.get(), fun(ty) := "Cannot reassign to property "+name+" of non_class_type"+ty)
             else panic("Should be unreachable: Non-class info in setter");
         val field_info := fields.get(name);
         if not field_info.is_mutable do 
@@ -328,6 +343,7 @@ end;
 
 fun infer_setter(tc : Typechecker, s : Ast.Setter) : Ast.Type := match s do 
     case Variable(name) := tc.type_of_var(name);
+    case WildcardSetter() := do panic("Cannot infer wildcard setter") end;
     case TupleSetter(subsetters, lt) := do 
         val parts : Ast.Type[] := [];
         for setter in subsetters do 
@@ -362,6 +378,7 @@ fun check_declaration_setter(tc : Typechecker, setter : Ast.Setter, ty : Ast.Typ
             end
             tc.declare(name, ty, mut);
         end;
+        case WildcardSetter() := do end;
         case TupleSetter(setters, lt) := do 
             lt.init(ty);
             val Tuple(parts) := ty else panic("Require type "+ty+" to be a tuple in declaration of "+setter);
@@ -379,6 +396,7 @@ end
 fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do 
     case VarDecl(setter, lt, init, mutable, ?) := do 
         if lt.is_init() then do 
+            check_kind(tc, lt.get(), Ast.ConcreteType());
             val ty := resolve(tc, lt.get());
             if val Some(e) := init then do 
                 check(tc, e, ty);
@@ -392,7 +410,7 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
             end;
         end else do
             if val Some(e) := init then do  
-                lt.init(infer(tc, e));
+                lt.init(infer(tc, e)); // Infer always returns a concrete type
             end else do 
                 panic("Require either an initializer or a type annotation for variable "+setter+"\n"
                     + (if not mutable then "Immutable variable requires initializer: "+setter else "")
@@ -405,6 +423,7 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
     case DesugarableDecl(md) := check_decl(tc, md.get());
     case ValElseDeclaration(pat, matched, else_br, is_mut, is_export, ldecl_ty, lmatched_ty, lenv) := do 
         if ldecl_ty.is_init() then do 
+            check_kind(tc, ldecl_ty.get(), Ast.ConcreteType());
             val ty := resolve(tc, ldecl_ty.get());
             check_pattern(tc, pat, ty);
             check(tc, matched, ty);
@@ -412,7 +431,7 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
             lmatched_ty.init(ty);
             lenv.init(tc.env);
         end else do 
-            val matched_ty := infer(tc, matched);
+            val matched_ty := infer(tc, matched); // Infer always returns a concrete type
             lmatched_ty.init(matched_ty);
             ldecl_ty.init(matched_ty);
             check_pattern(tc, pat, matched_ty);
@@ -434,6 +453,7 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
                 end
                 tc.declare_type(param.name, Ast.TypeParameterInfo(param.name));
             end
+            check_kind(tc, return_type, Ast.ConcreteType());
             val resolved_ret_ty := resolve(tc, return_type);
             val fun_type := Ast.Function(typarams, for ty in param_types(params) yield resolve(tc, ty) end, resolved_ret_ty);
         tc.close_scope();
@@ -503,6 +523,7 @@ fun declare_enum_constructors(tc : Typechecker, name : String, variants : Ast.En
     val enum_ty := Ast.Name(name, Util.wrap_linit.[Env.Env(Ast.TyInfo)](tc.ty_env));
     for constr in variants do 
         for field in constr.fields do 
+            check_kind(tc, field, Ast.ConcreteType());
             require_types_exist(tc, field);
             resolve(tc, field);
         end
@@ -534,6 +555,7 @@ end
 fun gather_types(setter : Ast.Setter, ty : Ast.Type, mutable : Bool, list : Env.AList(Ast.VarInfo)) do 
     match setter do 
         case Variable(name) := list.insert(name, Ast.VarInfo(mutable, ty, name));
+        case WildcardSetter() := do end;
         case TupleSetter(setters, lt) := do 
             lt.init(ty);
             val Tuple(parts) := ty else panic("Require type "+ty+" to be a tuple in declaration of "+setter);
@@ -602,6 +624,7 @@ fun declare_param(tc : Typechecker, param : Ast.Parameter) := match param do
         if tc.var_declared(name) then do 
             panic("Parameter already declared: '"+name+"'");
         end else do 
+            check_kind(tc, ty, Ast.ConcreteType());
             resolve(tc, ty);
             tc.declare(name, ty, false);
         end
@@ -622,6 +645,7 @@ end
 fun resolve(tc : Typechecker, ty : Ast.Type) : Ast.Type do 
     match ty do 
         case NumberT() := do end;
+        case Any() := do end;
         case BooleanT() := do end;
         case StringT() := do end;
         case VoidT() := do end;
@@ -741,8 +765,8 @@ fun check(tc : Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
             tc, 
             params, 
             return_type, 
-            body, 
-            lenv), 
+            body,
+            lenv),
         lazy_str(e));
     case TupleExpr(subexprs, lt) := do 
         val Tuple(subtypes) := t else panic("Cannot use expression "+e+" with non-tuple-type "+t);
@@ -1176,6 +1200,7 @@ end;
 
 fun substitute(ty : Ast.Type, substitutes : Env.AList(Ast.Type)) : Ast.Type := match ty do 
     case NumberT() := ty;
+    case Any() := ty;
     case BooleanT() := ty;
     case StringT() := ty;
     case VoidT() := ty;
@@ -1193,8 +1218,6 @@ fun substitute(ty : Ast.Type, substitutes : Env.AList(Ast.Type)) : Ast.Type := m
             else ty; // Not a type parameter to be replaced, leave it alone
 end;
 
-
-
 fun accessed_object(tc : Typechecker, expr : Ast.Expr) : Ast.AccessedObjectType do 
     val Module(path) := Ast.get_as_path(expr) else return Ast.NormalObject(); // Expression has to be a path
     if tc.imported_modules.has(SourceFileGatherer.path_to_module(path)) then // Expression is an imported object
@@ -1202,8 +1225,6 @@ fun accessed_object(tc : Typechecker, expr : Ast.Expr) : Ast.AccessedObjectType 
     else 
         Ast.NormalObject()
 end
-
-
 
 fun infer_function(
     t : Typechecker,
@@ -1217,6 +1238,7 @@ do
         for param in params do 
             declare_param(t, param);
         end;
+        check_kind(t, return_type, Ast.ConcreteType());
         check(t, body, return_type);
         lenv.init(t.env);
         t.in_loops.pop();
@@ -1320,7 +1342,7 @@ fun infer_binary(t : Typechecker, op : Ast.BinOp, lhs : Ast.Expr, rhs : Ast.Expr
                 Ast.NumberT()
             end;
             case StringT() := do 
-                check(t, rhs, Ast.StringT());
+                check(t, rhs, Ast.Any());
                 Ast.StringT()
             end;
             case ? := do 
@@ -1370,3 +1392,69 @@ fun infer_unary(t : Typechecker, op : Ast.UnOp, operand : Ast.Expr) : Ast.Type d
     check(t, operand, op_type);
     op_type 
 end
+
+fun check_kind(tc : Typechecker, ty : Ast.Type, kind : Ast.Kind) do 
+    match ty do 
+        case NumberT() := tc.require_kind(kind, Ast.ConcreteType(), ty);
+        case BooleanT() := tc.require_kind(kind, Ast.ConcreteType(), ty);
+        case StringT() := tc.require_kind(kind, Ast.ConcreteType(), ty);
+        case VoidT() := tc.require_kind(kind, Ast.ConcreteType(), ty);
+        case Any() := tc.require_kind(kind, Ast.ConcreteType(), ty);
+        case Function(typarams, params, ret_ty) := do 
+            tc.open_scope();
+                for param in typarams do 
+                    tc.declare_type(param.name, Ast.TypeParameterInfo(param.name));
+                end
+                for param in params do 
+                    check_kind(tc, param, Ast.ConcreteType());
+                end
+                check_kind(tc, ret_ty, Ast.ConcreteType());
+            tc.close_scope();
+            tc.require_kind(kind, Ast.ConcreteType(), ty);
+        end;
+        case ListOf(elem_type) := do 
+            check_kind(tc, elem_type, Ast.ConcreteType());
+            tc.require_kind(kind, Ast.ConcreteType(), ty);
+        end;
+        case Never() := do 
+            tc.require_kind(kind, Ast.ConcreteType(), ty);
+        end;
+        case Tuple(parts) := do 
+            for part in parts do 
+                check_kind(tc, part, Ast.ConcreteType());
+            end;
+            tc.require_kind(kind, Ast.ConcreteType(), ty);
+        end;
+        case Name(name, lenv) := do
+            val variable_kind := kind_of(tc, ty);
+            tc.require_kind(kind, variable_kind, ty);
+        end;
+        case ModuleAccess(path, name, lty) := do 
+            val member_kind := kind_of(tc, ty);
+            tc.require_kind(kind, member_kind, ty);
+        end;
+    end
+end
+
+fun kind_of(tc : Typechecker, ty : Ast.Type) : Ast.Kind do
+    match resolve(tc, ty) do 
+        case NumberT() := Ast.ConcreteType();
+        case BooleanT() := Ast.ConcreteType();
+        case StringT() := Ast.ConcreteType();
+        case VoidT() := Ast.ConcreteType();
+        case Any() := Ast.ConcreteType();
+        case Tuple(tys) := Ast.ConcreteType();
+        case Name(name, lenv) := do 
+            val info := info_for(tc, ty, fun(this_ty) := "Cannot infer kind of type "+this_ty);
+            val kind := kind_of_info(tc, info);
+            kind
+        end;
+        case ModuleAccess(?, ?, lty) := kind_of(tc, lty.get());
+    end
+end
+
+fun kind_of_info(tc : Typechecker, info : Ast.TyInfo) : Ast.Kind := match info do 
+    case TypeParameterInfo(?) := Ast.ConcreteType(); // Type parameters cannot be generic (no higher kinded types)
+    case ClassInfo(name, fields, methods, exported) := Ast.ConcreteType(); // TODO: Classes cannot be generic yet
+    case EnumInfo(name, constructors, methods, exported) := Ast.ConcreteType(); // TODO: Enums cannot be generic yet
+end;
