@@ -19,10 +19,10 @@ fun desugar(sugared : (Ast.Mut(Ast.Expr)[], Ast.Mut(Ast.Decl)[]), name_gen : Nam
     val (sugared_exprs, sugared_decls) := sugared;
     for expr in sugared_exprs do 
         expr.set(desugar_expr(desugarer, expr.get()));
-    end
+    end;
     for decl in sugared_decls do 
         decl.set(desugar_decl(desugarer, decl.get()));
-    end
+    end;
 end;
 
 fun desugar_expr(d : Desugarer, e : Ast.Expr) : Ast.Expr := match e do 

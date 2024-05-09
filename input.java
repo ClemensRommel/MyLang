@@ -6,11 +6,16 @@ import java.util.ArrayList;
 
 public class input {
     public static void main() {
-        final __generated_input.__var1<Double> __var0 = () -> {
-            return 3.0;
-        };
-        var __var2 = OtherFile.test(__var0);
-        System.out.println(__var2);
+        final double x;
+        x = 3.0;
+        if((x > 2.0)) {
+            {
+                __ignore(print(("" + x)));
+            }
+        } else {
+            {
+            }
+        }
     }
     
     public static void main(String[] args) {

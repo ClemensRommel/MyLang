@@ -2,7 +2,7 @@ module Tokenizer;
 
 import Util;
 
-export enum TokenType where
+enum TokenType where
     LPAREN(), RPAREN(), LBRACKET(), RBRACKET(), LBRACE(), RBRACE(), SEMICOLON(),
     DOT(), DOTS(), COMMA(), COLON(), ASSIGN(), PLUS(), MINUS(), STAR(), SLASH(), PERCENT(), BANG(), EXPO(),
     LESS(), LESS_EQUAL(), GREATER(), GREATER_EQUAL(), EQUAL(), NOT_EQUAL(),
@@ -30,7 +30,7 @@ export enum TokenType where
     EOF(), ERROR();
 end
 
-export class Token where 
+class Token where 
     val kind : TokenType;
     val src : String;
     val pos : SourcePos;
@@ -221,7 +221,7 @@ class Tokenizer where
         case "for" := FOR();
         case "in" := IN();
         case "do" := DO();
-        case "yield" := YIELD();
+        case "yield" := DO();
         case "and" := AND();
         case "or" := OR();
         case "xor" := XOR();
@@ -299,7 +299,7 @@ fun main() do
     end;
 end
 // test
-export fun tokenize(input : String) : Token[] do 
+fun tokenize(input : String) : Token[] do 
     val t := Tokenizer(input);
     t.tokenize()
 end 

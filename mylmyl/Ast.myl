@@ -67,7 +67,7 @@ enum UnOp where
     Plus(), Minus(), Not();
 end
 
-export enum Stmt where 
+enum Stmt where 
     ExprStmt(Expr),
     IfStmt(Expr, Expr),
     SetStatement(Setter, Expr),
@@ -75,32 +75,34 @@ export enum Stmt where
     EmptyStmt();
 end;
 
-export enum Setter where 
+enum Setter where 
     TupleSetter(Setter[], Util.LateInitialized(Type)),
     Variable(String), WildcardSetter(),
-    Property(Expr, String, Util.LateInitialized(Type)/* Should always be the Name of the Class */);
+    Property(Expr, String, Util.LateInitialized(Type)/* Should always be the Name of the Class */),
+    IndexSetter(Expr, Expr);
 end;
 
-export enum BlockPart where 
+enum BlockPart where 
     Statement(Stmt),
     Expression(Expr);
 end
 
-export enum Decl where 
+enum Decl where 
     DesugarableDecl(Mut(Decl)),
-    VarDecl(Setter, Util.LateInitialized(Type), Util.Optional(Expr), Bool /* mut */, Bool /* export */),
-    ValElseDeclaration(Pattern, Expr, Expr, Bool /* mut */, Bool /* export */, Util.LateInitialized(Type), 
+    EmptyDecl(),
+    VarDecl(Setter, Util.LateInitialized(Type), Util.Optional(Expr), Bool /* mut */, Bool /* */),
+    ValElseDeclaration(Pattern, Expr, Expr, Bool /* mut */, Bool /* */, Util.LateInitialized(Type), 
                        Util.LateInitialized(Type), Util.LateInitialized(Env.Env(VarInfo))),
-    FunDecl(String, TypeParameter[], Parameter[], Type, Expr, Bool /* export */, Util.LateInitialized(Env.Env(VarInfo))),
-    ClassDecl(String, Decl[], Util.Optional(Constructor), Bool /* export */, Util.LateInitialized(Env.Env(VarInfo))),
-    EnumDecl(String, EnumConstructor[], Decl[], Bool /* export */, Util.LateInitialized(Env.Env(VarInfo)));
+    FunDecl(String, TypeParameter[], Parameter[], Type, Expr, Bool /* */, Util.LateInitialized(Env.Env(VarInfo))),
+    ClassDecl(String, TypeParameter[], Decl[], Util.Optional(Constructor), Bool /* */, Util.LateInitialized(Env.Env(VarInfo))),
+    EnumDecl(String, TypeParameter[], EnumConstructor[], Decl[], Bool /* */, Util.LateInitialized(Env.Env(VarInfo)));
 end;
 
 enum Import where 
     BasicImport(String[]);
 end
 
-export class EnumConstructor where 
+class EnumConstructor where 
     val name : String;
     val fields : Type[];
     new(n : String, fs : Type[]) do 
@@ -109,7 +111,7 @@ export class EnumConstructor where
     end
 end
 
-export class Constructor where 
+class Constructor where 
     val params : Parameter[];
     val body : Expr;
     val lenv : Util.LateInitialized(Env.Env(VarInfo)) := late_env();
@@ -132,8 +134,8 @@ class VarInfo where
 end
 
 enum TyInfo where 
-    ClassInfo(String, Env.AList(VarInfo) /* fields */, Env.AList(VarInfo) /* methods */, Bool /* exported */),
-    EnumInfo(String, EnumConstructor[], Env.AList(VarInfo) /* methods, doesn't have fields */, Bool /* exported */),
+    ClassInfo(String, TypeParameter[], Env.AList(VarInfo) /* fields */, Env.AList(VarInfo) /* methods */, Bool /* exported */),
+    EnumInfo(String, TypeParameter[], EnumConstructor[], Env.AList(VarInfo) /* methods, doesn't have fields */, Bool /* exported */),
     TypeParameterInfo(String);
 end
 
@@ -141,7 +143,7 @@ enum Parameter where
     NormalParam(String, Type);
 end
 
-export class Program where 
+class Program where 
     val imports : Import[] := [];
     val decls : Decl[] := [];
 end
@@ -152,6 +154,7 @@ enum Type where
     Name(String, Util.LateInitialized(Env.Env(TyInfo))), // Enviroment the name is defined in
     Function(TypeParameter[], Type[], Type), ListOf(Type),
     ModuleAccess(String[], String, Util.LateInitialized(Type)), // Fully resolved type at end
+    Applied(Type, Type[]),
     Never();
 end
 
@@ -183,9 +186,9 @@ end
 
 */
 
-export fun late_env() : Util.LateInitialized(Env.Env(VarInfo)) := Util.LateInitialized.[Env.Env(VarInfo)]();
-export fun late_type() : Util.LateInitialized(Type) := Util.LateInitialized.[Type]();
-export fun late_ty_env() : Util.LateInitialized(Env.Env(TyInfo)) := Util.LateInitialized.[Env.Env(TyInfo)]();
+fun late_env() : Util.LateInitialized(Env.Env(VarInfo)) := Util.LateInitialized.[Env.Env(VarInfo)]();
+fun late_type() : Util.LateInitialized(Type) := Util.LateInitialized.[Type]();
+fun late_ty_env() : Util.LateInitialized(Env.Env(TyInfo)) := Util.LateInitialized.[Env.Env(TyInfo)]();
 
 fun get_as_path(e : Expr) : AccessedObjectType := match e do 
     case DesugarableExpr(mute) := get_as_path(mute.get());

@@ -6,7 +6,7 @@ import Util;
 import SourceFileGatherer;
 
 fun typecheck(file : SourceFileGatherer.SourceFile, other_files : Env.AList(SourceFileGatherer.SourceFile)) do 
-    val tc := new Typechecker(file);
+    val tc := Typechecker(file);
 
     declare_builtins(tc);
 
@@ -54,8 +54,8 @@ fun declare_global_variables(file : SourceFileGatherer.SourceFile) do
             end;
             case DesugarableDecl(mutdecl) := declare_global_variable(mutdecl.get());
             case FunDecl(?, ?, ?, ?, ?, ?, ?) := do end;
-            case ClassDecl(?, ?, ?, ?, ?) := do end;
-            case EnumDecl(?, ?, ?, ?, ?) := do end;
+            case ClassDecl(?, ?, ?, ?, ?, ?) := do end;
+            case EnumDecl(?, ?, ?, ?, ?, ?) := do end;
         end;
     end;
     for decl in file.ast.decls do 
@@ -75,9 +75,10 @@ fun declare_functions_and_types(file : SourceFileGatherer.SourceFile) do
                 info.is_exported := exported;
                 file.globals_env.get().insert(name, info);
             end;
-            case ClassDecl(name, body, constr, exported, ?) := do 
+            case ClassDecl(name, targs, body, constr, exported, ?) := do 
                 val info := Ast.ClassInfo(
                     name, 
+                    targs,
                     fields_in_class(body),
                     methods_in_class(body),
                     exported
@@ -92,9 +93,9 @@ fun declare_functions_and_types(file : SourceFileGatherer.SourceFile) do
                 varinf.is_exported := exported;
                 file.globals_env.get().insert(name, varinf);
             end;
-            case EnumDecl(name, constructors, members, exported, ?) := do
+            case EnumDecl(name, targs, constructors, members, exported, ?) := do
                 val funs := methods_in_class(members);
-                file.types_env.get().insert(name, Ast.EnumInfo(name, constructors, funs, exported));
+                file.types_env.get().insert(name, Ast.EnumInfo(name, targs, constructors, funs, exported));
                 for constr in constructors do 
                     // TODO: Typparameter handlen
                     val info := Ast.VarInfo(false, Ast.Function([], constr.fields, Ast.Name(name, file.types_env)), constr.name);
@@ -154,7 +155,7 @@ fun declare_pattern(file : SourceFileGatherer.SourceFile, pat : Ast.Pattern, ty 
         case ConstructorPattern(constr, patterns, lenumconstr) := do 
             //TODO: Correct name lookup
             val Name(enum_name, ltype_env) := ty else return null; // All enums must be represented by names
-            val EnumInfo(name, constructors, methods, exported) := ltype_env.get().get(enum_name) else return null;
+            val EnumInfo(name, targs, constructors, methods, exported) := ltype_env.get().get(enum_name) else return null;
             for enum_constr in constructors do 
                 if enum_constr.name = constr do // Found correct constructor
                     if enum_constr.fields.length = patterns.length do 
@@ -279,7 +280,7 @@ fun require_types_exist(tc : Typechecker, ty : Ast.Type) := match ty do
     case Function(type_params, params, ret_type) := do 
         for param in params do 
             require_types_exist(tc, param);
-        end
+        end;
         require_types_exist(tc, ret_type);
     end;
     // TODO: Correct name lookup
@@ -332,7 +333,7 @@ fun check_mutability(tc : Typechecker, setter : Ast.Setter) := match setter do
     end;
     case Property(obj, name, lt) := do 
         //TODO: Correct name lookup
-        val ClassInfo(class_name, fields, methods, ?) := info_for(tc, lt.get(), fun(ty) := "Cannot reassign to property "+name+" of non_class_type"+ty)
+        val ClassInfo(class_name, targs, fields, methods, ?) := info_for(tc, lt.get(), fun(ty : Ast.Type) : String := "Cannot reassign to property "+name+" of non_class_type"+ty)
             else panic("Should be unreachable: Non-class info in setter");
         val field_info := fields.get(name);
         if not field_info.is_mutable do 
@@ -356,11 +357,11 @@ fun infer_setter(tc : Typechecker, s : Ast.Setter) : Ast.Type := match s do
     case Property(obj, name, lcty) := do
         val obj_ty := infer(tc, obj);
         // TODO: Correct name lookup
-        val ClassInfo(name, fields, method) := info_for(tc, obj_ty, fun(ty) := "Cannot assign to property "+name+" of non-class-type"+ty);
+        val ClassInfo(name, targs, fields, method, ?) := info_for(tc, obj_ty, fun(ty : Ast.Type) : String := "Cannot assign to property "+name+" of non-class-type"+ty) else panic("Expected class info");
         val Name(class_name, lty_env) := obj_ty else panic("Cannot set property of non-class-type "+obj_ty);
         lcty.init(obj_ty);
         val class_info := lty_env.get().get(class_name);
-        val ClassInfo(?, fields, methods, ?) := class_info else panic("Unimplemented type information in property setter");
+        val ClassInfo(?, targs, fields, methods, ?) := class_info else panic("Unimplemented type information in property setter");
         if methods.has(name) do 
             panic("Cannot change a method: method "+name+" of class "+class_name);
         end
@@ -452,7 +453,7 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
                     panic("Type name already declared: "+param.name);
                 end
                 tc.declare_type(param.name, Ast.TypeParameterInfo(param.name));
-            end
+            end;
             check_kind(tc, return_type, Ast.ConcreteType());
             val resolved_ret_ty := resolve(tc, return_type);
             val fun_type := Ast.Function(typarams, for ty in param_types(params) yield resolve(tc, ty) end, resolved_ret_ty);
@@ -461,7 +462,7 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
         tc.open_scope();
             for param in typarams do //Redeclare type parameters for body
                 tc.declare_type(param.name, Ast.TypeParameterInfo(param.name));
-            end
+            end;
             tc.in_loops.push(false);
             tc.return_tys.push((true, resolved_ret_ty));
             for param in params do 
@@ -480,9 +481,10 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
             panic("Main may not define any parameters");
         end;
     end;
-    case ClassDecl(name, members, constructor, exported, lenv) := do 
+    case ClassDecl(name, targs, members, constructor, exported, lenv) := do 
         tc.declare_type(name, Ast.ClassInfo(
             name, 
+            targs,
             fields_in_class(members),
             methods_in_class(members),
             exported
@@ -501,10 +503,10 @@ fun check_decl(tc : Typechecker, decl : Ast.Decl) := match decl do
         
         tc.declare(name, constr_type, false);
     end;
-    case EnumDecl(name, variants, members, is_export, lenv) := do 
+    case EnumDecl(name, targs, variants, members, is_export, lenv) := do 
         disallow_fields_in_enum(tc, members, name);
         val funs := methods_in_class(members);
-        tc.declare_type(name, Ast.EnumInfo(name, variants, funs, is_export));
+        tc.declare_type(name, Ast.EnumInfo(name, targs, variants, funs, is_export));
         declare_enum_constructors(tc, name, variants);
         tc.open_scope();
             tc.in_loops.push(false);
@@ -526,7 +528,7 @@ fun declare_enum_constructors(tc : Typechecker, name : String, variants : Ast.En
             check_kind(tc, field, Ast.ConcreteType());
             require_types_exist(tc, field);
             resolve(tc, field);
-        end
+        end;
         //TODO: Generics
         tc.declare(constr.name, Ast.Function([], constr.fields, enum_ty), false);
     end;
@@ -578,11 +580,11 @@ fun methods_in_class(members : Ast.Decl[]) : Env.AList(Ast.VarInfo) do
                 val fun_ty := Ast.Function(typarams, param_types(params), ret_ty);
                 types.insert(name, Ast.VarInfo(false, fun_ty, name));
             end;
-            case ClassDecl(name, ?, ?, ?, ?) := panic("Error: Do not allow class as member of another class or enum: "+name);
-            case EnumDecl(name, ?, ?, ?, ?) := panic("Error: Do not allow enum as member of another class or enum: "+name);
+            case ClassDecl(name, ?, ?, ?, ?, ?) := panic("Error: Do not allow class as member of another class or enum: "+name);
+            case EnumDecl(name, ?, ?, ?, ?, ?) := panic("Error: Do not allow enum as member of another class or enum: "+name);
             case ? := do end;
         end;
-    end
+    end;
     types
 end
 
@@ -634,7 +636,7 @@ end;
 fun info_for(tc : Typechecker, ty : Ast.Type, error_message : Fun(Ast.Type) : String) : Ast.TyInfo do 
     match ty do 
         case Name(name, lenv) := lenv.get().get(name);
-        case ModuleAccess(path, name, lty) := info_for(tc, lty.get(), fun(other_ty) := error_message(ty));
+        case ModuleAccess(path, name, lty) := info_for(tc, lty.get(), fun(other_ty : Ast.Type) : String := error_message(ty));
         case ? := panic(error_message(ty));
     end
 end
@@ -686,8 +688,8 @@ fun resolve(tc : Typechecker, ty : Ast.Type) : Ast.Type do
 end
 
 fun is_type_exported(info : Ast.TyInfo) : Bool := match info do 
-    case ClassInfo(?, ?, ?, exported) := exported;
-    case EnumInfo(?, ?, ?, exported) := exported;
+    case ClassInfo(?, ?, ?, ?, exported) := exported;
+    case EnumInfo(?, ?, ?, ?, exported) := exported;
 end;
 
 fun param_types(params : Ast.Parameter[]) : Ast.Type[] := 
@@ -852,7 +854,7 @@ fun check_pattern(tc : Typechecker, pattern : Ast.Pattern, matched_ty : Ast.Type
         end;
         case ConstructorPattern(name, subpatterns, lconstr) := do 
             //TODO: Correct name lookup
-            val EnumInfo(enum_name, constructors, methods, exported) := info_for(tc, matched_ty, fun(ty) := "Cannot match on non-enum-type "+matched_ty+" in "+pattern)
+            val EnumInfo(enum_name, targs, constructors, methods, exported) := info_for(tc, matched_ty, fun(ty : Ast.Type) : String := "Cannot match on non-enum-type "+matched_ty+" in "+pattern)
                 else panic("Cannot match on class type "+matched_ty+"in "+pattern);
             for constr in constructors do 
                 if constr.name = name do 
@@ -875,12 +877,12 @@ end
 fun get_property_ty(tc : Typechecker, name : String, ty : Ast.Type, e : Ast.Expr) : (Ast.Type, Ast.AccessType) := match ty do  
     // TODO: Correct name lookup
     case ListOf(elem_ty) := builtin_list_property(elem_ty, name, e);
-    case ? := get_property_of_info(info_for(tc, ty, fun(ty) := "Cannot read property of non-class-type "+ty+"in expression "+e), name, e);
+    case ? := get_property_of_info(info_for(tc, ty, fun(ty : Ast.Type) : String := "Cannot read property of non-class-type "+ty+"in expression "+e), name, e);
 end;
 
 fun get_property_of_info(class_info : Ast.TyInfo, name : String, e : Ast.Expr) : (Ast.Type, Ast.AccessType) do 
     match class_info do 
-        case ClassInfo(class_name, fields, methods, exported) := do 
+        case ClassInfo(class_name, targs, fields, methods, exported) := do 
             if fields.has(name) then do 
                 val ty := fields.get(name).ty;
                 (ty, Ast.FieldAccess())
@@ -889,7 +891,7 @@ fun get_property_of_info(class_info : Ast.TyInfo, name : String, e : Ast.Expr) :
                 (ty, Ast.MethodAccess())
             end else panic("Type "+class_name+" has no field or method called "+name)
         end;
-        case EnumInfo(enum_name, ?, methods, exported) := do 
+        case EnumInfo(enum_name, targs, ?, methods, exported) := do 
             if methods.has(name) then do 
                 (methods.get(name).ty, Ast.MethodAccess())
             end else panic("Type "+enum_name+" has no method called "+name)
@@ -1075,7 +1077,7 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         end;
         for i in [0..args.length] do 
             check(t, args[i], param_types[i]);
-        end
+        end;
         ret_type
     end;
     case InstantiationExpr(instantiated, typarams, lty) := do 
@@ -1089,7 +1091,7 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         val typaram_substitutes : Env.AList(Ast.Type) := Env.AList.[Ast.Type]();
         for i in [0..typarams.length] do 
             typaram_substitutes.insert(expected_typarams[i].name, typarams[i]);
-        end
+        end;
         val sty := substitute(instantiated_ty, typaram_substitutes);
         lty.init(sty);
         sty
@@ -1164,7 +1166,7 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
                 fun infer_match_ty() do 
                     val ty := infer(t, expr);
                     resulting := Util.Some.[Ast.Type](ty);
-                end
+                end;
                 if val Some(ty) := resulting then do 
                     if val VoidT() := ty then do 
                         infer_match_ty();
@@ -1256,7 +1258,7 @@ do
     t.open_scope();
         for stmt in stmts do 
             check_stmt(t, stmt);
-        end
+        end;
         var result_type := Ast.VoidT();
         if val Some(e) := end_expr then do 
             result_type := infer(t, e);
@@ -1404,10 +1406,10 @@ fun check_kind(tc : Typechecker, ty : Ast.Type, kind : Ast.Kind) do
             tc.open_scope();
                 for param in typarams do 
                     tc.declare_type(param.name, Ast.TypeParameterInfo(param.name));
-                end
+                end;
                 for param in params do 
                     check_kind(tc, param, Ast.ConcreteType());
-                end
+                end;
                 check_kind(tc, ret_ty, Ast.ConcreteType());
             tc.close_scope();
             tc.require_kind(kind, Ast.ConcreteType(), ty);
@@ -1445,7 +1447,7 @@ fun kind_of(tc : Typechecker, ty : Ast.Type) : Ast.Kind do
         case Any() := Ast.ConcreteType();
         case Tuple(tys) := Ast.ConcreteType();
         case Name(name, lenv) := do 
-            val info := info_for(tc, ty, fun(this_ty) := "Cannot infer kind of type "+this_ty);
+            val info := info_for(tc, ty, fun(this_ty : Ast.Type) : String := "Cannot infer kind of type "+this_ty);
             val kind := kind_of_info(tc, info);
             kind
         end;
@@ -1455,6 +1457,6 @@ end
 
 fun kind_of_info(tc : Typechecker, info : Ast.TyInfo) : Ast.Kind := match info do 
     case TypeParameterInfo(?) := Ast.ConcreteType(); // Type parameters cannot be generic (no higher kinded types)
-    case ClassInfo(name, fields, methods, exported) := Ast.ConcreteType(); // TODO: Classes cannot be generic yet
-    case EnumInfo(name, constructors, methods, exported) := Ast.ConcreteType(); // TODO: Enums cannot be generic yet
+    case ClassInfo(name, targs, fields, methods, exported) := Ast.ConcreteType(); // TODO: Classes cannot be generic yet
+    case EnumInfo(name, targs, constructors, methods, exported) := Ast.ConcreteType(); // TODO: Enums cannot be generic yet
 end;

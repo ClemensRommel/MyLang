@@ -40,8 +40,6 @@ class Compiler where
         this.all_modules := modules;
         this.generated_module_path := gen_mod_path;
         this.ungenerated_types := uncreated_types;
-
-        declare_builtins(this);
     end
 
     fun append(str : String) do
@@ -132,7 +130,7 @@ fun gather_global_variable_info(files : Env.AList(SourceFileGatherer.SourceFile)
         val env := Env.Env.[VariableInfo]();
         gather_variable_info(env, file.ast.decls);
         list.insert(file.path, env);
-    end
+    end;
     list
 end
 
@@ -148,6 +146,7 @@ do
     val file_name := file_name_parts.first;
     val c := Compiler(file.globals_env.get(), name_gen, infos, join(".", generated_path), ungenerated_types);
     c.env := infos.get(file.path);
+    declare_builtins(c);
     declare_package(c, path_parts);
     import_implicits(c);
     file.ast.imports.push(Ast.BasicImport(generated_path));
@@ -173,13 +172,13 @@ fun gather_variable_info(env : Env.Env(VariableInfo), decls : Ast.Decl[]) do
                 info.is_no_fc_fn := true; // Global functions cant be lambdas
                 env.insert(name, info);
             end;
-            case ClassDecl(name, ?, ?, ?, ?) := do 
+            case ClassDecl(name, ?, ?, ?, ?, ?) := do 
                 val info := VariableInfo();
                 info.is_constructor := true;
                 info.is_no_fc_fn := true;
                 env.insert(name, info);
             end;
-            case EnumDecl(?, constrs, ?, ?, ?) := do 
+            case EnumDecl(?, ?, constrs, ?, ?, ?) := do 
                 for constr in constrs do 
                     val info := VariableInfo();
                     info.is_constructor := true;
@@ -226,7 +225,7 @@ fun declare_package(c : Compiler, path : String[]) do
         c.append("package ");
         for i in [0..path.length - 1] do 
             c.append(path[i]);
-        end
+        end;
         c.append(";"); c.newline(); 
         c.newline();
     end
@@ -277,11 +276,11 @@ fun compile_decl(c : Compiler, decl : Ast.Decl) := match decl do
     case DesugarableDecl(md) := compile_decl(c, md.get());
     case VarDecl(setter, lt, init, mutable, ?) := compile_var_decl(c, setter, lt, init, mutable);
     case FunDecl(name, typarams, params, return_type, body, ?, lenv) := compile_fun_decl(c, name, typarams, params, return_type, body, lenv);
-    case ClassDecl(name, members, opt_constr, ?, lenv) := compile_class_decl(c, name, members, opt_constr, lenv.get());
-    case EnumDecl(name, variants, members, ?, lenv) := compile_enum_decl(c, name, variants, members, lenv.get());
+    case ClassDecl(name, targs, members, opt_constr, ?, lenv) := compile_class_decl(c, name, targs, members, opt_constr, lenv.get());
+    case EnumDecl(name, targs, variants, members, ?, lenv) := compile_enum_decl(c, name, targs, variants, members, lenv.get());
 end;
 
-fun compile_enum_decl(c : Compiler, name : String, variants : Ast.EnumConstructor[], members : Ast.Decl[], env : Env.Env(Ast.VarInfo)) do 
+fun compile_enum_decl(c : Compiler, name : String, targs: Ast.TypeParameter[], variants : Ast.EnumConstructor[], members : Ast.Decl[], env : Env.Env(Ast.VarInfo)) do 
     val prefix := (if c.is_class then "public " else "") + (if c.is_static then "static " else "");
     c.append(prefix);
     c.append(" sealed interface "); c.append(name); c.append(" {");
@@ -334,6 +333,7 @@ end
 fun compile_class_decl(
     c : Compiler, 
     name : String, 
+    targs: Ast.TypeParameter[],
     members : Ast.Decl[], 
     constr : Util.Optional(Ast.Constructor), 
     env : Env.Env(Ast.VarInfo)) 
@@ -350,7 +350,7 @@ do
     c.is_class := true;
     for member in members do 
         compile_decl(c, member);
-    end
+    end;
     compile_constructor(c, constr, name);
     c.strip_trailing(); c.dedent(); c.newline();
     c.append("}");
@@ -377,7 +377,7 @@ fun compile_constructor(c : Compiler, constr : Util.Optional(Ast.Constructor), n
             end;
         end;
         needs_comma := true;
-    end 
+    end;
     c.append(") ");
     compile_expr(c, construct.body, Ignore());
 end
@@ -466,7 +466,7 @@ fun setter_is_upvalue(c : Compiler, setter : Ast.Setter) : Bool :=
         case TupleSetter(parts, ?) := do 
             for part in parts do 
                 if setter_is_upvalue(c, part) do return true end;
-            end
+            end;
             false
         end;
         case WildcardSetter() := false;
@@ -933,7 +933,7 @@ fun compile_list_literal(c : Compiler, exprs : Ast.Expr[], lty : Ast.Type, targe
         for expr in exprs do 
             val field := compile_expr(c, expr, UsedDirectly());
             c.append(""+name+".add("+field+");"); c.newline();
-        end
+        end;
         if val AssignTo(?) := target then "" else use_with_target(c, name, target)
     end
 end
@@ -1335,6 +1335,7 @@ end
 fun compile_call(c : Compiler, callee : Ast.Expr, args : Ast.Expr[], target : Target) : String do 
     var is_builtin_list_method := false;
     fun compile_callee(called : Ast.Expr) : String := if val Identifier(name, ?) := called then do 
+            
             val info := c.env.get(name);
             if info.is_constructor then 
                 "new " + name
@@ -1564,7 +1565,7 @@ fun compile_type(c : Compiler, t : Ast.Type) : String := match t do
             if need_comma do ty := ty + ", "; end
             ty := ty + compile_type(c, arg);
             need_comma := true;
-        end
+        end;
         if need_comma do ty := ty + ", "; end
         ty := ty + compile_type(c, ret);
         ty := ty + ">";
@@ -1582,7 +1583,7 @@ fun compile_type(c : Compiler, t : Ast.Type) : String := match t do
                 if need_comma do ty := ty + ", "; end
                 ty := ty + compile_type(c, part);
                 need_comma := true;
-            end
+            end;
             ty := ty + ">";
             c.expect_ref_ty := pref_expect_ref_ty;
         end;

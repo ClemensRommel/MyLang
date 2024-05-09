@@ -30,7 +30,6 @@ class SourceFile where
 end;
 
 fun open_and_parse(sfg : SFGatherer, file : String) : Util.Optional(SourceFile) do 
-    print("Processing: "+file);
     val Some(source) := Util.read_file(file) else do 
         sfg.files_not_found.push(file);
         return Util.None.[SourceFile]()
@@ -40,13 +39,14 @@ fun open_and_parse(sfg : SFGatherer, file : String) : Util.Optional(SourceFile) 
 end
 
 fun get_all_files(sfg : SFGatherer, starting_file : String) do 
+    print("Processing: "+starting_file);
     val Some(file) := open_and_parse(sfg, starting_file) else return null;
     sfg.parsed_sourcefiles.insert(starting_file, file);
     for imported in file.ast.imports do 
         val path := path_to(imported);
-        if !sfg.parsed_sourcefiles.has(path) do 
+        if !sfg.parsed_sourcefiles.has(sfg.file_prefix + path) do 
             get_all_files(sfg, sfg.file_prefix + path);
-        end
+        end;
     end
 end
 
@@ -57,7 +57,7 @@ fun generated_code_path(starting_file : String) : String[] do
     val file_name := "__generated_"+split(parts.last, "\\.").first;
     for i in [0..parts.length - 1] do // Alles außer dem letzten
         output_parts.push(parts[i]);
-    end
+    end;
     output_parts.push(file_name);
     output_parts
 end
@@ -69,7 +69,7 @@ fun gather_files(start : String) : Env.AList(SourceFile) do
     if sfg.files_not_found.length != 0 do 
         for file in sfg.files_not_found do 
             print("Could not find or open file: "+file);
-        end
+        end;
         panic("Error while importing");
     end;
     sfg.parsed_sourcefiles
@@ -84,7 +84,7 @@ fun file_path_prefix(path : String) : String do
     var outs : String[] := [];
     for i in [0..parts.length - 1] do 
         outs.push(parts[i]);
-    end
+    end;
     val path := join("/", outs);
     if outs.length = 0 then "" else path + "/"
 end

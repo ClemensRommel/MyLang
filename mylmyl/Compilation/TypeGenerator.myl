@@ -46,7 +46,7 @@ fun compile_types(out_path : String, types : Compilation.CodeBuffers.UncreatedTy
             if need_dot do tgen.append("."); end
             tgen.append(path_parts[i]);
             need_dot := true;
-        end
+        end;
         tgen.append(";");
         tgen.newline();
     end
@@ -56,10 +56,10 @@ fun compile_types(out_path : String, types : Compilation.CodeBuffers.UncreatedTy
     
     for lambda_ty in types.ungenerated_functions do 
         compile_function_type(tgen, lambda_ty);
-    end
+    end;
     for tuple_ty in types.ungenerated_tuples do 
         compile_tuple_type(tgen, tuple_ty);
-    end
+    end;
     
     tgen.dedent();tgen.newline();
     tgen.append("}");
@@ -77,7 +77,7 @@ fun compile_function_type(c : TypeGenerator, ty : Compilation.CodeBuffers.Uncrea
         if need_comma do c.append(", "); end
         c.append(tyname);
         need_comma := true;
-    end
+    end;
     c.append("> {"); c.indent(); c.newline();
     c.append(typarams.last); // Last type parameter is return type
     c.append(" call(");
@@ -85,7 +85,7 @@ fun compile_function_type(c : TypeGenerator, ty : Compilation.CodeBuffers.Uncrea
     for i in [0..ty.param_count] do 
         if need_comma do c.append(", "); end
         c.append(typarams[i]); c.append(" "); c.append(c.new_var());
-    end
+    end;
     c.append(");"); c.dedent(); c.newline();
     c.append("}");
     c.newline();
@@ -104,7 +104,7 @@ fun compile_tuple_type(c : TypeGenerator, ty : Compilation.CodeBuffers.Uncreated
             if need_comma do c.append(", "); end
             c.append(param);
             need_comma := true;
-        end
+        end;
         c.append(">");
         typarams
     end else [];
@@ -114,7 +114,7 @@ fun compile_tuple_type(c : TypeGenerator, ty : Compilation.CodeBuffers.Uncreated
         if need_comma do c.append(", "); end
         c.append(tys[i]); c.append(" field"+i);
         need_comma := true;
-    end
+    end;
     c.append(") {"); 
     c.indent(); c.newline();
     c.append("public String toString() {");

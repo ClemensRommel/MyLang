@@ -1,6 +1,6 @@
 module Util;
 
-export enum Optional(T) where
+enum Optional(T) where
     None(), Some(T);
 
     fun unwrap() : T := match this do 
@@ -19,7 +19,7 @@ export enum Optional(T) where
     end;
 end;
 
-export class LateInitialized(T) where
+class LateInitialized(T) where
     var field : Optional(T) := None.[T]();
 
     fun get() : T := match this.field do

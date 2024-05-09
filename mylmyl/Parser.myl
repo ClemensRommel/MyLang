@@ -29,7 +29,7 @@ class Parser where
     fun consume(t : Tokenizer.TokenType, error : String) : Tokenizer.Token do 
         val nxt := this.next();
         if nxt.kind != t do
-            panic("["+nxt.pos.line+":"+nxt.pos.collumn+"]: Unexpected "+nxt.kind+": "+error);
+            panic("["+(nxt.pos.line+1)+":"+nxt.pos.collumn+"]: Unexpected "+nxt.kind+": "+error);
         end;
         nxt
     end
@@ -56,9 +56,14 @@ class Parser where
         this.undesugared_decls.push(mut_decl);
         Ast.DesugarableDecl(mut_decl)
     end;
+
+    fun err(str: String): String do 
+        val nxt := this.peek();
+        "["+(nxt.pos.line+1)+":"+nxt.pos.collumn+"]:"+str
+    end
 end;
 
-export fun parse(source : String) : (Ast.Program, (Ast.Mut(Ast.Expr)[], Ast.Mut(Ast.Decl)[])) do 
+fun parse(source : String) : (Ast.Program, (Ast.Mut(Ast.Expr)[], Ast.Mut(Ast.Decl)[])) do 
     val parser := Parser(source);
     val prg := program(parser); 
     (prg, (parser.undesugared_exprs, parser.undesugared_decls))
@@ -139,11 +144,23 @@ fun decl(p : Parser) : Ast.Decl do
         case FUN() := fun_decl(p);
         case CLASS() := class_decl(p);
         case ENUM() := enum_decl(p);
+        case SEMICOLON() := Ast.EmptyDecl();
     end
 end
 
 fun enum_decl(p : Parser) : Ast.Decl do 
     val name := p.consume(Tokenizer.IDENTIFIER(), "Expect class name after 'class' keyword");
+    val targs := if p.matches(Tokenizer.LPAREN()) then do 
+        val params: Ast.TypeParameter[] := [];
+        var needs_comma := false;
+        while !p.matches(Tokenizer.RPAREN()) do 
+            if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate type parameters"); end;
+            val name := p.consume(Tokenizer.IDENTIFIER(), "Expect type parameter name");
+            params.push(Ast.TypeParameter(name.src));
+            needs_comma := true;
+        end;
+        params
+    end else [];
     p.consume(Tokenizer.WHERE(), "Expect start of enum body after enum name: 'where'");
     val constructors : Ast.EnumConstructor[] := [];
     var needs_comma := false;
@@ -167,11 +184,22 @@ fun enum_decl(p : Parser) : Ast.Decl do
     while !p.matches(Tokenizer.END()) do 
         members.push(decl(p));
     end;
-    Ast.EnumDecl(name.src, constructors, members, true, Ast.late_env())
+    Ast.EnumDecl(name.src, targs, constructors, members, true, Ast.late_env())
 end
 
 fun class_decl(p : Parser) : Ast.Decl do 
     val name := p.consume(Tokenizer.IDENTIFIER(), "Expect class name after 'class' keyword");
+    val targs := if p.matches(Tokenizer.LPAREN()) then do 
+        val params: Ast.TypeParameter[] := [];
+        var needs_comma := false;
+        while !p.matches(Tokenizer.RPAREN()) do 
+            if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate type parameters"); end;
+            val name := p.consume(Tokenizer.IDENTIFIER(), "Expect type parameter name");
+            params.push(Ast.TypeParameter(name.src));
+            needs_comma := true;
+        end;
+        params
+    end else [];
     p.consume(Tokenizer.WHERE(), "Expect start of class body after class name: 'where'");
     val members : Ast.Decl[] := [];
     var constr : Util.Optional(Ast.Constructor) := Util.None.[Ast.Constructor]();
@@ -186,7 +214,7 @@ fun class_decl(p : Parser) : Ast.Decl do
             members.push(member);
         end;
     end;
-    Ast.ClassDecl(name.src, members, constr, true, Ast.late_env())
+    Ast.ClassDecl(name.src, targs, members, constr, true, Ast.late_env())
 end
 
 fun constructor(p : Parser) : Ast.Constructor do 
@@ -328,11 +356,12 @@ end
 
 fun multiplication(p : Parser) : Ast.Expr do 
     var lhs := unary(p);
-    while !p.at_end() and (p.matches(Tokenizer.STAR()) or p.matches(Tokenizer.SLASH())) do 
+    while !p.at_end() and (p.matches(Tokenizer.STAR()) or p.matches(Tokenizer.SLASH()) or p.matches(Tokenizer.PERCENT())) do 
         val op := p.previous().kind;
         val rhs := unary(p);
         lhs := Ast.BinaryOperation(match op do 
             case STAR() := Ast.Mul();
+            case PERCENT() := Ast.Mod();
             case SLASH() := Ast.Div();
         end, lhs, rhs);
     end;
@@ -538,13 +567,18 @@ fun block_part(p : Parser) : Ast.BlockPart do
     end else if val IF() := p.peek().kind then do 
         val pos := p.pos;
         p.next();
-        val cond := expr(p);
-        if p.matches(Tokenizer.DO()) then do 
-            val body := block_expr(p);
-            Ast.Statement(Ast.IfStmt(cond, body))
-        end else do 
+        if val VAL() := p.peek().kind then do 
             p.pos := pos;
             potential_end_expr()
+        end else do 
+            val cond := expr(p);
+            if p.matches(Tokenizer.DO()) then do 
+                val body := block_expr(p);
+                Ast.Statement(Ast.IfStmt(cond, body))
+            end else do 
+                p.pos := pos;
+                potential_end_expr()
+            end
         end
     end else do 
         potential_end_expr()
@@ -565,6 +599,7 @@ fun convert_setter(s : Ast.Expr) : Ast.Setter := match s do
     case PropertyExpr(obj, name, ?, ?, ?) := do 
         Ast.Property(obj, name, Ast.late_type())
     end;
+    case IndexExpr(indexed, index) := Ast.IndexSetter(indexed, index);
     case ? := panic("Invalid setter: "+s);
 end;
 
@@ -578,6 +613,7 @@ fun convert_pattern(p : Ast.Expr) : Ast.Pattern := match p do
         val Identifier(name, ?) := callee else panic("Invalid constructor: "+callee);
         Ast.ConstructorPattern(name, for arg in args yield convert_pattern(arg) end, Util.LateInitialized.[Ast.EnumConstructor]())
     end;
+    case WildCardExpression() := Ast.WildcardPattern();
     case ? := panic("Invalid pattern: "+p);
 end;
 
@@ -637,7 +673,7 @@ fun literal(p : Parser) : Ast.Expr :=
     end else if p.matches(Tokenizer.QUESTION_MARK()) then do 
         Ast.WildCardExpression()
     end else do 
-        panic("Invalid literal: "+p.peek().kind)
+        panic(p.err("Invalid literal: "+p.peek().kind))
     end;
 
 fun list(p : Parser) : Ast.Expr do
@@ -726,9 +762,20 @@ fun type_literal(p : Parser) : Ast.Type do
         panic("Invalid type: "+p.peek().kind)
     end;
 
-    while p.matches(Tokenizer.LBRACKET()) do
-        left := Ast.ListOf(left);
-        p.consume(Tokenizer.RBRACKET(), "Expect ']' after '[' in list type");
+    while p.matches(Tokenizer.LBRACKET()) or p.matches(Tokenizer.LPAREN()) do
+        if p.previous().kind = Tokenizer.LBRACKET() then do 
+            left := Ast.ListOf(left);
+            p.consume(Tokenizer.RBRACKET(), "Expect ']' after '[' in list type");
+        end else do
+            val args: Ast.Type[] := []; 
+            var need_comma := false;
+            while !p.matches(Tokenizer.RPAREN()) do 
+                if need_comma do p.consume(Tokenizer.COMMA(), "Expect ',' between type parameters"); end;
+                args.push(type_literal(p));
+                need_comma := true;
+            end;
+            left := Ast.Applied(left, args);
+        end;
     end;
     left
 end
