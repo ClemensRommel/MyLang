@@ -67,7 +67,7 @@ fun compile_types(out_path : String, types : Compilation.CodeBuffers.UncreatedTy
 end
 
 fun compile_function_type(c : TypeGenerator, ty : Compilation.CodeBuffers.UncreatedFunctionType) do 
-    c.append("@FunctionalInterface static interface "); c.append(ty.name);
+    c.append("@FunctionalInterface public static interface "); c.append(ty.name);
     c.append("<");
     var need_comma := false;
     val typarams : String[] := [];
@@ -93,7 +93,7 @@ end
 
 
 fun compile_tuple_type(c : TypeGenerator, ty : Compilation.CodeBuffers.UncreatedTupleType) do 
-    c.append("static record "); c.append(ty.name);
+    c.append("public static record "); c.append(ty.name);
     val tys : String[] := if ty.elem_count != 0 then do 
         c.append("<");
         var need_comma := false;

@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.HashMap;
 
 public class MyLangEnviroment {
-    private MyLangEnviroment outer = null;
+    MyLangEnviroment outer = null;
     Map<String, Object> variables = new HashMap<>();
     private Map<String, Boolean> readability = new HashMap<>();
 

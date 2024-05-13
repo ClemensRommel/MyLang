@@ -41,10 +41,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
 
     private boolean exportCurrentPatterns;
 
-    LinkedList<String> callStack = new LinkedList<>();
-    {
-        callStack.push("main");
-    }
+    LinkedList<MyLangStacktraceElement> callStack = new LinkedList<>();
     
     ArrayList<String> program_args;
 
@@ -287,7 +284,7 @@ public class MyLangInterpreter implements ExpressionVisitor<Object>,
             value.named().forEach((var name, var param) -> {
                 namedArgs.put(name, interpretExpression(param));
             });
-            callStack.push(theFunction.getName()+"() at line "+value.dot().line()+" in file "+theFunction.getFileName());
+            callStack.push(new MyLangStacktraceElement(theFunction.getName()+"() at line "+value.dot().line()+" in file "+theFunction.getFileName(), env));
             var result = theFunction.call(this, arguments, namedArgs);
             callStack.pop();
             return result;

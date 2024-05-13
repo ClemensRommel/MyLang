@@ -18,14 +18,17 @@ class SourceFile where
     val ast : Ast.Program;
     val undesugared_exprs : Ast.Mut(Ast.Expr)[];
     val undesugared_decls : Ast.Mut(Ast.Decl)[];
-    val globals_env : Util.LateInitialized(Env.Env(Ast.VarInfo)) := Ast.late_env();
-    val types_env : Util.LateInitialized(Env.Env(Ast.TyInfo)) := Util.LateInitialized.[Env.Env(Ast.TyInfo)]();
+    val names : Ast.Namespace;
     val path : String;
-    new(a : Ast.Program, ue : Ast.Mut(Ast.Expr)[], ud : Ast.Mut(Ast.Decl)[], path : String) do 
+    new(a : Ast.Program, ue : Ast.Mut(Ast.Expr)[], ud : Ast.Mut(Ast.Decl)[], p : String) do 
         this.ast := a;
         this.undesugared_exprs := ue;
         this.undesugared_decls := ud;
-        this.path := path;
+        this.path := p;
+        val before_dots := split(p, "\\.");
+        before_dots.pop();
+
+        this.names := Ast.Namespace(split(join(".", before_dots), "/"));
     end
 end;
 
@@ -41,6 +44,7 @@ end
 fun get_all_files(sfg : SFGatherer, starting_file : String) do 
     print("Processing: "+starting_file);
     val Some(file) := open_and_parse(sfg, starting_file) else return null;
+    move_line_up();
     sfg.parsed_sourcefiles.insert(starting_file, file);
     for imported in file.ast.imports do 
         val path := path_to(imported);
@@ -53,16 +57,15 @@ end
 fun generated_code_path(starting_file : String) : String[] do 
     val parts := split(starting_file, "/");
     val output_parts : String[] := [];
-    print(parts);
     val file_name := "__generated_"+split(parts.last, "\\.").first;
-    for i in [0..parts.length - 1] do // Alles außer dem letzten
+    for i in [1..parts.length - 1] do // Alles außer dem letzten
         output_parts.push(parts[i]);
     end;
     output_parts.push(file_name);
     output_parts
 end
 
-fun gather_files(start : String) : Env.AList(SourceFile) do 
+fun gather_files(start : String) : SFGatherer do 
     val sfg := SFGatherer();
     sfg.file_prefix := file_path_prefix(start);
     get_all_files(sfg, start);
@@ -72,7 +75,7 @@ fun gather_files(start : String) : Env.AList(SourceFile) do
         end;
         panic("Error while importing");
     end;
-    sfg.parsed_sourcefiles
+    sfg
 end
 
 fun path_to(i : Ast.Import) : String := match i do 
@@ -85,8 +88,30 @@ fun file_path_prefix(path : String) : String do
     for i in [0..parts.length - 1] do 
         outs.push(parts[i]);
     end;
-    val path := join("/", outs);
-    if outs.length = 0 then "" else path + "/"
+    val joined_path := join("/", outs);
+    if outs.length = 0 then "" else joined_path + "/"
 end
 
-fun path_to_module(parts : String[]) : String := join("/", parts) + ".myl";
+fun path_to_module(parts : String[]) : String do 
+    val relative_path := join("/", parts) + ".myl"; 
+    relative_path
+end
+
+fun path_to_generated_module(sfg : SFGatherer, parts : String[]) : String do 
+    var need_sep := false;
+    val relative_part := do 
+        var out := "";
+        for i in [0..parts.length - 1] do 
+            if need_sep do out := out + "."; end;
+            val part := parts[i];
+            out := out + part;
+            need_sep := true;
+        end;
+        val last_part := parts[parts.length - 1];
+        out := out + (if need_sep then "." else "") + "_" + last_part;
+        out
+    end;
+    val absolute_part := join(".", split(sfg.file_prefix, "/"));
+    val resulting := absolute_part + (if absolute_part != "" then "." else "") + relative_part;
+    resulting
+end

@@ -15,22 +15,30 @@ enum Optional(T) where
 
     fun expect(e : String) : T := match this do 
         case Some(t) := t;
-        case None() := panic("e");
+        case None() := panic(e);
+    end;
+    fun is_some() : Bool := match this do 
+        case Some(?) := true;
+        case None() := false;
+    end;
+    fun is_none() : Bool := match this do 
+        case Some(?) := false;
+        case None() := true;
     end;
 end;
 
-class LateInitialized(T) where
-    var field : Optional(T) := None.[T]();
+class LateInitialized(A) where
+    var field : Optional(A) := None.[A]();
 
-    fun get() : T := match this.field do
+    fun get() : A := match this.field do
         case Some(t) := t;
         case None() := panic("Error: Attempted to access uninitialized field");
     end;
 
-    fun init(t : T) do
-        this.field := Some.[T](t);
+    fun init(t : A) do
+        this.field := Some.[A](t);
     end
-    fun is_init() : Bool := this.field != None.[T]();
+    fun is_init() : Bool := this.field != None.[A]();
 end
 
 fun wrap_linit[T](t : T) : LateInitialized(T) do 
@@ -65,6 +73,5 @@ end
 
 fun outputFile(path : String, compiled : String) do 
     val initial := split(path, "\\.").first; // Only file extension can contain . as it is not a valid part of a name
-    print("Writing to "+initial+".java");
     writeToFile(initial+".java", compiled);
 end

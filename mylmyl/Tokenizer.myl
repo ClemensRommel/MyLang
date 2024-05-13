@@ -83,11 +83,11 @@ class Tokenizer where
     end
 
     fun parse_token(ls : Token[]) do 
-        val c := this.next();
-        if strip(c) = "" do // Skip whitespace
+        val next_c := this.next();
+        if strip(next_c) = "" do // Skip whitespace
             return null;
         end
-        match c do 
+        match next_c do 
             case "(" := ls.push(Token(LPAREN(), "(", this.sourcePos));
             case ")" := ls.push(Token(RPAREN(), ")", this.sourcePos));
             case "[" := ls.push(Token(LBRACKET(), "[", this.sourcePos));
@@ -145,10 +145,10 @@ class Tokenizer where
                 var content := "";
                 var running := true;
                 while !this.at_end() and running do 
-                    val next := this.next();
-                    if next = "\"" then do 
+                    val next_char := this.next();
+                    if next_char = "\"" then do 
                         running := false;
-                    end else if next = "\\" then do 
+                    end else if next_char = "\\" then do 
                         match this.next() do 
                             case "\\" := do 
                                 content := content + "\\";
@@ -173,7 +173,7 @@ class Tokenizer where
                             end;
                         end;
                     end else do 
-                        content := content + next;
+                        content := content + next_char;
                         true;
                     end;
                 end;
@@ -282,24 +282,9 @@ fun nextPos(c : String, pos : SourcePos) : SourcePos :=
         SourcePos(pos.line + 1, 0)
     else 
         SourcePos(pos.line, pos.collumn + 1);
-
-fun getContent(content: String): Util.Optional(String) do
-    val fileContent := openFile(content);
-    if isNull(fileContent) then Util.None.[String]() else Util.Some.[String](fileContent)
-end
-
-
-fun main() do 
-    val Some(input) := getContent("mylmyl/Tokenizer.myl") else do 
-        panic("Could not open file")
-    end;
-    val tokenized := tokenize(input);
-    for elem in tokenized do 
-        print(elem);
-    end;
-end
+        
 // test
-fun tokenize(input : String) : Token[] do 
+fun tokenize_all(input : String) : Token[] do 
     val t := Tokenizer(input);
     t.tokenize()
 end 

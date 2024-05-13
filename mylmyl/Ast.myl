@@ -14,22 +14,22 @@ enum Expr where
     UnaryOperation(UnOp, Expr),
     InstantiationExpr(Expr, Type[], Util.LateInitialized(Type)),
     FunctionCall(Expr, Expr[]),
-    FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Env.Env(VarInfo))),
+    FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Namespace)),
     IfExpr(Util.LateInitialized(Type), Expr, Expr, Expr),
     IfValExpr(Util.LateInitialized(Type), Pattern, Expr, Expr, Expr, 
-              Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type)),
-    MatchExpr(Expr, (Pattern, Expr, Util.LateInitialized(Env.Env(VarInfo)))[], 
+              Util.LateInitialized(Namespace), Util.LateInitialized(Type)),
+    MatchExpr(Expr, (Pattern, Expr, Util.LateInitialized(Namespace))[], 
               Util.LateInitialized(Type), Util.LateInitialized(Type)),
     ListExpr(Expr[], Util.LateInitialized(Type)),
     RangeExpr(Expr, Expr),
-    IndexExpr(Expr, Expr),
+    IndexExpr(Expr, Expr, Util.LateInitialized(Type)),
     PropertyExpr(Expr, String, Util.LateInitialized(AccessType), Util.LateInitialized(Type), 
                                Util.LateInitialized(Type)),
     TupleExpr(Expr[], Util.LateInitialized(Type)),
-    BlockExpr(Stmt[], Util.Optional(Expr), Util.LateInitialized(Type), Util.LateInitialized(Env.Env(VarInfo))),
-    WhileExpr(Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type)),
-    WhileValExpr(Pattern, Expr, Expr, Util.LateInitialized(Type), Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type)),
-    ForExpr(Setter, Expr, Expr, Util.LateInitialized(Env.Env(VarInfo)), Util.LateInitialized(Type), 
+    BlockExpr(Stmt[], Util.Optional(Expr), Util.LateInitialized(Type), Util.LateInitialized(Namespace)),
+    WhileExpr(Expr, Expr, Util.LateInitialized(Namespace), Util.LateInitialized(Type)),
+    WhileValExpr(Pattern, Expr, Expr, Util.LateInitialized(Type), Util.LateInitialized(Namespace), Util.LateInitialized(Type)),
+    ForExpr(Setter, Expr, Expr, Util.LateInitialized(Namespace), Util.LateInitialized(Type), 
                                 Util.LateInitialized(Type)),
     WildCardExpression(),
     ReturnExpr(Expr, Util.LateInitialized(Type)),
@@ -52,7 +52,7 @@ enum Pattern where
     NamePattern(String),
     WildcardPattern(),
     TuplePattern(Pattern[]),
-    ConstructorPattern(String, Pattern[], Util.LateInitialized(EnumConstructor));
+    ConstructorPattern(String, Pattern[], Util.LateInitialized(EnumConstructor), Util.LateInitialized(Type), Util.LateInitialized(TyInfo));
 end
 
 enum AccessType where 
@@ -60,7 +60,7 @@ enum AccessType where
 end
 
 enum BinOp where 
-    Add(), Sub(), Mul(), Div(), Mod(), LessThan(), LessEqual(), GreaterEqual(), GreaterThan(), Equals(), NotEquals(), 
+    Add(Util.LateInitialized(Type)), Sub(), Mul(), Div(), Mod(), LessThan(), LessEqual(), GreaterEqual(), GreaterThan(), Equals(), NotEquals(), 
     And(), Or(), Xor();
 end
 enum UnOp where 
@@ -92,10 +92,10 @@ enum Decl where
     EmptyDecl(),
     VarDecl(Setter, Util.LateInitialized(Type), Util.Optional(Expr), Bool /* mut */, Bool /* */),
     ValElseDeclaration(Pattern, Expr, Expr, Bool /* mut */, Bool /* */, Util.LateInitialized(Type), 
-                       Util.LateInitialized(Type), Util.LateInitialized(Env.Env(VarInfo))),
-    FunDecl(String, TypeParameter[], Parameter[], Type, Expr, Bool /* */, Util.LateInitialized(Env.Env(VarInfo))),
-    ClassDecl(String, TypeParameter[], Decl[], Util.Optional(Constructor), Bool /* */, Util.LateInitialized(Env.Env(VarInfo))),
-    EnumDecl(String, TypeParameter[], EnumConstructor[], Decl[], Bool /* */, Util.LateInitialized(Env.Env(VarInfo)));
+                       Util.LateInitialized(Type), Util.LateInitialized(Namespace)),
+    FunDecl(String, TypeParameter[], Parameter[], Type, Expr, Bool /* */, Util.LateInitialized(Namespace)),
+    ClassDecl(String, TypeParameter[], Decl[], Util.Optional(Constructor), Bool /* */, Util.LateInitialized(Namespace)),
+    EnumDecl(String, TypeParameter[], EnumConstructor[], Decl[], Bool /* */, Util.LateInitialized(Namespace));
 end;
 
 enum Import where 
@@ -114,7 +114,7 @@ end
 class Constructor where 
     val params : Parameter[];
     val body : Expr;
-    val lenv : Util.LateInitialized(Env.Env(VarInfo)) := late_env();
+    val lenv : Util.LateInitialized(Namespace) := late_namespace();
 
     new(p : Parameter[], b : Expr) do 
         this.params := p;
@@ -128,20 +128,30 @@ class VarInfo where
     val name : String;
     var is_exported : Bool := false;
     var is_constructor : Bool := false;
-    new(m : Bool, t : Type, n : String) do 
+    val scope : Namespace;
+    new(m : Bool, t : Type, n : String, s : Namespace) do 
         this.is_mutable := m; this.ty := t; this.name := n;
+        this.scope := s;
     end
 end
 
 enum TyInfo where 
-    ClassInfo(String, TypeParameter[], Env.AList(VarInfo) /* fields */, Env.AList(VarInfo) /* methods */, Bool /* exported */),
-    EnumInfo(String, TypeParameter[], EnumConstructor[], Env.AList(VarInfo) /* methods, doesn't have fields */, Bool /* exported */),
+    ClassInfo(String, TypeParameter[], Env.AList(VarInfo) /* fields */, Env.AList(VarInfo) /* methods */, Bool /* exported */, Namespace),
+    EnumInfo(String, TypeParameter[], EnumConstructor[], Env.AList(VarInfo) /* methods, doesn't have fields */, Bool /* exported */, Namespace),
     TypeParameterInfo(String);
 end
 
 enum Parameter where 
     NormalParam(String, Type);
 end
+
+
+fun param_types(params : Parameter[]) : Type[] := 
+    for param in params yield 
+        match param do 
+            case NormalParam(?, ty) := ty;
+        end
+    end;
 
 class Program where 
     val imports : Import[] := [];
@@ -151,7 +161,7 @@ end
 enum Type where 
     NumberT(), BooleanT(), StringT(), VoidT(),
     Tuple(Type[]), Any(),
-    Name(String, Util.LateInitialized(Env.Env(TyInfo))), // Enviroment the name is defined in
+    Name(String, Util.LateInitialized(Namespace)), // Enviroment the name is defined in
     Function(TypeParameter[], Type[], Type), ListOf(Type),
     ModuleAccess(String[], String, Util.LateInitialized(Type)), // Fully resolved type at end
     Applied(Type, Type[]),
@@ -186,9 +196,8 @@ end
 
 */
 
-fun late_env() : Util.LateInitialized(Env.Env(VarInfo)) := Util.LateInitialized.[Env.Env(VarInfo)]();
 fun late_type() : Util.LateInitialized(Type) := Util.LateInitialized.[Type]();
-fun late_ty_env() : Util.LateInitialized(Env.Env(TyInfo)) := Util.LateInitialized.[Env.Env(TyInfo)]();
+fun late_namespace() : Util.LateInitialized(Namespace) := Util.LateInitialized.[Namespace]();
 
 fun get_as_path(e : Expr) : AccessedObjectType := match e do 
     case DesugarableExpr(mute) := get_as_path(mute.get());
@@ -202,4 +211,57 @@ end;
 
 enum AccessedObjectType where 
     Module(String[]), NormalObject();
+end
+
+
+class Namespace where 
+    var values : Env.Env(VarInfo);
+    var types : Env.Env(TyInfo);
+
+    var imported_modules : Env.AList(Namespace) 
+                        := Env.AList.[Namespace]();
+
+    val module_path : String[];
+
+    new(mod_path : String[]) do 
+        this.values := Env.Env.[VarInfo]();
+        this.types := Env.Env.[TyInfo]();
+        this.module_path := mod_path;
+    end
+
+    fun open_scope() : Namespace do 
+        val result := Namespace(this.module_path);
+        result.values := this.values.open_scope();
+        result.types := this.types.open_scope();
+        result.imported_modules := this.imported_modules;
+        result
+    end
+    fun close_scope() : Namespace do 
+        val result := Namespace(this.module_path);
+        result.values := this.values.close_scope();
+        result.types := this.types.close_scope();
+        result.imported_modules := this.imported_modules;
+        result
+    end
+
+    fun env_defined_in(key : String) : Namespace do 
+        var ty_env := this.types;
+        var val_env := this.values;
+        while !ty_env.bindings.has(key) do
+            if ty_env.outer.is_some() != val_env.outer.is_some() do 
+                print("Scope depth mismatch: ");
+                print("Types: ");
+                ty_env.print_self();
+                print("Values: ");
+                val_env.print_self();
+            end;
+            ty_env := ty_env.outer.expect("Unknown variable '"+key+"'");
+            val_env := val_env.outer.unwrap();
+        end;
+        val result := Namespace(this.module_path);
+        result.values := val_env;
+        result.types := ty_env;
+        result.imported_modules := this.imported_modules;
+        result
+    end
 end

@@ -88,7 +88,8 @@ public abstract class MyLangBuiltinFunction implements MyLangCallable {
                 System.out.println("Panicked at:");
                 while(!interpreter.callStack.isEmpty()) {
                     System.out.print("  ");
-                    System.out.println(interpreter.callStack.pop());
+                    var element = interpreter.callStack.pop();
+                    System.out.println(element.name());
                 }
                 System.exit(0);
                 return null;

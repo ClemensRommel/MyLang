@@ -4,6 +4,7 @@ import Ast;
 import Util;
 import Env;
 import NameGen;
+import Typechecking.Typechecker;
 
 class Desugarer where 
     val name_gen : NameGen.NameGenerator;
@@ -33,7 +34,7 @@ fun desugar_expr(d : Desugarer, e : Ast.Expr) : Ast.Expr := match e do
         return_ty
     );
     case WhileValExpr(pat, matched, body, lmatched_ty, lenv, lresult_ty) := do
-        val elem_ty := Util.wrap_linit.[Ast.Type](if val ListOf(elem_ty) := lresult_ty.get() then elem_ty else Ast.VoidT());
+        val elem_ty := Util.wrap_linit.[Ast.Type](if val ListOf(e_ty) := lresult_ty.get() then e_ty else Ast.VoidT());
         Ast.WhileExpr(
             Ast.Boolean(true),
             Ast.BlockExpr(
@@ -53,10 +54,10 @@ fun desugar_expr(d : Desugarer, e : Ast.Expr) : Ast.Expr := match e do
     end;
 end;
 
-fun get_outer_env(e : Util.LateInitialized(Env.Env(Ast.VarInfo))) : Util.LateInitialized(Env.Env(Ast.VarInfo)) do 
-    val other := Ast.late_env();
+fun get_outer_env(e : Util.LateInitialized(Ast.Namespace)) : Util.LateInitialized(Ast.Namespace) do 
+    val other := Ast.late_namespace();
     if e.is_init() do 
-        other.init(e.get().get_outer());
+        other.init(e.get().close_scope());
     end;
     other
 end
@@ -67,7 +68,7 @@ fun desugar_decl(de : Desugarer, d : Ast.Decl) : Ast.Decl := match d do
         val generated : Env.AList(String) := Env.AListOf.[String](for (name, ?) in declared yield (name, de.new_var()) end);
         val tys : Ast.Type := Ast.Tuple(for (?, ty) in declared yield ty end);
         val ltys := Util.wrap_linit.[Ast.Type](tys);
-        Ast.VarDecl(
+        val resulting := Ast.VarDecl(
             Ast.TupleSetter(for (dec, ?) in declared yield Ast.Variable(dec) end, ltys), 
             ltys, 
             Util.Some.[Ast.Expr](
@@ -78,49 +79,32 @@ fun desugar_decl(de : Desugarer, d : Ast.Decl) : Ast.Decl := match d do
                         do 
                             val env := lenv.get().open_scope();
                             for i in [0..declared.length] do 
-                                env.insert(Util.snd.[String, String](generated.bindings[i]), Ast.VarInfo(false, Util.snd.[String, Ast.Type](declared[i]), Util.fst.[String, Ast.Type](declared[i])));
+                                env.values.insert(Util.snd.[String, String](generated.bindings[i]), Ast.VarInfo(false, Util.snd.[String, Ast.Type](declared[i]), Util.fst.[String, Ast.Type](declared[i]), env));
                             end;
-                            Util.wrap_linit.[Env.Env(Ast.VarInfo)](env)
+                            Util.wrap_linit.[Ast.Namespace](env)
                         end), 
                     (Ast.WildcardPattern(), else_br, lenv)],
                     lmatched_ty, ltys
                 )
             ), 
             mut, 
-            exported)
+            exported);
+        resulting
     end;
 end;
 
 fun declared_vars(pat : Ast.Pattern, ty : Ast.Type) : (String, Ast.Type)[] do 
     val lst : (String, Ast.Type)[] := [];
-    declared_vars_in(pat, ty, lst);
+    Typechecking.Typechecker.declared_vars_in(pat, ty, lst);
     lst
 end;
 
-fun declared_vars_in(pat : Ast.Pattern, ty : Ast.Type, lst : (String, Ast.Type)[]) := match pat do 
-    case NumericPattern(?) := do end;
-    case StringPattern(?) := do end;
-    case BooleanPattern(?) := do end;
-    case NamePattern(n) := do lst.push((n, ty)) end;
-    case WildcardPattern() := do end;
-    case TuplePattern(pats) := do 
-        val Tuple(tys) := ty else panic("Error: No tuple type in tuple pattern: "+pat+", "+ty);
-        for i in [0..tys.length] do 
-            declared_vars_in(pats[i], tys[i], lst);
-        end;
-    end;
-    case ConstructorPattern(name, pats, lenumc) := do 
-        val constr := lenumc.get();
-        for i in [0..constr.fields.length] do 
-            declared_vars_in(pats[i], constr.fields[i], lst);
-        end;
-    end;
-end;
+
 
 fun replace_vars(map : Env.AList(String), pat : Ast.Pattern) : Ast.Pattern := match pat do 
     case NumericPattern(?) := pat; case StringPattern(?) := pat; case BooleanPattern(?) := pat;
     case NamePattern(n) := Ast.NamePattern(map.get(n));
     case WildcardPattern() := pat;
     case TuplePattern(pats) := Ast.TuplePattern(for p in pats yield replace_vars(map, p) end);
-    case ConstructorPattern(name, pats, lenc) := Ast.ConstructorPattern(name, for p in pats yield replace_vars(map, p) end, lenc);
+    case ConstructorPattern(name, pats, lenc, lenum, linf) := Ast.ConstructorPattern(name, for p in pats yield replace_vars(map, p) end, lenc, lenum, linf);
 end;

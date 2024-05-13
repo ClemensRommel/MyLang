@@ -4,8 +4,8 @@ import Ast;
 import Util;
 
 class StringBuffer where 
-    var buf := "";
-    var indent_level := 0;
+    var buf : String := "";
+    var indent_level : Number := 0;
 
     fun append(str : String) do 
         this.buf := this.buf + str;
@@ -57,8 +57,8 @@ class UncreatedTypes where
 
     fun enqueue_type(t : Ast.Type, type_name : String) do 
         match t do 
-            case Function(params, args, ret) := do 
-                this.ungenerated_functions.push(UncreatedFunctionType(args.length, type_name));
+            case Function(params, fargs, ret) := do 
+                this.ungenerated_functions.push(UncreatedFunctionType(fargs.length, type_name));
             end;
             case Tuple(parts) := do 
                 this.ungenerated_tuples.push(UncreatedTupleType(parts.length, type_name));
@@ -66,9 +66,9 @@ class UncreatedTypes where
         end;
     end
     fun get_enqueued_type(t : Ast.Type) : Util.Optional(String) do
-        if val Function(typarams, args, ret) := t then do 
+        if val Function(typarams, fargs, ret) := t then do 
             for task in this.ungenerated_functions do 
-                if task.param_count = args.length do 
+                if task.param_count = fargs.length do 
                     return Util.Some.[String](task.name);
                 end
             end

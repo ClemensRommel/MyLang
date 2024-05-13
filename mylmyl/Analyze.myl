@@ -37,7 +37,7 @@ fun mentions_var(expr : Ast.Expr, name : String) : Bool := match expr do
     case ThisExpr() := false;
     case InstantiationExpr(instantiated, ?, ?) := mentions_var(instantiated, name);
     case ListExpr(exprs, ?) := Util.any.[Ast.Expr](exprs, fun(t : Ast.Expr) : Bool := mentions_var(t, name));
-    case IndexExpr(lst, idx) := mentions_var(lst, name) or mentions_var(idx, name);
+    case IndexExpr(lst, idx, ?) := mentions_var(lst, name) or mentions_var(idx, name);
     case MatchExpr(matched, arms, ?, ?) := mentions_var(matched, name) or do 
         var mentions := false;
         for (?, e, ?) in arms do 
@@ -53,6 +53,7 @@ fun stmt_mentions_var(stmt : Ast.Stmt, name : String) : Bool := match stmt do
     case ExprStmt(expr) := mentions_var(expr, name);
     case SetStatement(setter, expr) := setter_mentions_var(setter, name) or mentions_var(expr, name);
     case Declaration(decl) := decl_mentions_var(decl, name);
+    case IfStmt(cond, body) := mentions_var(cond, name) or mentions_var(body, name);
     case EmptyStmt() := false;
 end;
 
@@ -79,6 +80,10 @@ fun analyze_stmt(scan_env : Env.AList(Bool), stmt : Ast.Stmt) do
         case ExprStmt(expr) := analyze_expr(scan_env, expr);
         case SetStatement(setter, arg) := analyze_expr(scan_env, arg);
         case Declaration(decl) := analyze_decl(scan_env, decl);
+        case IfStmt(cond, body) := do 
+            analyze_expr(scan_env, cond); 
+            analyze_expr(scan_env, body); 
+        end;
         case EmptyStmt() := null;
     end;
 end
@@ -95,6 +100,7 @@ fun analyze_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do
                 analyze_expr(scan_env, e);
             end else do end;
         end;
+        case EmptyDecl() := do end;
         case FunDecl(name, typarams, parameters, ret_type, body, ?, ?) := scan_expr(scan_env, body);
     end;
 end
@@ -120,9 +126,9 @@ fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
             analyze_expr(scan_env, right);
         end;
         case UnaryOperation(?, operand) := analyze_expr(scan_env, operand);
-        case FunctionCall(callee, args) := do 
+        case FunctionCall(callee, call_args) := do 
             analyze_expr(scan_env, callee);
-            for arg in args do 
+            for arg in call_args do 
                 analyze_expr(scan_env, arg);
             end;
         end;
@@ -148,7 +154,7 @@ fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
                 analyze_expr(scan_env, e);
             end;
         end;
-        case IndexExpr(lst, idx) := do
+        case IndexExpr(lst, idx, ?) := do
             analyze_expr(scan_env, lst);
             analyze_expr(scan_env, idx);
         end;
@@ -190,9 +196,9 @@ fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
             scan_expr(scan_env, right);
         end;
         case UnaryOperation(?, operand) := scan_expr(scan_env, operand);
-        case FunctionCall(callee, args) := do 
+        case FunctionCall(callee, call_args) := do 
             scan_expr(scan_env, callee);
-            for arg in args do 
+            for arg in call_args do 
                 scan_expr(scan_env, arg);
             end;
         end;
@@ -221,7 +227,7 @@ fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
                 scan_expr(scan_env, e);
             end;
         end;
-        case IndexExpr(lst, idx) := do
+        case IndexExpr(lst, idx, ?) := do
             scan_expr(scan_env, lst);
             scan_expr(scan_env, idx);
         end;
@@ -268,6 +274,10 @@ fun scan_stmt(scan_env : Env.AList(Bool), stmt : Ast.Stmt) do
             scan_expr(scan_env, arg);
             scan_setter(scan_env, setter);
         end;
+        case IfStmt(cond, body) := do 
+            scan_expr(scan_env, cond);
+            scan_expr(scan_env, body);
+        end;
         case Declaration(decl) := scan_decl(scan_env, decl);
         case EmptyStmt() := null;
     end;
@@ -279,12 +289,25 @@ fun scan_setter(scan_env : Env.AList(Bool), setter : Ast.Setter) do
             mark(scan_env, name);
         end;
         case WildcardSetter() := do end; // TODO: Andere Setter scannen
+        case TupleSetter(elems, ?) := do 
+            for e in elems do 
+                scan_setter(scan_env, e);
+            end;
+        end;
+        case Property(o, name, ?) := do 
+            match o do 
+                case Identifier(iname, ?) := do mark(scan_env, iname); end;
+                case ? := do end; // Parts that are behind complex expressions do not need to be marked
+            end
+        end;
+        case IndexSetter(lst, idx) := do end;
     end
 end
 
 fun scan_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do 
     match decl do 
         case DesugarableDecl(md) := scan_decl(scan_env, md.get());
+        case EmptyDecl() := do end;
         case VarDecl(?, ?, init, ?, ?) := if val Some(e) := init then scan_expr(scan_env, e) else do end;
         case FunDecl(?, ?, ?, ?, body, ?, ?) := scan_expr(scan_env, body);
     end;

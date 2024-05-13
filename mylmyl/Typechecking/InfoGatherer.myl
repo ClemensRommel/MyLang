@@ -1,0 +1,186 @@
+module InfoGatherer;
+
+import Ast;
+import Env;
+import Util;
+import SourceFileGatherer;
+import Typechecking.Typechecker;
+
+
+fun add_imports(sfg : SourceFileGatherer.SFGatherer, file : SourceFileGatherer.SourceFile) do 
+    for imported in file.ast.imports do 
+        match imported do 
+            case BasicImport(path) := do
+                val path_as_str := SourceFileGatherer.path_to(imported);
+                val imported_file := sfg.parsed_sourcefiles.get(sfg.file_prefix + path_as_str);
+                file.names.imported_modules.insert(path_as_str, imported_file.names);
+            end;
+        end;
+    end;
+end
+
+
+
+fun declare_globals(sfg : SourceFileGatherer.SFGatherer, file : SourceFileGatherer.SourceFile) do 
+    add_imports(sfg, file);
+    declare_functions_and_types(file); // Need to do functions and types first,
+    declare_global_variables(file);    // as information about enum constructors is needed for val-else
+end
+
+fun declare_global_variables(file : SourceFileGatherer.SourceFile) do
+    fun declare_global_variable(decl : Ast.Decl) do 
+        match decl do 
+            case VarDecl(setter, tyd, ?, mutable, exported) := do 
+                if !tyd.is_init() do 
+                    panic("Error: Top level declaration of "+setter+"requires type declaration");
+                end;
+                declare_setter(file, setter, tyd.get(), mutable, exported);
+            end;
+            case ValElseDeclaration(pat, ?, ?, mutable, exported, lty, ?, ?) := do 
+                if !lty.is_init() do 
+                    panic("Error: Top level declaration of"+pat+"requires type declaration");
+                end;
+                declare_pattern(file, pat, lty.get(), mutable, exported);
+            end;
+            case DesugarableDecl(mutdecl) := declare_global_variable(mutdecl.get());
+            case EmptyDecl() := do end;
+            case FunDecl(?, ?, ?, ?, ?, ?, ?) := do end;
+            case ClassDecl(?, ?, ?, ?, ?, ?) := do end;
+            case EnumDecl(?, ?, ?, ?, ?, ?) := do end;
+        end;
+    end;
+    for decl in file.ast.decls do 
+        declare_global_variable(decl);
+    end;
+end
+
+fun declare_functions_and_types(file : SourceFileGatherer.SourceFile) do 
+    fun declare_function_and_type(decl : Ast.Decl) do 
+        match decl do 
+            case DesugarableDecl(mutdecl) := declare_function_and_type(mutdecl.get());
+            case EmptyDecl() := do end;
+            case VarDecl(setter, tyd, ?, mutable, exported) := do end;
+            case ValElseDeclaration(pat, ?, ?, mutable, exported, lty, ?, ?) := do end;
+            case FunDecl(name, typarams, parameters, return_ty, ?, exported, ?) := do
+                val ty := Ast.Function(typarams, Ast.param_types(parameters), return_ty);
+                val info := Ast.VarInfo(false, ty, name, file.names);
+                info.is_exported := exported;
+                file.names.values.insert(name, info);
+            end;
+            case ClassDecl(name, targs, body, constr, exported, ?) := do 
+
+                val scope := do 
+                    val inner := file.names.open_scope();
+                    for param in targs do 
+                        inner.types.insert(param.name, Ast.TypeParameterInfo(param.name));
+                    end;
+                    inner
+                end;
+                
+                val info := Ast.ClassInfo(
+                    name, 
+                    targs,
+                    Typechecking.Typechecker.fields_in_class(body, scope),
+                    Typechecking.Typechecker.methods_in_class(body, scope),
+                    exported,
+                    scope
+                );
+                file.names.types.insert(name, info);
+                val constr_ty := if val Some(con) := constr 
+                    // TODO: Typparameter handlen
+                    then Ast.Function(targs, Ast.param_types(con.params), Typechecking.Typechecker.class_constr_ret_ty(targs, name, scope))
+                    else Ast.Function(targs, [], Typechecking.Typechecker.class_constr_ret_ty(targs, name, scope));
+                val varinf := Ast.VarInfo(false, constr_ty, name, scope);
+                varinf.is_constructor := true;
+                varinf.is_exported := exported;
+                file.names.values.insert(name, varinf);
+            end;
+            case EnumDecl(name, targs, constructors, members, exported, ?) := do
+                val scope := do 
+                    val inner := file.names.open_scope();
+                    for param in targs do 
+                        inner.types.insert(param.name, Ast.TypeParameterInfo(param.name));
+                    end;
+                    inner
+                end;
+                val funs := Typechecking.Typechecker.methods_in_class(members, scope);
+                file.names.types.insert(name, Ast.EnumInfo(name, targs, constructors, funs, exported, scope));
+                for constr in constructors do 
+                    // TODO: Typparameter handlen
+                    val param_tys := early_bind_type_vars(constr.fields, targs, scope);
+                    val info := Ast.VarInfo(false, Ast.Function(targs, param_tys, Typechecking.Typechecker.class_constr_ret_ty(targs, name, scope)), constr.name, scope);
+                    info.is_constructor := true;
+                    info.is_exported := exported;
+                    file.names.values.insert(constr.name, info);
+                end;
+            end;
+        end;
+    end;
+    for decl in file.ast.decls do 
+        declare_function_and_type(decl);
+    end;
+end
+
+fun early_bind_type_vars(fields : Ast.Type[], targs : Ast.TypeParameter[], scope : Ast.Namespace) : Ast.Type[] do 
+    val substitutes := Env.AListOf.[Ast.Type](for arg in targs yield (arg.name, Ast.Name(arg.name, Util.wrap_linit.[Ast.Namespace](scope))) end);
+    for field in fields yield Typechecking.Typechecker.substitute(field, substitutes) end
+end
+
+
+fun declare_setter(file : SourceFileGatherer.SourceFile, setter : Ast.Setter, ty : Ast.Type, mutable : Bool, exported : Bool) do 
+    match setter do 
+        case Variable(name) := do 
+            val info := Ast.VarInfo(mutable, ty, name, file.names);
+            info.is_exported := exported;
+            file.names.values.insert(name, info);
+        end;
+        case WildcardSetter() := do end;
+        case Property(?, ?, ?) := do panic("Error: top level declaration cannot be property"); end;
+        case TupleSetter(parts, lty) := do 
+            if val Tuple(tys) := ty then do 
+                if tys.length = parts.length do 
+                    for i in [0..tys.length] do 
+                        declare_setter(file, parts[i], tys[i], mutable, exported);
+                    end;
+                end;
+            end else do end; // Error will be detected by typechecker
+        end;
+    end;
+end
+
+fun declare_pattern(file : SourceFileGatherer.SourceFile, pat : Ast.Pattern, ty : Ast.Type, mutable : Bool, exported : Bool) do 
+    match pat do 
+        case NumericPattern(?) := do end;
+        case StringPattern(?) := do end;
+        case BooleanPattern(?) := do end;
+        case NamePattern(name) := do 
+            val info := Ast.VarInfo(mutable, ty, name, file.names);
+            info.is_exported := exported;
+            file.names.values.insert(name, info);
+        end;
+        case WildcardPattern() := do end;
+        case TuplePattern(pats) := do 
+            if val Tuple(tys) := ty then do 
+                if tys.length = pats.length do 
+                    for i in [0..tys.length] do 
+                        declare_pattern(file, pats[i], tys[i], mutable, exported);
+                    end;
+                end;
+            end else do end;
+        end;
+        case ConstructorPattern(constr, patterns, lenumconstr, lenum_ty, linf) := do 
+            //TODO: Correct name lookup
+            val Name(enum_name, ltype_env) := ty else return null; // All enums must be represented by names
+            val EnumInfo(name, targs, constructors, methods, enum_exported, ?) := ltype_env.get().types.get(enum_name) else return null;
+            for enum_constr in constructors do 
+                if enum_constr.name = constr do // Found correct constructor
+                    if enum_constr.fields.length = patterns.length do 
+                        for i in [0..patterns.length] do 
+                            declare_pattern(file, patterns[i], enum_constr.fields[i], mutable, exported);
+                        end;
+                    end;
+                end;
+            end;
+        end;
+    end;
+end

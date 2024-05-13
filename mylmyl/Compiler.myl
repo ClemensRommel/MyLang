@@ -12,9 +12,10 @@ fun compile(
     name_gen : NameGen.NameGenerator, 
     infos : Env.AList(Env.Env(Compilation.CodeGenerator.VariableInfo)),
     generated_path : String[], 
-    type_buffer : Compilation.CodeBuffers.UncreatedTypes) : String 
+    type_buffer : Compilation.CodeBuffers.UncreatedTypes,
+    sfg : SourceFileGatherer.SFGatherer) : String 
 do 
-    Compilation.CodeGenerator.compile(file, name_gen, infos, generated_path, type_buffer)
+    Compilation.CodeGenerator.compile(file, name_gen, infos, generated_path, type_buffer, sfg)
 end
 
 fun gather_global_variable_info(files : Env.AList(SourceFileGatherer.SourceFile)) : Env.AList(Env.Env(Compilation.CodeGenerator.VariableInfo)) do 
