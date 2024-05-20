@@ -45,6 +45,9 @@ fun mentions_var(expr : Ast.Expr, name : String) : Bool := match expr do
         end;
         mentions
     end;
+    case ForExpr(loop_var, iterated, body, ?, ?, ?) := mentions_var(iterated, name) or mentions_var(body, name);
+    case WhileExpr(cond, body, ?, ?) := mentions_var(cond, name) or mentions_var(body, name);
+    case RangeExpr(start_expr, end_expr) := mentions_var(start_expr, name) or mentions_var(end_expr, name);
     case ReturnExpr(ret, lty) := mentions_var(ret, name);
     case Break(?) := false;
 end;
@@ -288,7 +291,7 @@ fun scan_setter(scan_env : Env.AList(Bool), setter : Ast.Setter) do
         case Variable(name) := do 
             mark(scan_env, name);
         end;
-        case WildcardSetter() := do end; // TODO: Andere Setter scannen
+        case WildcardSetter() := do end;
         case TupleSetter(elems, ?) := do 
             for e in elems do 
                 scan_setter(scan_env, e);

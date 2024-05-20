@@ -1,6 +1,6 @@
 module Compiler;
 
-import SourceFileGatherer;
+import SFG := SourceFileGatherer;
 import NameGen;
 import Env;
 import Compilation.CodeGenerator;
@@ -8,17 +8,17 @@ import Compilation.CodeBuffers;
 import Compilation.TypeGenerator;
 
 fun compile(
-    file : SourceFileGatherer.SourceFile, 
+    file : SFG.SourceFile, 
     name_gen : NameGen.NameGenerator, 
     infos : Env.AList(Env.Env(Compilation.CodeGenerator.VariableInfo)),
     generated_path : String[], 
     type_buffer : Compilation.CodeBuffers.UncreatedTypes,
-    sfg : SourceFileGatherer.SFGatherer) : String 
+    sfg : SFG.SFGatherer) : String 
 do 
     Compilation.CodeGenerator.compile(file, name_gen, infos, generated_path, type_buffer, sfg)
 end
 
-fun gather_global_variable_info(files : Env.AList(SourceFileGatherer.SourceFile)) : Env.AList(Env.Env(Compilation.CodeGenerator.VariableInfo)) do 
+fun gather_global_variable_info(files : Env.AList(SFG.SourceFile)) : Env.AList(Env.Env(Compilation.CodeGenerator.VariableInfo)) do 
     Compilation.CodeGenerator.gather_global_variable_info(files)
 end
 

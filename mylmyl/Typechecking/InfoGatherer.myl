@@ -15,6 +15,13 @@ fun add_imports(sfg : SourceFileGatherer.SFGatherer, file : SourceFileGatherer.S
                 val imported_file := sfg.parsed_sourcefiles.get(sfg.file_prefix + path_as_str);
                 file.names.imported_modules.insert(path_as_str, imported_file.names);
             end;
+            case AliasImport(alias, path) := do 
+                val path_as_str := SourceFileGatherer.path_to(imported);
+                val imported_file := sfg.parsed_sourcefiles.get(sfg.file_prefix + path_as_str);
+                file.names.imported_modules.insert(path_as_str, imported_file.names);
+                file.names.imported_modules.insert(alias, imported_file.names);
+                // TODO: Declare alias
+            end;
         end;
     end;
 end
@@ -87,7 +94,6 @@ fun declare_functions_and_types(file : SourceFileGatherer.SourceFile) do
                 );
                 file.names.types.insert(name, info);
                 val constr_ty := if val Some(con) := constr 
-                    // TODO: Typparameter handlen
                     then Ast.Function(targs, Ast.param_types(con.params), Typechecking.Typechecker.class_constr_ret_ty(targs, name, scope))
                     else Ast.Function(targs, [], Typechecking.Typechecker.class_constr_ret_ty(targs, name, scope));
                 val varinf := Ast.VarInfo(false, constr_ty, name, scope);
@@ -106,7 +112,6 @@ fun declare_functions_and_types(file : SourceFileGatherer.SourceFile) do
                 val funs := Typechecking.Typechecker.methods_in_class(members, scope);
                 file.names.types.insert(name, Ast.EnumInfo(name, targs, constructors, funs, exported, scope));
                 for constr in constructors do 
-                    // TODO: Typparameter handlen
                     val param_tys := early_bind_type_vars(constr.fields, targs, scope);
                     val info := Ast.VarInfo(false, Ast.Function(targs, param_tys, Typechecking.Typechecker.class_constr_ret_ty(targs, name, scope)), constr.name, scope);
                     info.is_constructor := true;
@@ -169,7 +174,6 @@ fun declare_pattern(file : SourceFileGatherer.SourceFile, pat : Ast.Pattern, ty 
             end else do end;
         end;
         case ConstructorPattern(constr, patterns, lenumconstr, lenum_ty, linf) := do 
-            //TODO: Correct name lookup
             val Name(enum_name, ltype_env) := ty else return null; // All enums must be represented by names
             val EnumInfo(name, targs, constructors, methods, enum_exported, ?) := ltype_env.get().types.get(enum_name) else return null;
             for enum_constr in constructors do 

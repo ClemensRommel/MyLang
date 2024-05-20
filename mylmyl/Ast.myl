@@ -16,7 +16,7 @@ enum Expr where
     FunctionCall(Expr, Expr[]),
     FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Namespace)),
     IfExpr(Util.LateInitialized(Type), Expr, Expr, Expr),
-    IfValExpr(Util.LateInitialized(Type), Pattern, Expr, Expr, Expr, 
+    IfValExpr(Util.LateInitialized(Type), Pattern, Expr, Expr, Expr,  
               Util.LateInitialized(Namespace), Util.LateInitialized(Type)),
     MatchExpr(Expr, (Pattern, Expr, Util.LateInitialized(Namespace))[], 
               Util.LateInitialized(Type), Util.LateInitialized(Type)),
@@ -99,7 +99,8 @@ enum Decl where
 end;
 
 enum Import where 
-    BasicImport(String[]);
+    BasicImport(String[]),
+    AliasImport(String, String[]);
 end
 
 class EnumConstructor where 

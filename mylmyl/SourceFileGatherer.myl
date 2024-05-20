@@ -80,6 +80,7 @@ end
 
 fun path_to(i : Ast.Import) : String := match i do 
     case BasicImport(parts) := path_to_module(parts);
+    case AliasImport(alias, parts) := path_to_module(parts);
 end;
 
 fun file_path_prefix(path : String) : String do 
@@ -97,7 +98,7 @@ fun path_to_module(parts : String[]) : String do
     relative_path
 end
 
-fun path_to_generated_module(sfg : SFGatherer, parts : String[]) : String do 
+fun path_to_generated_module(sfg : SFGatherer, parts : String[], use_prefix : Bool) : String do 
     var need_sep := false;
     val relative_part := do 
         var out := "";
@@ -111,7 +112,7 @@ fun path_to_generated_module(sfg : SFGatherer, parts : String[]) : String do
         out := out + (if need_sep then "." else "") + "_" + last_part;
         out
     end;
-    val absolute_part := join(".", split(sfg.file_prefix, "/"));
+    val absolute_part := if use_prefix then join(".", split(sfg.file_prefix, "/")) else "";
     val resulting := absolute_part + (if absolute_part != "" then "." else "") + relative_part;
     resulting
 end

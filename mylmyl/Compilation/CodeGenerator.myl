@@ -7,7 +7,7 @@ import Util;
 import NameGen;
 import SourceFileGatherer;
 import Compilation.CodeBuffers;
-import Typechecking.Typechecker;
+import TC := Typechecking.Typechecker;
 
 class Compiler where 
     var buf : Compilation.CodeBuffers.StringBuffer := Compilation.CodeBuffers.StringBuffer();
@@ -274,39 +274,45 @@ fun import_implicits(c : Compiler) do
 end
 
 fun compile_imports(c : Compiler, imports : Ast.Import[], path_parts : String[]) do 
+    fun compile_basic_import(parts : String[]) do 
+        if parts.length > 1 then do // Classes without package before them dont need to be imported
+            c.append("import ");
+            var needs_dot := false;
+            for part in path_parts do 
+                if needs_dot do c.append("."); end;
+                c.append(part);
+                needs_dot := true;
+            end;
+            for j in [0..parts.length-1] do 
+                if needs_dot do c.append("."); end;
+                val part := parts[j];
+                c.append(part);
+                needs_dot := true;
+            end;
+            c.append("._"); c.append(parts[parts.length-1]);
+            c.append(";"); c.newline();
+        end else do 
+            c.append("import ");
+            var needs_dot := false;
+            for part in path_parts do 
+                if needs_dot do c.append("."); end;
+                c.append(part);
+                needs_dot := true;
+            end;
+            if needs_dot do c.append("."); end;
+            if parts[0]!= "_" do c.append("_"); end; // Not a generated file
+            c.append(parts[0]);
+            c.append(";");
+            c.newline();
+        end;
+    end
     for i in imports do 
         match i do 
             case BasicImport(parts) := do 
-                if parts.length > 1 then do // Classes without package before them dont need to be imported
-                    c.append("import ");
-                    var needs_dot := false;
-                    for part in path_parts do 
-                        if needs_dot do c.append("."); end;
-                        c.append(part);
-                        needs_dot := true;
-                    end;
-                    for j in [0..parts.length-1] do 
-                        if needs_dot do c.append("."); end;
-                        val part := parts[j];
-                        c.append(part);
-                        needs_dot := true;
-                    end;
-                    c.append("._"); c.append(parts[parts.length-1]);
-                    c.append(";"); c.newline();
-                end else do 
-                    c.append("import ");
-                    var needs_dot := false;
-                    for part in path_parts do 
-                        if needs_dot do c.append("."); end;
-                        c.append(part);
-                        needs_dot := true;
-                    end;
-                    if needs_dot do c.append("."); end;
-                    if parts[0]!= "_" do c.append("_"); end; // Not a generated file
-                    c.append(parts[0]);
-                    c.append(";");
-                    c.newline();
-                end;
+                compile_basic_import(parts);
+            end;
+            case AliasImport(alias, parts) := do 
+                compile_basic_import(parts); // TODO: Alias deklarieren
             end;
         end;
     end;
@@ -874,7 +880,7 @@ fun compile_complex_pattern(
     case WildcardPattern() := c.append(compile_type(c, matched_ty)+" "+c.new_var());
     case ConstructorPattern(name, subpatterns, constr, lenum_ty, linf) := do 
         val enum_info := linf.get();
-        val scope := Typechecking.Typechecker.scope_of_info(enum_info, c.current_env); // Just any namespace, won't be use
+        val scope := TC.scope_of_info(enum_info, c.current_env); // Just any namespace, won't be use
         val full_name := name_in_module(c, name, scope);
         c.append(full_name); 
 
@@ -1107,19 +1113,38 @@ do
                 end
             end;
             case ModuleAccessed() := do 
-                val Module(path) := Ast.get_as_path(obj) else panic("Unknown module access: "+obj);
-                val mod_path := c.sfg.file_prefix + SourceFileGatherer.path_to_generated_module(c.sfg, path);
-                val mod_info := c.all_modules.get(mod_path);
+                val nmsp := namespace_for_path(c, obj);
+                val mod_info := var_info_for_namespace(c, nmsp);
                 val accessed_info := mod_info.get(name);
+                val accessed_path := SourceFileGatherer.path_to_generated_module(c.sfg, nmsp.module_path, false);
                 val access_compiled := if accessed_info.is_constructor 
-                    then join(".", path)+"."+name+"::new"
+                    then accessed_path+"."+name+"::new"
                     else if accessed_info.is_no_fc_fn
-                        then join(".", path)+"::"+name 
-                        else join(".", path)+"."+name;
+                        then accessed_path+"::"+name 
+                        else accessed_path+"."+name;
                 use_with_target(c, access_compiled, target)
             end;
         end
     end
+end
+
+fun mod_info_for_path(c : Compiler, obj : Ast.Expr) : Env.Env(VariableInfo) do 
+    val mod_namespace := namespace_for_path(c, obj);
+    var_info_for_namespace(c, mod_namespace)
+end
+fun namespace_for_path(c : Compiler, obj : Ast.Expr) : Ast.Namespace do 
+    val Module(path) := Ast.get_as_path(obj) else panic("Unknown module access: "+obj);
+    namespace_for_path_parts(c, path)
+end
+
+fun namespace_for_path_parts(c : Compiler, path : String[]) : Ast.Namespace := 
+    if path.length = 1 and c.current_env.imported_modules.has(path[0]) 
+        then c.current_env.imported_modules.get(path[0]) 
+        else c.current_env.imported_modules.get(
+            join("/", path) + ".myl");
+fun var_info_for_namespace(c : Compiler, nmscp : Ast.Namespace) : Env.Env(VariableInfo) do 
+    val file_path := SourceFileGatherer.path_to_module(nmscp.module_path);
+    c.all_modules.get(file_path)
 end
 
 fun builtin_list_property(name : String, subexpr : String) : String := match name do 
@@ -1477,10 +1502,10 @@ fun compile_call(c : Compiler, callee : Ast.Expr, call_args : Ast.Expr[], target
         end;
         case PropertyExpr(obj, name, la, lt, lft) := do 
             if val ModuleAccessed() := la.get() then do 
-                val Module(path) := Ast.get_as_path(obj) else panic("Unknown module access: "+obj);
-                val mod_info := c.all_modules.get(c.sfg.file_prefix + SourceFileGatherer.path_to_module(path));
+                val nmscp := namespace_for_path(c, obj);
+                val mod_info := var_info_for_namespace(c, nmscp);
                 val accessed_info := mod_info.get(name);
-                val accessed_path := SourceFileGatherer.path_to_generated_module(c.sfg, path);
+                val accessed_path := SourceFileGatherer.path_to_generated_module(c.sfg, nmscp.module_path, false);
                 if accessed_info.is_constructor 
                     then "new "+accessed_path+"."+name
                 else if accessed_info.is_no_fc_fn 
@@ -1726,7 +1751,11 @@ fun compile_type(c : Compiler, t : Ast.Type) : String := match t do
     case Name(name, lnspc) := do 
         name_in_module(c, name, lnspc.get())
     end; // Classes are compiled with their name
-    case ModuleAccess(path, accessed, ?) := SourceFileGatherer.path_to_generated_module(c.sfg, path)+"."+accessed;
+    case ModuleAccess(given_path, accessed, lty) := do 
+        val nmscp := scope_of_name(lty.get());
+        val path := nmscp.module_path;
+        SourceFileGatherer.path_to_generated_module(c.sfg, path, false)+"."+accessed
+    end;
     case Applied(ap, tys) := do 
         var ty := compile_type(c, ap);
         if tys.length > 0 do 
@@ -1745,6 +1774,10 @@ fun compile_type(c : Compiler, t : Ast.Type) : String := match t do
         ty
     end;
     case Never() := "Void";
+end;
+
+fun scope_of_name(name : Ast.Type) : Ast.Namespace := match name do 
+    case Name(n, ln) := ln.get();
 end;
 
 fun name_in_module(c : Compiler, name : String, scope : Ast.Namespace) : String do 

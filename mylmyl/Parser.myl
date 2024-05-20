@@ -93,8 +93,20 @@ fun import_decl(p : Parser) : Ast.Import do
     while p.matches_type(Tokenizer.DOT()) do 
         parts.push(p.consume(Tokenizer.IDENTIFIER(), "Expect identifier after '.'").src);
     end;
-    p.consume(Tokenizer.SEMICOLON(), "Expect ';' after import declaration");
-    Ast.BasicImport(parts)
+    if p.matches_type(Tokenizer.ASSIGN()) then do 
+        if parts.length != 1 do panic(p.err("Expected single name as import alias, got complex name: "+parts)); end;
+        val alias_name := parts[0];
+        val imported_parts : String[] := [];
+        imported_parts.push(p.consume(Tokenizer.IDENTIFIER(), "Expect identifier as beginnning of path after ':='").src);
+        while p.matches_type(Tokenizer.DOT()) do 
+            imported_parts.push(p.consume(Tokenizer.IDENTIFIER(), "Expect identifier after '.'").src);
+        end;
+        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after import declaration");
+        Ast.AliasImport(alias_name, imported_parts)
+    end else do
+        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after import declaration");
+        Ast.BasicImport(parts)
+    end
 end
 
 fun stmt(p : Parser) : Ast.Stmt do 

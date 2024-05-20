@@ -193,7 +193,6 @@ fun check_mutability(tc : Typechecker, setter : Ast.Setter) := match setter do
     end;
     case IndexSetter(?, ?) := do end; // Can always reassign fields of list
     case Property(obj, name, lt) := do 
-        //TODO: Correct name lookup
         val ClassInfo(class_name, targs, fields, methods, ?, ?) := info_for(tc, lt.get(), fun(ty : Ast.Type) : String := "Cannot reassign to property "+name+" of non_class_type"+ty)
             else panic("Should be unreachable: Non-class info in setter");
         val field_info := fields.get(name);
@@ -225,7 +224,6 @@ fun infer_setter(tc : Typechecker, s : Ast.Setter) : Ast.Type := match s do
     case Property(obj, name, lcty) := do
         val obj_ty := infer(tc, obj);
         lcty.init(obj_ty);
-        // TODO: Correct name lookup
         val (property_ty, aty) := get_property_ty(tc, name, obj_ty, fun() : String := "" + s);
         property_ty
     end;
@@ -453,7 +451,6 @@ fun declare_enum_constructors(tc : Typechecker, name : String, targs : Ast.TypeP
             check_kind(tc, field, Ast.ConcreteType());
             resolve(scope, field);
         end;
-        //TODO: Generics
         tc.declare(constr.name, Ast.Function(targs, constr.fields, class_constr_ret_ty(targs, name, scope)), false);
     end;
 end
@@ -533,7 +530,6 @@ fun check_constructor(tc : Typechecker, constructor : Util.Optional(Ast.Construc
             check(tc, constr.body, Ast.VoidT());
             constr.lenv.init(tc.names);
         tc.close_scope();
-        // TODO: Generics
         Ast.Function(targs, Ast.param_types(constr.params), class_constr_ret_ty(targs, className, scope))
     end else do 
         Ast.Function(targs, [], class_constr_ret_ty(targs, className, scope))
@@ -606,11 +602,10 @@ fun resolve(names : Ast.Namespace, ty : Ast.Type) : Ast.Type do
         end;
         case ListOf(tys) := do resolve(names, tys); end;
         case ModuleAccess(path, name, laccessed) := if laccessed.is_init() then do end else do 
-            val file_path := SourceFileGatherer.path_to_module(path);
-            if !names.imported_modules.has(file_path) do
-                panic("Unknown module "+file_path+" in "+ty);
+            if !has_imported_module(names, path) do
+                panic("Unknown module "+SourceFileGatherer.path_to_module(path)+" in "+ty);
             end;
-            val imported_names := names.imported_modules.get(file_path);
+            val imported_names := get_imported_module(names, path);
             if !imported_names.types.has(name) do  // Type is not declared
                 panic("Module "+join(".", path)+" does not declare "+name);
             end
@@ -801,7 +796,6 @@ fun check_pattern(tc : Typechecker, pattern : Ast.Pattern, matched_ty : Ast.Type
         end;
         case ConstructorPattern(name, subpatterns, lconstr, lenum_ty, linf) := do 
             lenum_ty.init(matched_ty);
-            //TODO: Correct name lookup
             var typarams : Ast.Type[] := [];
             val inf := if val Applied(a, params) := matched_ty 
                 then do 
@@ -840,7 +834,6 @@ fun check_pattern(tc : Typechecker, pattern : Ast.Pattern, matched_ty : Ast.Type
 end
 
 fun get_property_ty(tc : Typechecker, name : String, ty : Ast.Type, err_str : Fun() : String) : (Ast.Type, Ast.AccessType) := match ty do  
-    // TODO: Correct name lookup
     case ListOf(elem_ty) := builtin_list_property(elem_ty, name, err_str);
     case Applied(app_ty, typarams) := do 
         val (unsub_ty, acc) := get_property_ty(tc, name, app_ty, err_str);
@@ -1109,8 +1102,7 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
         Ast.ListOf(Ast.NumberT())
     end;
     case PropertyExpr(obj, name, la, lt, lft) := if val Module(path) := accessed_object(t, obj) then do  
-        val module_path := SourceFileGatherer.path_to_module(path);
-        val imported_names := t.names.imported_modules.get(module_path);
+        val imported_names := get_imported_module(t.names, path);
         val accessed_globals := imported_names.values;
         la.init(Ast.ModuleAccessed());
         lt.init(Ast.Never());
@@ -1211,9 +1203,18 @@ fun substitute(ty : Ast.Type, substitutes : Env.AList(Ast.Type)) : Ast.Type := m
     case Applied(ap, params) := Ast.Applied(substitute(ap, substitutes), for t in params yield substitute(t, substitutes) end);
 end;
 
+fun get_imported_module(names : Ast.Namespace, path : String[]) : Ast.Namespace :=
+    if path.length = 1 and names.imported_modules.has(path[0]) 
+        then names.imported_modules.get(path[0])
+        else names.imported_modules.get(SourceFileGatherer.path_to_module(path));
+
+fun has_imported_module(names : Ast.Namespace, path : String[]) : Bool := 
+    (path.length = 1 and names.imported_modules.has(path[0]))
+    or names.imported_modules.has(SourceFileGatherer.path_to_module(path));
+
 fun accessed_object(tc : Typechecker, expr : Ast.Expr) : Ast.AccessedObjectType do 
     val Module(path) := Ast.get_as_path(expr) else return Ast.NormalObject(); // Expression has to be a path
-    if tc.names.imported_modules.has(SourceFileGatherer.path_to_module(path)) then // Expression is an imported object
+    if has_imported_module(tc.names, path) then // Expression is an imported object
         Ast.Module(path)
     else 
         Ast.NormalObject()
