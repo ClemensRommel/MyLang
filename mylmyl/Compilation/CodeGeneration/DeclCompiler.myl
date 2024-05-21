@@ -1,0 +1,362 @@
+module Compilation.CodeGeneration.DeclCompiler;
+
+import CG := Compilation.CodeGenerator;
+import EC := Compilation.CodeGeneration.ExprCompiler;
+import TC := Compilation.CodeGeneration.TypeCompiler;
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+import Util;
+import Analyze := Typechecking.Analyze;
+
+fun compile_decl(c : CG.Compiler, decl : Ast.Decl) := match decl do 
+    case DesugarableDecl(md) := compile_decl(c, md.get());
+    case EmptyDecl() := do end;
+    case VarDecl(setter, lt, init, mutable, ?) := compile_var_decl(c, setter, lt, init, mutable);
+    case FunDecl(name, typarams, params, return_type, body, ?, lenv) := compile_fun_decl(c, name, typarams, params, return_type, body, lenv);
+    case ClassDecl(name, targs, members, opt_constr, ?, lenv) := compile_class_decl(c, name, targs, members, opt_constr, lenv.get());
+    case EnumDecl(name, targs, variants, members, ?, lenv) := compile_enum_decl(c, name, targs, variants, members, lenv.get());
+end;
+
+fun compile_fun_decl(
+    c : CG.Compiler, 
+    name : String, 
+    typarams : Ast.TypeParameter[],
+    params : Ast.Parameter[], 
+    return_type : Ast.Type, 
+    body : Ast.Expr,
+    lenv : Util.LateInitialized(Ast.Namespace))
+do 
+    val info := CG.VariableInfo(c.current_env.module_path);
+    info.is_no_fc_fn := c.is_class; // Local functions cannot be compiled directly but to lambdas
+    c.env.insert(name, info); // Functions can never be captured, so unconditionally insert info
+    val is_main := c.is_static and name = "main" and return_type = Ast.VoidT();
+    if c.is_class then do 
+        c.append("public ");
+        if c.is_static do c.append("static "); end; 
+        if c.is_generated_interface do c.append("default "); end;
+        if typarams.length != 0 do 
+            c.append("<");
+            var needs_comma := false;
+            for param in typarams do 
+                if needs_comma do c.append(", "); end;
+                c.append(param.name);
+                needs_comma := true;
+            end;
+            c.append("> ");
+        end
+        if is_main then do 
+            c.append("void");
+        end else do
+            c.append(TC.compile_type(c, return_type)); 
+        end;
+        c.append(" ");
+    end else do
+        val ty := c.current_env.values.get(name).ty;
+        //TODO generische lokale funktionen
+        if val Function(?, ?, ?) := ty then do end 
+               else panic("Unreachable: Function is being compiled that has non-function-type");
+        if Analyze.mentions_var(body, name) then do // Check if body mentions name (means its recursive)
+            info.is_upvalue := true; // Recursive local functions have to be compiled as upvalues due to being compiled as lambdas
+            c.append("final "); c.append(TC.compile_upvalue_type(c, ty)); c.append(name); 
+            c.append(" = "); c.append("new Upvalue<>();"); c.newline();
+        end else do
+            c.append("final " + TC.compile_type(c, ty) + " ");
+        end;
+    end;
+    c.append(CG.maybe_upvalue(c, name, ""));
+    if !c.is_class do 
+        c.append(" = ");
+    end
+    c.append("(");
+    var needs_comma := false;
+    val prev_expect_ref_ty := c.expect_ref_ty;
+    c.expect_ref_ty := !c.is_class; // If we're not in a class, we're compiling to a lambda
+    val params_to_be_added : (String, CG.VariableInfo)[] := [];
+    for param in params do 
+        if needs_comma do 
+            c.append(", ");
+        end;
+        match param do 
+            case NormalParam(param_name, ty) := do 
+                params_to_be_added.push((param_name, CG.VariableInfo(c.current_env.module_path)));
+                c.append(TC.compile_type(c, ty)); c.append(" "); c.append(param_name);
+            end;
+        end;
+        needs_comma := true;
+    end;
+    c.expect_ref_ty := prev_expect_ref_ty;
+    c.append(") ");
+    if !c.is_class do 
+        c.append("-> ");
+    end;
+    
+    val prv := c.open_scope(lenv.get());
+    c.is_class := false;
+    c.is_static := false;
+    for (n, i) in params_to_be_added do 
+        c.env.insert(n, i);
+    end;
+    val body_is_block := if val BlockExpr(?, ?, ?, ?) := body then true else false;
+    if !body_is_block do c.append(" {"); c.indent(); c.newline(); end;
+    val body_compiled := EC.compile_expr(c, body, if is_main then CG.Ignore() else CG.Return());
+    c.strip_trailing();
+    if !body_is_block do c.dedent(); c.newline(); c.append("}"); end;
+    c.newline();
+    c.close_scope(prv);
+    if is_main do 
+        c.append("
+    public static void main(String[] args) {
+        __init_runtime(args);
+        main();
+    }");
+        c.newline();
+    end;
+    if !c.is_class do 
+        c.append(";");
+        c.newline();
+    end;
+end
+
+fun compile_enum_decl(c : CG.Compiler, name : String, targs: Ast.TypeParameter[], variants : Ast.EnumConstructor[], members : Ast.Decl[], env : Ast.Namespace) do 
+    val prefix := (if c.is_class then "public " else "") + (if c.is_static then "static " else "");
+    c.append(prefix);
+    c.append(" sealed interface "); c.append(name);
+    if targs.length > 0 do 
+        c.append("<");
+        var need_comma := false;
+        for arg in targs do 
+            if need_comma do c.append(", "); end;
+            c.append(arg.name);
+            need_comma := true;
+        end;
+        c.append(">");
+    end;
+    c.append(" {");
+    c.indent(); c.newline();
+    val prv := c.open_scope(env);
+    c.is_class := true;
+    c.is_generated_interface := true;
+    for member in members do 
+        compile_decl(c, member);
+    end;
+    c.strip_trailing(); c.dedent(); c.newline();
+    c.append("}");
+    c.newline();
+    c.close_scope(prv);
+    for variant in variants do 
+        compile_enum_variant(c, name, targs, prefix, variant);
+    end;
+end
+
+fun compile_enum_variant(c : CG.Compiler, name : String, targs : Ast.TypeParameter[], prefix : String, variant : Ast.EnumConstructor) do 
+    c.append(prefix); c.append(" record "); c.append(variant.name); 
+    if targs.length > 0 do 
+        c.append("<");
+        var need_comma := false;
+        for arg in targs do 
+            if need_comma do c.append(", "); end;
+            c.append(arg.name);
+            need_comma := true;
+        end;
+        c.append(">");
+    end;
+    c.append("(");
+    var i := 0;
+    var need_comma := false;
+    for field in variant.fields do 
+        if need_comma do c.append(", "); end;
+        c.append(TC.compile_type(c, field)); c.append(" __field"+i); 
+        i := i + 1; need_comma := true; 
+    end; 
+    c.append(") implements "); c.append(name); 
+
+    if targs.length > 0 do 
+        c.append("<");
+        var need_sep := false;
+        for arg in targs do 
+            if need_sep do c.append(", "); end;
+            c.append(arg.name);
+            need_sep := true;
+        end;
+        c.append(">");
+    end;
+    
+    c.append(" {");
+    c.indent(); c.newline();
+    c.append("@Override public String toString() {"); c.indent(); c.newline();
+        c.append("StringBuilder __builder = new StringBuilder();"); c.newline();
+        c.append("__builder.append(\""+variant.name+"(\");"); c.newline();
+        var needs_comma := false;
+        for field_index in [0..variant.fields.length] do 
+            if needs_comma do c.append("__builder.append(\", \");"); end;
+            c.append("__builder.append(__field"+field_index+"());"); c.newline();
+            needs_comma := true;
+        end;
+        c.append("__builder.append(\")\");"); c.newline();
+        c.append("return __builder.toString();"); c.dedent(); c.newline();
+        c.append("} "); c.dedent(); c.newline();
+    c.append("}"); c.newline();
+    val info := CG.VariableInfo(c.current_env.module_path);
+    info.is_constructor := true;
+    info.is_no_fc_fn := true;
+    c.env.insert(variant.name, info);
+end
+
+fun compile_class_decl(
+    c : CG.Compiler, 
+    name : String, 
+    targs: Ast.TypeParameter[],
+    members : Ast.Decl[], 
+    constr : Optional(Ast.Constructor), 
+    env : Ast.Namespace) 
+do
+    if c.is_class do 
+        c.append("public ");
+    end;
+    if c.is_static do 
+        c.append("static ");
+    end
+    c.append("class "+name);
+    if targs.length > 0 do 
+        c.append("<");
+        var need_comma := false;
+        for arg in targs do 
+            if need_comma do c.append(", "); end;
+            c.append(arg.name);
+            need_comma := true;
+        end;
+        c.append(">");
+    end;
+    c.append(" {");
+    c.indent(); c.newline();
+    val info := CG.VariableInfo(c.current_env.module_path);
+    info.is_constructor := true;
+    info.is_no_fc_fn := true;
+    c.env.insert(name, info);
+    val prv := c.open_scope(env);
+    c.is_class := true;
+    for member in members do 
+        compile_decl(c, member);
+    end;
+    compile_constructor(c, constr, name);
+    c.strip_trailing(); c.dedent(); c.newline();
+    c.append("}");
+    c.newline();
+    c.close_scope(prv);
+end
+
+fun compile_constructor(c : CG.Compiler, constr : Optional(Ast.Constructor), name : String) do
+    val Some(construct) := constr else return null;
+    c.append("public "+name);
+    c.append("(");
+    var needs_comma := false;
+    for param in construct.params do 
+        if needs_comma do 
+            c.append(", ");
+        end;
+        match param do 
+            case NormalParam(param_name, ty) := do 
+                val info := CG.VariableInfo(c.current_env.module_path);
+                c.env.insert(param_name, info);
+                c.append(TC.compile_type(c, ty)); c.append(" "+param_name);
+            end;
+        end;
+        needs_comma := true;
+    end;
+    c.append(") ");
+    EC.compile_expr(c, construct.body, CG.Ignore());
+end
+
+fun compile_var_decl(
+    c : CG.Compiler, 
+    setter : Ast.Setter, 
+    lt : Util.LateInitialized(Ast.Type), 
+    init_mut : Optional(Ast.Expr), 
+    mutable : Bool) 
+do
+    val init := if val Some(e) := init_mut then Some.[Ast.Expr](e) else None.[Ast.Expr]();
+    if c.is_class then do
+        compile_variables(c, setter, lt.get(), true, mutable, false);
+        if val Some(e) := init then do 
+            if c.is_static do c.append("static "); end;
+            c.append("{");
+            c.indent(); c.newline();
+            val initializer := EC.compile_expr(c, e, CG.AssignTo(setter));
+            c.strip_trailing();
+            c.dedent(); c.newline();
+            c.append("}");
+        end else do end;
+        c.newline();
+        // Global variables are not pre-analyzed for captures, because they cannot be captured
+    end else do
+        val is_upvalue := setter_is_upvalue(c, setter);
+        compile_variables(c, setter, lt.get(), false, mutable, is_upvalue);
+        if val Some(e) := init then do
+            EC.compile_expr(c, e, CG.AssignTo(setter));
+        end else do end;
+    end;
+    declare_variables(c, setter);
+end
+
+fun setter_is_upvalue(c : CG.Compiler, setter : Ast.Setter) : Bool :=
+    match setter do 
+        case Variable(name) := c.env.has(name) and c.env.get(name).is_upvalue;
+        case TupleSetter(parts, ?) := do 
+            for part in parts do 
+                if setter_is_upvalue(c, part) do return true end;
+            end;
+            false
+        end;
+        case WildcardSetter() := false;
+        case Property(?, ?, ?) := false;
+    end;
+
+fun compile_variables(
+    c : CG.Compiler, 
+    setter : Ast.Setter, 
+    ty : Ast.Type, 
+    is_global : Bool, 
+    mutable : Bool, 
+    is_upvalue : Bool) 
+do 
+    match setter do 
+        case Variable(name) := do 
+            if c.is_class do c.append("public "); end;
+            if c.is_static do c.append("static "); end;
+            if !mutable do c.append("final "); end;
+            val info := CG.VariableInfo(c.current_env.module_path);
+            info.is_upvalue := is_upvalue;
+            c.env.insert(name, info);
+            val ty_compiled := if is_upvalue then TC.compile_upvalue_type(c, ty) else TC.compile_type(c, ty);
+            c.append(ty_compiled); c.append(" "); c.append(name); 
+            if is_upvalue do 
+                c.append(" = new ");
+                c.append(ty_compiled);
+                c.append("()");
+            end;
+            c.append(";");
+            c.newline();
+        end;
+        case WildcardSetter() := do end;
+        case TupleSetter(parts, ?) := do 
+            val Tuple(types) := ty else panic("Non-tuple type in tuple setter "+setter);
+            for i in [0..parts.length] do 
+                compile_variables(c, parts[i], types[i], is_global, mutable, is_upvalue);
+            end;
+        end;
+        case Property(?, ?, ?) := panic("Unreachable: Cannot assign to field of object in declaration");
+    end;
+end
+
+fun declare_variables(c : CG.Compiler, setter : Ast.Setter) do 
+    match setter do 
+        case Variable(name) := c.env.insert_if_missing(name, CG.VariableInfo(c.current_env.module_path));
+        case TupleSetter(parts, ?) := do 
+            for part in parts do 
+                declare_variables(c, part);
+            end;
+        end;
+        case WildcardSetter() := do end;
+        case Property(?, ?, ?) := panic("Cannot declare property as variable: Unreachable");
+    end;
+end

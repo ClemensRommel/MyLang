@@ -1,0 +1,120 @@
+module Compilation.CodeGeneration.TypeCompiler;
+
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+import CG := Compilation.CodeGenerator;
+import SFG := IO.SourceFileGatherer;
+
+fun compile_type(c : CG.Compiler, t : Ast.Type) : String := match t do 
+    case NumberT() := if c.expect_ref_ty then "Double" else "double";
+    case Any() := "Object";
+    case BooleanT() := if c.expect_ref_ty then "Boolean" else "boolean";
+    case StringT() := "String";
+    case VoidT() := "Void";
+    case ListOf(et) := do 
+        val pref_expect_ref_ty := c.expect_ref_ty;
+        c.expect_ref_ty := true;
+        val result := "ArrayList<"+compile_type(c, et)+">";
+        c.expect_ref_ty := pref_expect_ref_ty;
+        result
+    end;
+    case Function(?, arg_tys, ret) := do 
+        var ty := create_enqueued_type(c, t);
+        ty := ty+"<";
+        var need_comma := false;
+        val pref_expect_ref_ty := c.expect_ref_ty;
+        c.expect_ref_ty := true;
+        for arg in arg_tys do 
+            if need_comma do ty := ty + ", "; end
+            ty := ty + compile_type(c, arg);
+            need_comma := true;
+        end;
+        if need_comma do ty := ty + ", "; end
+        ty := ty + compile_type(c, ret);
+        ty := ty + ">";
+        c.expect_ref_ty := pref_expect_ref_ty;
+        c.generated_module_path + "." + ty
+    end;
+    case Tuple(parts) := do 
+        var ty := create_enqueued_type(c, t);
+        if parts.length != 0 do 
+            val pref_expect_ref_ty := c.expect_ref_ty;
+            c.expect_ref_ty := true;
+            ty := ty + "<";
+            var need_comma := false;
+            for part in parts do 
+                if need_comma do ty := ty + ", "; end
+                ty := ty + compile_type(c, part);
+                need_comma := true;
+            end;
+            ty := ty + ">";
+            c.expect_ref_ty := pref_expect_ref_ty;
+        end;
+        c.generated_module_path + "." + ty
+    end;
+    case Name(name, lnspc) := do 
+        name_in_module(c, name, lnspc.get())
+    end; // Classes are compiled with their name
+    case ModuleAccess(given_path, accessed, lty) := do 
+        val nmscp := Ast.scope_of_name(lty.get());
+        val path := nmscp.module_path;
+        SFG.path_to_generated_module(c.sfg, path, false)+"."+accessed
+    end;
+    case Applied(ap, tys) := do 
+        var ty := compile_type(c, ap);
+        if tys.length > 0 do 
+            val pref_expect_ref_ty := c.expect_ref_ty;
+            c.expect_ref_ty := true;
+            ty := ty + "<";
+            var need_comma := false;
+            for at in tys do 
+                if need_comma do ty := ty + ", "; end;
+                ty := ty + compile_type(c, at);
+                need_comma := true;
+            end;
+            ty := ty + ">";
+            c.expect_ref_ty := pref_expect_ref_ty;
+        end
+        ty
+    end;
+    case Never() := "Void";
+end;
+
+fun create_enqueued_type(c : CG.Compiler, ty : Ast.Type) : String do 
+    if val Some(name) := c.get_enqueued_type(ty) then do 
+        name 
+    end else do 
+        val type_name := c.new_var();
+        c.enqueue_type(ty, type_name);
+        type_name
+    end
+end
+
+fun name_in_module(c : CG.Compiler, name : String, scope : Ast.Namespace) : String do 
+    val name_file := scope.module_path;
+    val this_file := c.current_env.module_path;
+    if name_file = this_file then 
+        name 
+    else do 
+        var prefix := "";
+        var need_sep := false;
+        for i in [0..name_file.length - 1] do 
+            if need_sep do prefix := prefix + "."; end;
+            val part := name_file[i];
+            prefix := prefix + part;
+            need_sep := true;
+        end;
+        if need_sep do prefix := prefix + "."; end;
+        val last_part := name_file[name_file.length - 1];
+        prefix := prefix + "_" + last_part;
+        if name_file.length > 0 
+            then prefix + "." + name 
+            else name
+    end
+end
+
+fun compile_upvalue_type(c : CG.Compiler, t : Ast.Type) : String := match t do 
+    case NumberT() := "NumberUpvalue";
+    case BooleanT() := "BooleanUpvalue";
+    case ? := "Upvalue<"+compile_type(c, t)+">";
+end;

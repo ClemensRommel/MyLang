@@ -1,0 +1,142 @@
+module Compilation.CodeGeneration.MatchCompiler;
+
+import CG := Compilation.CodeGenerator;
+import EC := Compilation.CodeGeneration.ExprCompiler;
+import TC := Compilation.CodeGeneration.TypeCompiler;
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+import Util;
+
+fun compile_match(
+    c : CG.Compiler, 
+    matched : Ast.Expr, 
+    arms : (Ast.Pattern, Ast.Expr, Util.LateInitialized(Ast.Namespace))[], 
+    matched_ty : Ast.Type, 
+    ret_ty : Ast.Type, 
+    target : CG.Target) : String 
+do 
+    val matched_compiled := EC.compile_expr(c, matched, CG.UsedDirectly());
+    val arm_target := if val UsedDirectly() := target then do 
+        val temp_var := c.new_var();
+        c.append("final "); c.append(TC.compile_type(c, ret_ty)); c.append(" "); c.append(temp_var); c.append(";"); c.newline();
+        CG.AssignTo(Ast.Variable(temp_var))
+    end else target;
+    c.append("switch("); 
+    if val NumberT() := matched_ty then do 
+        c.append("(Double) "); 
+    end else do end; 
+    c.append(matched_compiled); c.append(") {"); c.indent(); c.newline();
+    var had_unconditional_pattern := false;
+    for (patt, expr, lenv) in arms do 
+        val prv := c.open_scope(lenv.get());
+        match patt do case NamePattern(?) := do had_unconditional_pattern := true; end; case WildcardPattern() := do had_unconditional_pattern := true; end; case ? := do end; end; 
+        c.append("case "); compile_pattern(c, patt, matched_ty); c.append(" -> {"); c.indent(); c.newline(); 
+        EC.compile_expr(c, expr, arm_target); c.strip_trailing(); 
+        c.dedent(); c.newline(); c.append("}"); c.newline();
+        c.close_scope(prv);
+    end;
+    if !had_unconditional_pattern do c.append("default -> { panic(\"Inexhaustive match: \"+"+matched_compiled+"); throw new RuntimeException();}"); c.newline(); end;
+    c.dedent(); c.newline(); c.append("}"); c.newline();
+    if val UsedDirectly() := target then do 
+        val AssignTo(Variable(temp)) := arm_target else panic("Unreachable: Invalid arm target");
+        temp
+    end else ""
+end;
+
+fun compile_pattern(c : CG.Compiler, pattern : Ast.Pattern, matched_ty : Ast.Type) do 
+    if val StringPattern(str) := pattern then do 
+        c.append(CG.escape_string(str));
+    end else if val BooleanPattern(b) := pattern then do 
+        c.append(""+b);
+    end else if val NumericPattern(n) := pattern then do 
+        val temp := c.new_var();
+        c.append("Double "+temp+" when "+temp+" == "+n);
+    end else if val NamePattern(n) := pattern then do 
+        val info := CG.VariableInfo(c.current_env.module_path);
+        c.env.insert(n, info);
+        val prv_box_ty := c.expect_ref_ty;
+        c.expect_ref_ty := true;
+        c.append(TC.compile_type(c, matched_ty)); c.append(" "); c.append(n);
+        c.expect_ref_ty := prv_box_ty;
+    end else do 
+        val guard_queue : String[] := [];
+        compile_complex_pattern(c, pattern, guard_queue, matched_ty);
+        if guard_queue.length > 0 do 
+            c.append(" when ");
+            var needs_and := false;
+            for guard in guard_queue do 
+                if needs_and do c.append(" && "); end;
+                c.append(guard);
+                needs_and := true;
+            end
+        end
+    end;
+end
+
+fun compile_complex_pattern(
+    c : CG.Compiler, 
+    pattern : Ast.Pattern, 
+    guard_queue : String[], 
+    matched_ty : Ast.Type) := match pattern do 
+    case NumericPattern(n) := do 
+        val variable := c.new_var(); 
+        c.append("var "+variable); 
+        guard_queue.push(variable+" == "+n); 
+    end;
+    case StringPattern(str) := do 
+        val variable := c.new_var();
+        c.append("String "+variable);
+        guard_queue.push(variable+".equals("+CG.escape_string(str)+")");
+    end;
+    case BooleanPattern(b) := do 
+        val variable := c.new_var();
+        c.append(TC.compile_type(c, matched_ty)+" "+variable);
+        guard_queue.push(if b then variable else "!"+variable);
+    end;
+    case NamePattern(n) := do 
+        val info := CG.VariableInfo(c.current_env.module_path);
+        c.env.insert(n, info);
+        c.append(TC.compile_type(c, matched_ty)+" "+n);
+    end;
+    case WildcardPattern() := c.append(TC.compile_type(c, matched_ty)+" "+c.new_var());
+    case ConstructorPattern(name, subpatterns, constr, lenum_ty, linf) := do 
+        val enum_info := linf.get();
+        val scope := Ast.scope_of_info(enum_info, c.current_env); // Just any namespace, won't be use
+        val full_name := TC.name_in_module(c, name, scope);
+        c.append(full_name); 
+
+        if val Applied(t, to) := lenum_ty.get() then do 
+            if to.length > 0 do 
+                c.append("<");
+                var need_comma := false;
+                for ty in to do 
+                    if need_comma do c.append(", "); end;
+                    c.append(TC.compile_type(c, ty));
+                    need_comma := true;
+                end;
+                c.append(">");
+            end;
+        end else do end;
+        
+        c.append("(");
+        var needs_comma := false;
+        for i in [0..subpatterns.length] do 
+            if needs_comma do c.append(", ");  end;
+            compile_complex_pattern(c, subpatterns[i], guard_queue, constr.get().fields[i]);
+            needs_comma := true;
+        end;
+        c.append(")");
+    end;
+    case TuplePattern(subpatterns) := do 
+        c.append(TC.compile_type(c, matched_ty));
+        c.append("(");
+        var needs_comma := false;
+        val Tuple(subtys) := matched_ty else panic("No tuple type in tuple pattern");
+        for i in [0..subpatterns.length] do 
+            if needs_comma do c.append(", "); end;
+            compile_complex_pattern(c, subpatterns[i], guard_queue, subtys[i]);
+            needs_comma := true;
+        end;
+        c.append(")");
+    end;
+end;

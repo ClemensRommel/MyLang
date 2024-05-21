@@ -3,6 +3,7 @@ module Compilation.Compiler;
 import SFG := IO.SourceFileGatherer;
 import Env := Syntax.Env;
 import CG := Compilation.CodeGenerator;
+import GVG := Compilation.GlobalVariableGatherer;
 import CB := Compilation.CodeBuffers;
 import TG := Compilation.TypeGenerator;
 
@@ -18,7 +19,7 @@ do
 end
 
 fun gather_global_variable_info(files : Env.AList(SFG.SourceFile)) : Env.AList(Env.Env(Compilation.CodeGenerator.VariableInfo)) do 
-    CG.gather_global_variable_info(files)
+    GVG.gather_global_variable_info(files)
 end
 
 fun generate_types(path : String, types : CB.UncreatedTypes, name_gen : CB.NameGenerator) do 

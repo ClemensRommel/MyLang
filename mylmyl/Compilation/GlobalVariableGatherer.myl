@@ -1,0 +1,75 @@
+module Compilation.GlobalVariableGatherer;
+
+import CG := Compilation.CodeGenerator;
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+import SFG := IO.SourceFileGatherer;
+
+
+fun gather_global_variable_info(files : Env.AList(SFG.SourceFile)) : Env.AList(Env.Env(CG.VariableInfo)) do 
+    val list := Env.AList.[Env.Env(CG.VariableInfo)]();
+    for (?, file) in files.bindings do 
+        val env := Env.Env.[CG.VariableInfo]();
+        gather_variable_info(env, file.ast.decls, file.names.module_path);
+        list.insert(file.path, env);
+    end;
+    list
+end
+
+fun gather_variable_info(env : Env.Env(CG.VariableInfo), decls : Ast.Decl[], p : String[]) do 
+    fun gather_info(decl : Ast.Decl) do 
+        match decl do 
+            case DesugarableDecl(mutdecl) := gather_info(mutdecl.get());
+            case EmptyDecl() := do end;
+            case FunDecl(name, typarams, ?, ?, ?, ?, ?) := do 
+                val info := CG.VariableInfo(p);
+                info.is_no_fc_fn := true; // Global functions cant be lambdas
+                env.insert(name, info);
+            end;
+            case ClassDecl(name, ?, ?, ?, ?, ?) := do 
+                val info := CG.VariableInfo(p);
+                info.is_constructor := true;
+                info.is_no_fc_fn := true;
+                env.insert(name, info);
+            end;
+            case EnumDecl(?, ?, constrs, ?, ?, ?) := do 
+                for constr in constrs do 
+                    val info := CG.VariableInfo(p);
+                    info.is_constructor := true;
+                    info.is_no_fc_fn := true;
+                    env.insert(constr.name, info);
+                end;
+            end;
+            case VarDecl(setter, ?, ?, ?, ?) := do 
+                gather_info_for_setter(env, setter, p);
+            end;
+            case ValElseDeclaration(pat, ?, ?, ?, ?, ?, ?, ?) := do 
+                gather_info_for_pattern(env, pat, p);
+            end;
+        end;
+    end
+    for decl in decls do 
+        gather_info(decl);
+    end
+end
+
+fun gather_info_for_setter(env : Env.Env(CG.VariableInfo), setter : Ast.Setter, p : String[]) do 
+    match setter do 
+        case Variable(name) := do env.insert(name, CG.VariableInfo(p)); end; //Globals cant be upvalues
+        case WildcardSetter() := do end;
+        case TupleSetter(parts, ?) := do for part in parts do gather_info_for_setter(env, part, p); end; end;
+        case Property(?, ?, ?) := do end;
+    end;
+end
+
+fun gather_info_for_pattern(env : Env.Env(CG.VariableInfo), pat : Ast.Pattern, p : String[]) do 
+    match pat do 
+        case NumericPattern(?) := do end;
+        case StringPattern(?) := do end;
+        case BooleanPattern(?) := do end;
+        case NamePattern(name) := do env.insert(name, CG.VariableInfo(p)); end;
+        case WildcardPattern() := do end;
+        case TuplePattern(parts) := do for part in parts do gather_info_for_pattern(env, part, p); end; end;
+        case ConstructorPattern(?, parts, ? , lenum_ty, linf) := do for part in parts do gather_info_for_pattern(env, part, p); end; end;
+    end;
+end;

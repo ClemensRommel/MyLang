@@ -287,3 +287,7 @@ fun info_for(names : Namespace, ty : Type, error_message : Fun(Type) : String) :
         case ? := panic(error_message(ty));
     end
 end
+
+fun scope_of_name(name : Type) : Namespace := match name do 
+    case Name(n, ln) := ln.get();
+end;

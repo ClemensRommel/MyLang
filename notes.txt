@@ -1,1 +1,4 @@
-get_imported_module
+maybe_upvalue?
+setter_is_upvalue?
+
+declare/compile_variables?
