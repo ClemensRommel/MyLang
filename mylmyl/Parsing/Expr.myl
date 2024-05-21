@@ -1,0 +1,344 @@
+module Parsing.Expr;
+
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+import Pattern := Parsing.Pattern;
+import Stmt := Parsing.Stmt;
+import Decl := Parsing.Decl;
+import Type := Parsing.Type;
+import P := Parsing.Parser;
+import Tokenizer := Parsing.Tokenizer;
+import Util;
+
+fun expr(p : P.Parser) : Ast.Expr := boolean_combination(p);
+
+// TODO: Pratt Parser?
+fun boolean_combination(p : P.Parser) : Ast.Expr do 
+    var lhs := comparison(p);
+    while p.matches_type(Tokenizer.AND()) or p.matches_type(Tokenizer.OR()) or p.matches_type(Tokenizer.XOR()) do 
+        val operator := p.previous();
+        val rhs := comparison(p);
+        val op := match operator.kind do 
+            case AND() := Ast.And();
+            case OR() := Ast.Or();
+            case XOR() := Ast.Xor();
+        end;
+        lhs := Ast.BinaryOperation(op, lhs, rhs); 
+    end;
+    lhs
+end
+
+fun comparison(p : P.Parser) : Ast.Expr do 
+    var result := addition(p);
+    if p.matches_type(Tokenizer.LESS()) or 
+       p.matches_type(Tokenizer.LESS_EQUAL()) or 
+       p.matches_type(Tokenizer.EQUAL()) or 
+       p.matches_type(Tokenizer.GREATER_EQUAL()) or 
+       p.matches_type(Tokenizer.GREATER()) or 
+       p.matches_type(Tokenizer.NOT_EQUAL()) 
+    do 
+        val operator := p.previous();
+        val rhs := addition(p);
+        val op := match operator.kind do 
+            case LESS() := Ast.LessThan();
+            case LESS_EQUAL() := Ast.LessEqual();
+            case EQUAL() := Ast.Equals();
+            case NOT_EQUAL() := Ast.NotEquals();
+            case GREATER_EQUAL() := Ast.GreaterEqual();
+            case GREATER() := Ast.GreaterThan();
+        end;
+        result := Ast.BinaryOperation(op, result, rhs);
+    end;
+    result
+end
+
+fun addition(p : P.Parser) : Ast.Expr do 
+    var lhs := multiplication(p);
+    while !p.at_end() and (p.matches_type(Tokenizer.PLUS()) or p.matches_type(Tokenizer.MINUS())) do 
+        val op := p.previous().kind;
+        val rhs := multiplication(p);
+        lhs := Ast.BinaryOperation(match op do 
+            case PLUS() := Ast.Add(Ast.late_type());
+            case MINUS() := Ast.Sub();
+        end, lhs, rhs);
+    end;
+    lhs
+end
+
+fun multiplication(p : P.Parser) : Ast.Expr do 
+    var lhs := unary(p);
+    while !p.at_end() and (p.matches_type(Tokenizer.STAR()) or p.matches_type(Tokenizer.SLASH()) or p.matches_type(Tokenizer.PERCENT())) do 
+        val op := p.previous().kind;
+        val rhs := unary(p);
+        lhs := Ast.BinaryOperation(match op do 
+            case STAR() := Ast.Mul();
+            case PERCENT() := Ast.Mod();
+            case SLASH() := Ast.Div();
+        end, lhs, rhs);
+    end;
+    lhs
+end
+
+fun unary(p : P.Parser) : Ast.Expr := 
+    if p.matches_type(Tokenizer.MINUS()) or p.matches_type(Tokenizer.PLUS()) or p.matches_type(Tokenizer.BANG()) then do 
+        val operation := match p.previous().kind do 
+            case MINUS() := Ast.Minus();
+            case PLUS() := Ast.Plus();
+            case BANG() := Ast.Not();
+        end;
+        val operand := unary(p);
+        Ast.UnaryOperation(operation, operand)
+    end else do 
+        use_expr(p)
+    end;
+
+fun use_expr(p : P.Parser) : Ast.Expr do 
+    var lhs := primary(p);
+    while p.peek().kind = Tokenizer.LPAREN() or 
+          p.peek().kind = Tokenizer.DOT() or 
+          p.peek().kind = Tokenizer.LBRACKET() 
+    do
+        if p.peek().kind = Tokenizer.LPAREN() then do // Consume and test next token
+            p.next();
+            var arg_exprs : Ast.Expr[] := [];
+            var needs_comma := false;
+            while !p.matches_type(Tokenizer.RPAREN()) do 
+                if needs_comma do 
+                    p.consume(Tokenizer.COMMA(), "Expect parameters to be separated by commas");
+                end;
+                arg_exprs.push(expr(p));
+                needs_comma := true;
+            end;
+            lhs := Ast.FunctionCall(lhs, arg_exprs);
+        end else if p.peek().kind = Tokenizer.LBRACKET() then do
+            p.next();
+            val idx := expr(p);
+            p.consume(Tokenizer.RBRACKET(), "Expect closing ']' in index expression");
+            lhs := Ast.IndexExpr(lhs, idx, Ast.late_type());
+        end else do // DOT
+            p.next();
+            if p.matches_type(Tokenizer.LBRACKET()) then do 
+                val arg_tys : Ast.Type[] := [];
+                var needs_comma := false;
+                while !p.matches_type(Tokenizer.RBRACKET()) do 
+                    if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate type parameters"); end
+                    arg_tys.push(Type.type_literal(p));
+                    needs_comma := true;
+                end;
+                lhs := Ast.InstantiationExpr(lhs, arg_tys, Ast.late_type());
+            end else do 
+                val property := p.consume(Tokenizer.IDENTIFIER(), "Expect property name after .");
+                lhs := Ast.PropertyExpr(lhs, property.src, 
+                                    Util.LateInitialized.[Ast.AccessType](), Ast.late_type(), Ast.late_type());
+            end;
+        end
+    end;
+    lhs
+end
+
+fun primary(p : P.Parser) : Ast.Expr := 
+    if p.matches_type(Tokenizer.IF()) then do 
+        if_expr(p)    
+    end else if p.matches_type(Tokenizer.DO()) then do 
+        block_expr(p)
+    end else if p.matches_type(Tokenizer.FOR()) then do 
+        for_loop(p)
+    end else if p.matches_type(Tokenizer.WHILE()) then do 
+        while_loop(p)
+    end else if p.matches_type(Tokenizer.MATCH()) then do 
+        match_expr(p)
+    end else if p.matches_type(Tokenizer.RETURN()) then do 
+        val arg := expr(p);
+        Ast.ReturnExpr(arg, Ast.late_type())
+    end else if p.matches_type(Tokenizer.BREAK()) then do 
+        Ast.Break(Ast.late_type())
+    end else do 
+        literal(p)
+    end;
+
+// Expects that if is already consumed
+fun if_expr(p : P.Parser) : Ast.Expr do 
+    if p.matches_type(Tokenizer.VAL()) then do 
+        val pat := Pattern.pattern(p);
+        p.consume(Tokenizer.ASSIGN(), "Expect := after pattern of if val expression");
+        val matched := expr(p);
+        p.consume(Tokenizer.THEN(), "Expect then branch after if val condition");
+        val thenBranch := expr(p);
+        p.consume(Tokenizer.ELSE(), "Expect else branch in if val expression");
+        val elseBranch := expr(p);
+        p.wrap_sugared_expr(Ast.IfValExpr(
+                        Ast.late_type(), 
+                        pat, matched, 
+                        thenBranch, elseBranch, 
+                        Ast.late_namespace(), Ast.late_type()))
+    end else do 
+        val cond := expr(p);
+        p.consume(Tokenizer.THEN(), "Expect then branch after if condition");
+        val thenBranch := expr(p);
+        p.consume(Tokenizer.ELSE(), "Expect else branch in if expression");
+        val elseBranch := expr(p);
+        Ast.IfExpr(Ast.late_type(), cond, thenBranch, elseBranch)
+    end
+end
+
+// Expects that starting do is already consumed
+fun block_expr(p : P.Parser) : Ast.Expr do 
+    val stmts : Ast.Stmt[] := [];
+    var end_expr := None.[Ast.Expr]();
+    var no_end_expr_found := true;
+    while no_end_expr_found and !p.matches_type(Tokenizer.END()) do 
+        match block_part(p) do 
+            case Statement(st) := do 
+                stmts.push(st);
+            end;
+            case Expression(e) := do 
+                end_expr := Some.[Ast.Expr](e);
+                p.consume(Tokenizer.END(), "Expect block to end with 'end'");
+                no_end_expr_found := false;
+            end;
+        end;
+    end;
+    Ast.BlockExpr(stmts, end_expr, Ast.late_type(), Ast.late_namespace())
+end
+
+fun block_part(p : P.Parser) : Ast.BlockPart do 
+    fun potential_end_expr() : Ast.BlockPart do 
+        val expression := expr(p);
+        if p.matches_type(Tokenizer.SEMICOLON()) then do 
+            Ast.Statement(Ast.ExprStmt(expression))
+        end else if p.matches_type(Tokenizer.ASSIGN()) then do 
+            Ast.Statement(Stmt.assign_stmt_to(p, expression))
+        end else do 
+            Ast.Expression(expression)
+        end
+    end;
+    if Stmt.is_stmt_start(p) then do 
+        Ast.Statement(Stmt.stmt(p))
+    end else if val IF() := p.peek().kind then do 
+        val pos := p.pos;
+        p.next();
+        if val VAL() := p.peek().kind then do 
+            p.pos := pos;
+            potential_end_expr()
+        end else do 
+            val cond := expr(p);
+            if p.matches_type(Tokenizer.DO()) then do 
+                val body := block_expr(p);
+                Ast.Statement(Ast.IfStmt(cond, body))
+            end else do 
+                p.pos := pos;
+                potential_end_expr()
+            end
+        end
+    end else do 
+        potential_end_expr()
+    end
+end
+
+fun for_loop(p : P.Parser) : Ast.Expr do 
+    val loop_variable_unconverted := expr(p);
+    val loop_variable := P.convert_setter(loop_variable_unconverted);
+    p.consume(Tokenizer.IN(), "Expect 'in' after loop variables");
+    val iterated := expr(p);
+    p.consume(Tokenizer.DO(), "Expect 'do' before for loop body");
+    val body := block_expr(p);
+    Ast.ForExpr(loop_variable, iterated, body, Ast.late_namespace(), Ast.late_type(), Ast.late_type())
+end
+
+fun while_loop(p : P.Parser) : Ast.Expr do
+    if p.matches_type(Tokenizer.VAL()) then do 
+        val pat := Pattern.pattern(p);
+        p.consume(Tokenizer.ASSIGN(), "Expect ':=' after pattern of while val loop");
+        val matched := expr(p);
+        p.consume(Tokenizer.DO(), "Expect 'do' before while loop body");
+        val body := block_expr(p);
+        val resulting_expr := Ast.WhileValExpr(pat, matched, body, Ast.late_type(), Ast.late_namespace(), Ast.late_type());
+        p.wrap_sugared_expr(resulting_expr)
+    end else do 
+        val cond := expr(p);
+        p.consume(Tokenizer.DO(), "Expect 'do' before while loop body");
+        val body := block_expr(p);
+        Ast.WhileExpr(cond, body, Ast.late_namespace(), Ast.late_type())
+    end
+end
+
+fun match_expr(p : P.Parser) : Ast.Expr do 
+    val matched := expr(p);
+    p.consume(Tokenizer.DO(), "Expect 'do' after matched expression");
+    val cases : (Ast.Pattern, Ast.Expr, Util.LateInitialized(Ast.Namespace))[] := [];
+    while !p.matches_type(Tokenizer.END()) do
+        p.consume(Tokenizer.CASE(), "Expect 'case' to start pattern");
+        val pat := Pattern.pattern(p);
+        p.consume(Tokenizer.ASSIGN(), "Expect ':=' after pattern");
+        val result := expr(p);
+        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after case arm");
+        cases.push((pat, result, Ast.late_namespace()));
+    end;
+    Ast.MatchExpr(matched, cases, Ast.late_type(), Ast.late_type())
+end
+
+fun literal(p : P.Parser) : Ast.Expr :=
+    if p.matches_type(Tokenizer.NUMBER_LITERAL()) then do 
+        val token := p.previous();
+        Ast.NumberLiteral(number(token.src))
+    end else if p.matches_type(Tokenizer.STRING_LITERAL()) then do 
+        val token := p.previous();
+        Ast.StringLiteral(token.src)
+    end else if p.matches_type(Tokenizer.TRUE()) then do 
+        Ast.Boolean(true)
+    end else if p.matches_type(Tokenizer.FALSE()) then do 
+        Ast.Boolean(false)
+    end else if p.matches_type(Tokenizer.IDENTIFIER()) then do 
+        val token := p.previous();
+        Ast.Identifier(token.src, Ast.late_type())
+    end else if p.matches_type(Tokenizer.NULL()) then do 
+        Ast.NullLiteral()
+    end else if p.matches_type(Tokenizer.LPAREN()) then do 
+        tuple(p)
+    end else if p.matches_type(Tokenizer.LBRACKET()) then do
+        list(p)
+    end else if p.matches_type(Tokenizer.FUN()) then do
+        val (params, return_type, body) := Decl.end_of_function(p, false);
+        Ast.FunctionExpr(params, return_type, body, Ast.late_namespace())
+    end else if p.matches_type(Tokenizer.VALUE_THIS()) then do 
+        Ast.ThisExpr()
+    end else if p.matches_type(Tokenizer.QUESTION_MARK()) then do 
+        Ast.WildCardExpression()
+    end else do 
+        panic(p.err("Invalid literal: "+p.peek().kind))
+    end;
+
+fun tuple(p : P.Parser) : Ast.Expr do 
+    val exprs : Ast.Expr[] := [];
+    var needs_comma := false;
+    while !p.matches_type(Tokenizer.RPAREN()) do 
+        if needs_comma do 
+            p.consume(Tokenizer.COMMA(), "Expect ',' to separate tuple parts");
+        end
+        exprs.push(expr(p));
+        needs_comma := true;
+    end;
+    if exprs.length = 1 then 
+        exprs[0]
+    else 
+        Ast.TupleExpr(exprs, Ast.late_type())
+end
+
+fun list(p : P.Parser) : Ast.Expr do
+    val parts : Ast.Expr[] := [];
+    if !p.matches_type(Tokenizer.RBRACKET()) do 
+        parts.push(expr(p));
+        if p.matches_type(Tokenizer.DOTS()) then do 
+            val start := parts.pop();
+            val end_expr := expr(p);
+            p.consume(Tokenizer.RBRACKET(), "Expect closing ']' after range expression");
+            return Ast.RangeExpr(start, end_expr);
+        end else do 
+            while !p.matches_type(Tokenizer.RBRACKET()) do 
+                p.consume(Tokenizer.COMMA(), "Expect ',' to separate list parts");
+                parts.push(expr(p));
+            end
+        end
+    end
+    Ast.ListExpr(parts, Ast.late_type())
+end

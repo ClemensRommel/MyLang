@@ -1,0 +1,49 @@
+module Parsing.Pattern;
+
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+import P := Parsing.Parser;
+import Tokenizer := Parsing.Tokenizer;
+import Util;
+
+fun pattern(p : P.Parser) : Ast.Pattern :=
+    if p.matches_type(Tokenizer.NUMBER_LITERAL()) then do 
+        val token := p.previous();
+        Ast.NumericPattern(number(token.src))
+    end else if p.matches_type(Tokenizer.STRING_LITERAL()) then do 
+        val token := p.previous();
+        Ast.StringPattern(token.src)
+    end else if p.matches_type(Tokenizer.TRUE()) then do 
+        Ast.BooleanPattern(true)
+    end else if p.matches_type(Tokenizer.FALSE()) then do 
+        Ast.BooleanPattern(false)
+    end else if p.matches_type(Tokenizer.QUESTION_MARK()) then do 
+        Ast.WildcardPattern()
+    end else if p.matches_type(Tokenizer.LPAREN()) then do 
+        val parts : Ast.Pattern[] := [];
+        var needs_comma := false;
+        while !p.matches_type(Tokenizer.RPAREN()) do 
+            if needs_comma do p.consume(Tokenizer.COMMA(), "Expect comma to separate tuple pattern parts"); end;
+            parts.push(pattern(p));
+            needs_comma := true;
+        end;
+        Ast.TuplePattern(parts)
+    end else if p.matches_type(Tokenizer.IDENTIFIER()) then do 
+        val name := p.previous().src;
+        if p.matches_type(Tokenizer.LPAREN()) then do 
+            val parts : Ast.Pattern[] := [];
+            var needs_comma := false;
+            while !p.matches_type(Tokenizer.RPAREN()) do 
+                if needs_comma do p.consume(Tokenizer.COMMA(), 
+                    "Expect comma to separate constructor pattern parameters"); end;
+                parts.push(pattern(p));
+                needs_comma := true;
+            end;
+            Ast.ConstructorPattern(name, parts, Util.LateInitialized.[Ast.EnumConstructor](), Ast.late_type(), Util.LateInitialized.[Ast.TyInfo]())
+        end else do 
+            Ast.NamePattern(name)
+        end
+        
+    end else do 
+        panic("Unexpected "+p.next().kind+", expected start of pattern")
+    end;

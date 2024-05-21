@@ -1,0 +1,57 @@
+module Parsing.Stmt;
+
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+import P := Parsing.Parser;
+import Decl := Parsing.Decl;
+import Expr := Parsing.Expr;
+import Tokenizer := Parsing.Tokenizer;
+import Util;
+
+fun stmt(p : P.Parser) : Ast.Stmt do 
+    val nxt := p.peek();
+    if is_decl_start(p) do 
+        return Ast.Declaration(Decl.decl(p));
+    end;
+    if val SEMICOLON() := nxt.kind then do 
+        p.next();
+        Ast.EmptyStmt()
+    end else if val IF() := nxt.kind then do 
+        val pos := p.pos;
+        p.next();
+        val cond := Expr.expr(p);
+        if p.matches_type(Tokenizer.DO()) then do 
+            val body := Expr.block_expr(p);
+            Ast.IfStmt(cond, body)
+        end else do 
+            p.pos := pos;
+            Ast.ExprStmt(Expr.expr(p))
+        end
+    end else do 
+        val arg := Expr.expr(p);
+        if p.matches_type(Tokenizer.ASSIGN()) then do 
+            assign_stmt_to(p, arg)
+        end else do 
+            p.consume(Tokenizer.SEMICOLON(), "Expect ';' after expression statement");
+            Ast.ExprStmt(arg)
+        end
+    end
+end
+
+fun is_decl_start(p : P.Parser) : Bool := match p.peek().kind do 
+    case VAL() := true;
+    case VAR() := true;
+    case FUN() := p.peekNext().kind = Tokenizer.IDENTIFIER();
+    case CLASS() := true;
+    case ENUM() := true;
+    case ? := false;
+end;
+fun is_stmt_start(p : P.Parser) : Bool := is_decl_start(p) or 
+                                        p.peek().kind = Tokenizer.SEMICOLON();
+
+fun assign_stmt_to(p : P.Parser, unconverted_setter : Ast.Expr) : Ast.Stmt do 
+    val value := Expr.expr(p);
+    p.consume(Tokenizer.SEMICOLON(), "Expect ':' after assignment");
+    val setter := P.convert_setter(unconverted_setter);
+    Ast.SetStatement(setter, value)
+end

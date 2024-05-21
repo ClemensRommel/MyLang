@@ -1,0 +1,178 @@
+module Parsing.Decl;
+
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+import P := Parsing.Parser;
+import Expr := Parsing.Expr;
+import Type := Parsing.Type;
+import Tokenizer := Parsing.Tokenizer;
+import Util;
+
+fun decl(p : P.Parser) : Ast.Decl do 
+    val decl_kind := p.next().kind;
+    match decl_kind do 
+        case MODULE() := do 
+            panic("Did not consume Module declaration, parser state: "+p.pos+" previous: "+p.previous().kind)
+        end;
+        case VAR() := var_decl(p, true);
+        case VAL() := var_decl(p, false);
+        case FUN() := fun_decl(p);
+        case CLASS() := class_decl(p);
+        case ENUM() := enum_decl(p);
+        case SEMICOLON() := Ast.EmptyDecl();
+    end
+end
+
+fun var_decl(p : P.Parser, mutable : Bool) : Ast.Decl do 
+    val keyword := p.previous();
+    val setter_unconverted := Expr.expr(p);
+    val ty := Ast.late_type();
+    if p.matches_type(Tokenizer.COLON()) do 
+        ty.init(Type.type_literal(p));
+    end;
+    val initializer := if p.matches_type(Tokenizer.ASSIGN()) then do 
+        Some.[Ast.Expr](Expr.expr(p))
+    end else None.[Ast.Expr]();
+    if p.matches_type(Tokenizer.ELSE()) then do 
+        val else_br := Expr.expr(p);
+        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration with else branch");
+        p.wrap_sugared_decl(Ast.ValElseDeclaration(P.convert_pattern(setter_unconverted), initializer.expect("Require initializer in val-else declaration at "+keyword.pos.line), else_br, mutable, true, ty, 
+                               Ast.late_type(), Ast.late_namespace()))
+    end else do 
+        p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration");
+        Ast.VarDecl(P.convert_setter(setter_unconverted), ty, initializer, mutable, true)
+    end
+end
+
+fun fun_decl(p : P.Parser) : Ast.Decl do 
+    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect name in function declaration");
+    val typarams : Ast.TypeParameter[] := if p.matches_type(Tokenizer.LBRACKET())
+        then do 
+            val params : Ast.TypeParameter[] := [];
+            var needs_comma := false;
+            while !p.matches_type(Tokenizer.RBRACKET()) do 
+                if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate type parameters"); end;
+                val param_name := p.consume(Tokenizer.IDENTIFIER(), "Expect type parameter name");
+                params.push(Ast.TypeParameter(param_name.src));
+                needs_comma := true;
+            end;
+            params
+        end else [];
+    val (params, return_type, body) := end_of_function(p, true);
+    Ast.FunDecl(name.src, typarams, params, return_type, body, true, Ast.late_namespace())
+end
+
+fun end_of_function(p : P.Parser, consume_semi : Bool) : (Ast.Parameter[], Ast.Type, Ast.Expr) do
+    val params := parse_parameters(p);
+    val return_type := if p.matches_type(Tokenizer.COLON()) 
+        then Type.type_literal(p)
+        else Ast.VoidT();
+    val body := if p.matches_type(Tokenizer.ASSIGN()) then do
+        val b := Expr.expr(p);
+        if consume_semi do 
+            p.consume(Tokenizer.SEMICOLON(), "Expect ';' after function body");
+        end
+        b 
+    end else do 
+        p.consume(Tokenizer.DO(), "Expect ':=' or 'do' as start of function body");
+        Expr.block_expr(p)
+    end;
+    (params, return_type, body)
+end
+
+fun parse_parameters(p : P.Parser) : Ast.Parameter[] do 
+    p.consume(Tokenizer.LPAREN(), "Expect start of parameters in function declaration");
+    val params : Ast.Parameter[] := [];
+    while !p.matches_type(Tokenizer.RPAREN()) do 
+        params.push(parameter(p));
+        if p.peek().kind != Tokenizer.RPAREN() do 
+            p.consume(Tokenizer.COMMA(), "Expect ',' between parameters");
+        end;
+    end;
+    params
+end
+
+
+fun parameter(p : P.Parser) : Ast.Parameter do 
+    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect parameter name");
+    p.consume(Tokenizer.COLON(), "Expect ':' before parameter type");
+    val param_type := Type.type_literal(p);
+    Ast.NormalParam(name.src, param_type)
+end
+
+fun class_decl(p : P.Parser) : Ast.Decl do 
+    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect class name after 'class' keyword");
+    val targs := if p.matches_type(Tokenizer.LPAREN()) then do 
+        val params: Ast.TypeParameter[] := [];
+        var needs_comma := false;
+        while !p.matches_type(Tokenizer.RPAREN()) do 
+            if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate type parameters"); end;
+            val param_name := p.consume(Tokenizer.IDENTIFIER(), "Expect type parameter name");
+            params.push(Ast.TypeParameter(param_name.src));
+            needs_comma := true;
+        end;
+        params
+    end else [];
+    p.consume(Tokenizer.WHERE(), "Expect start of class body after class name: 'where'");
+    val members : Ast.Decl[] := [];
+    var constr : Optional(Ast.Constructor) := None.[Ast.Constructor]();
+    while !p.matches_type(Tokenizer.END()) do 
+        if p.matches_type(Tokenizer.NEW()) then do 
+            if val Some(?) := constr then do 
+                panic("Error: Class '"+name.src+"' can only have on constructor");
+            end else do end;
+            constr := Some.[Ast.Constructor](constructor(p));
+        end else do 
+            val member : Ast.Decl := decl(p);
+            members.push(member);
+        end;
+    end;
+    Ast.ClassDecl(name.src, targs, members, constr, true, Ast.late_namespace())
+end
+
+
+fun constructor(p : P.Parser) : Ast.Constructor do 
+    val params := parse_parameters(p);
+    p.consume(Tokenizer.DO(), "Expect do after end of constructor parameter declaration");
+    val body := Expr.block_expr(p);
+    Ast.Constructor(params, body)
+end
+
+fun enum_decl(p : P.Parser) : Ast.Decl do 
+    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect class name after 'class' keyword");
+    val targs := if p.matches_type(Tokenizer.LPAREN()) then do 
+        val params: Ast.TypeParameter[] := [];
+        var needs_comma := false;
+        while !p.matches_type(Tokenizer.RPAREN()) do 
+            if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate type parameters"); end;
+            val param_name := p.consume(Tokenizer.IDENTIFIER(), "Expect type parameter name");
+            params.push(Ast.TypeParameter(param_name.src));
+            needs_comma := true;
+        end;
+        params
+    end else [];
+    p.consume(Tokenizer.WHERE(), "Expect start of enum body after enum name: 'where'");
+    val constructors : Ast.EnumConstructor[] := [];
+    var needs_comma := false;
+    while !p.matches_type(Tokenizer.SEMICOLON()) do 
+        if needs_comma do 
+            p.consume(Tokenizer.COMMA(), "Expect ',' to separate enum variants");
+        end;
+        val constr_name := p.consume(Tokenizer.IDENTIFIER(), "Expect enum variant to start with identifier");
+        p.consume(Tokenizer.LPAREN(), "Expect '(' after enum constructor name");
+        val types : Ast.Type[] := [];
+        var inner_needs_comma := false;
+        while !p.matches_type(Tokenizer.RPAREN()) do 
+            if inner_needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate enum variant parameters"); end;
+            types.push(Type.type_literal(p));
+            inner_needs_comma := true;
+        end;
+        constructors.push(Ast.EnumConstructor(constr_name.src, types));
+        needs_comma := true;
+    end;
+    val members : Ast.Decl[] := [];
+    while !p.matches_type(Tokenizer.END()) do 
+        members.push(decl(p));
+    end;
+    Ast.EnumDecl(name.src, targs, constructors, members, true, Ast.late_namespace())
+end

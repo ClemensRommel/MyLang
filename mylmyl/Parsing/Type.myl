@@ -1,0 +1,95 @@
+module Parsing.Type;
+
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+import P := Parsing.Parser;
+import Tokenizer := Parsing.Tokenizer;
+import Util;
+
+fun type_literal(p : P.Parser) : Ast.Type do
+    var ty := simple_type(p);
+    complex_type(p, ty) // Type may be a list or applied to type parameters
+end
+
+fun complex_type(p : P.Parser, simple : Ast.Type) : Ast.Type :=
+    if p.matches_type(Tokenizer.LBRACKET()) then do 
+        p.consume(Tokenizer.RBRACKET(), "Expect ']' after '[' in list type");
+        complex_type(p, Ast.ListOf(simple)) // May be further applied to type arguments or as list
+    end else if p.matches_type(Tokenizer.LPAREN()) then do
+        complex_type(p, applied_to_type_parameters(p, simple)) // Further type arguments
+    end else simple;
+
+fun applied_to_type_parameters(p : P.Parser, applied : Ast.Type) : Ast.Type do 
+    val arg_tys : Ast.Type[] := [];
+    var need_comma := false;
+    while !p.matches_type(Tokenizer.RPAREN()) do 
+        if need_comma do p.consume(Tokenizer.COMMA(), "Expect ',' between type parameters"); end;
+        arg_tys.push(type_literal(p));
+        need_comma := true;
+    end;
+    Ast.Applied(applied, arg_tys)
+end
+
+fun simple_type(p : P.Parser) : Ast.Type := 
+    if p.matches_type(Tokenizer.NUMBER()) then
+        Ast.NumberT()
+    else if p.matches_type(Tokenizer.STRING()) then 
+        Ast.StringT()
+    else if p.matches_type(Tokenizer.BOOLEAN()) then 
+        Ast.BooleanT()
+    else if p.matches_type(Tokenizer.VOID()) then 
+        Ast.VoidT()
+    else if p.matches_type(Tokenizer.TYPE_FUN()) then 
+        function_type(p)
+    else if p.matches_type(Tokenizer.LPAREN()) then 
+        tuple_type(p)
+    else if p.matches_type(Tokenizer.IDENTIFIER()) then 
+        type_path(p)
+    else do         
+        panic("Invalid type: "+p.peek().kind)
+    end;
+
+// Fun is already consumed
+fun function_type(p : P.Parser) : Ast.Type do 
+    p.consume(Tokenizer.LPAREN(), "Expect '(' before parameter types of function type");
+    val arg_types : Ast.Type[] := [];
+    var needs_comma := false;
+    while !p.matches_type(Tokenizer.RPAREN()) do 
+        if needs_comma do 
+            p.consume(Tokenizer.COMMA(), "Expect parameter types to be separated by ','");
+        end;
+        arg_types.push(type_literal(p));
+        needs_comma := true;
+    end;
+    p.consume(Tokenizer.COLON(), "Expect ':' before function return type");
+    val ret_type := type_literal(p);
+    Ast.Function([], arg_types, ret_type)
+end 
+
+fun tuple_type(p : P.Parser) : Ast.Type do 
+    val types : Ast.Type[] := [];
+    var needs_comma := false;
+    while !p.matches_type(Tokenizer.RPAREN()) do 
+        if needs_comma do 
+            p.consume(Tokenizer.COMMA(), "Expect tuple type parts to be separated by ','");
+        end
+        types.push(type_literal(p));
+        needs_comma := true;
+    end;
+    if types.length = 1 then 
+        types[0]
+    else 
+        Ast.Tuple(types)
+end 
+
+fun type_path(p : P.Parser) : Ast.Type do 
+    var last_ident := p.previous().src;
+    val path : String[] := [];
+    while p.matches_type(Tokenizer.DOT()) do 
+        path.push(last_ident);
+        last_ident := p.consume(Tokenizer.IDENTIFIER(), "Expect accessed name after '.'").src;
+    end;
+    if path.length = 0 
+        then Ast.Name(last_ident, Ast.late_namespace())
+        else Ast.ModuleAccess(path, last_ident, Util.LateInitialized.[Ast.Type]())
+end
