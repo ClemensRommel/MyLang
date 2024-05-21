@@ -1,0 +1,25 @@
+module Typechecking.Substitute;
+
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+
+fun substitute(ty : Ast.Type, substitutes : Env.AList(Ast.Type)) : Ast.Type := match ty do 
+    case NumberT() := ty;
+    case Any() := ty;
+    case BooleanT() := ty;
+    case StringT() := ty;
+    case VoidT() := ty;
+    case Tuple(tys) := Ast.Tuple(for t in tys yield substitute(t, substitutes) end);
+    // tylevelparams has to be either [] or the types we substitute, because you cant return generic functions
+    case Function(tylevelparams, argtypes, rettype) := 
+        Ast.Function([], 
+                     for t in argtypes yield substitute(t, substitutes) end, 
+                     substitute(rettype, substitutes));
+    case ListOf(elem_ty) := Ast.ListOf(substitute(elem_ty, substitutes));
+    case ModuleAccess(?, ?, ?) := ty;
+    case Never() := ty;
+    case Name(name, lenv) := if substitutes.has(name) 
+            then substitutes.get(name)
+            else ty; // Not a type parameter to be replaced, leave it alone
+    case Applied(ap, params) := Ast.Applied(substitute(ap, substitutes), for t in params yield substitute(t, substitutes) end);
+end;

@@ -1,0 +1,83 @@
+module Typechecking.Kindchecker;
+
+import TC := Typechecking.Typechecker;
+import TR := Syntax.TypeResolver;
+import Ast := Syntax.Ast;
+
+fun check_kind(tc : TC.Typechecker, ty : Ast.Type, kind : Ast.Kind) do 
+    match ty do 
+        case NumberT() := tc.require_kind(kind, Ast.ConcreteType(), ty);
+        case BooleanT() := tc.require_kind(kind, Ast.ConcreteType(), ty);
+        case StringT() := tc.require_kind(kind, Ast.ConcreteType(), ty);
+        case VoidT() := tc.require_kind(kind, Ast.ConcreteType(), ty);
+        case Any() := tc.require_kind(kind, Ast.ConcreteType(), ty);
+        case Function(typarams, params, ret_ty) := do 
+            tc.open_scope();
+                for param in typarams do 
+                    tc.declare_type(param.name, Ast.TypeParameterInfo(param.name));
+                end;
+                for param in params do 
+                    check_kind(tc, param, Ast.ConcreteType());
+                end;
+                check_kind(tc, ret_ty, Ast.ConcreteType());
+            tc.close_scope();
+            tc.require_kind(kind, Ast.ConcreteType(), ty);
+        end;
+        case ListOf(elem_type) := do 
+            check_kind(tc, elem_type, Ast.ConcreteType());
+            tc.require_kind(kind, Ast.ConcreteType(), ty);
+        end;
+        case Never() := do 
+            tc.require_kind(kind, Ast.ConcreteType(), ty);
+        end;
+        case Tuple(parts) := do 
+            for part in parts do 
+                check_kind(tc, part, Ast.ConcreteType());
+            end;
+            tc.require_kind(kind, Ast.ConcreteType(), ty);
+        end;
+        case Name(name, lenv) := do
+            val variable_kind := kind_of(tc, ty);
+            tc.require_kind(kind, variable_kind, ty);
+        end;
+        case ModuleAccess(path, name, lty) := do 
+            val member_kind := kind_of(tc, ty);
+            tc.require_kind(kind, member_kind, ty);
+        end;
+        case Applied(a1, params) := do 
+            for param in params do 
+                check_kind(tc, param, Ast.ConcreteType());
+            end;
+            check_kind(tc, a1, generic_kind(params.length));
+        end;
+    end
+end
+
+fun generic_kind(param_count: Number) : Ast.Kind do 
+    val generic_params : Ast.Kind[] := [];
+    for i in [0..param_count] do generic_params.push(Ast.ConcreteType()); end;
+    Ast.GenericType(generic_params, Ast.ConcreteType())
+end
+
+fun kind_of(tc : TC.Typechecker, ty : Ast.Type) : Ast.Kind do
+    match TR.resolve(tc.names, ty) do 
+        case NumberT() := Ast.ConcreteType();
+        case BooleanT() := Ast.ConcreteType();
+        case StringT() := Ast.ConcreteType();
+        case VoidT() := Ast.ConcreteType();
+        case Any() := Ast.ConcreteType();
+        case Tuple(tys) := Ast.ConcreteType();
+        case Name(name, lenv) := do 
+            val info := Ast.info_for(tc.names, ty, fun(this_ty : Ast.Type) : String := "Cannot infer kind of type "+this_ty);
+            val kind := kind_of_info(tc, info);
+            kind
+        end;
+        case ModuleAccess(?, ?, lty) := kind_of(tc, lty.get());
+    end
+end
+
+fun kind_of_info(tc : TC.Typechecker, info : Ast.TyInfo) : Ast.Kind := match info do 
+    case TypeParameterInfo(?) := Ast.ConcreteType(); // Type parameters cannot be generic (no higher kinded types)
+    case ClassInfo(name, targs, fields, methods, exported, ?) := if targs.length = 0 then Ast.ConcreteType() else generic_kind(targs.length); 
+    case EnumInfo(name, targs, constructors, methods, exported, ?) := if targs.length = 0 then Ast.ConcreteType() else generic_kind(targs.length); 
+end;

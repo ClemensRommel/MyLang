@@ -1,0 +1,245 @@
+module Typechecking.ExprChecker;
+
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+
+import TC := Typechecking.Typechecker;
+import SC := Typechecking.StmtChecker;
+import DC := Typechecking.DeclChecker;
+import KC := Typechecking.Kindchecker;
+import EI := Typechecking.ExprInferrer;
+import PC := Typechecking.PatternChecker;
+
+import Util;
+
+fun check(tc : TC.Typechecker, e : Ast.Expr, t : Ast.Type) := match e do 
+    case WildCardExpression() := panic("Error: ? is not a valid expression");
+    case DesugarableExpr(content) := check(tc, content.get(), t);
+    case NumberLiteral(?) := tc.require_assigneable(t, Ast.NumberT(), TC.lazy_str(e));
+    case Boolean(?) := tc.require_assigneable(t, Ast.BooleanT(), TC.lazy_str(e));
+    case StringLiteral(?) := tc.require_assigneable(t, Ast.StringT(), TC.lazy_str(e));
+    case NullLiteral() := tc.require_assigneable(t, Ast.VoidT(), TC.lazy_str(e));
+    case ThisExpr() := do 
+        if not tc.is_in_class do 
+            panic("Cannot use 'this' outside of a class");
+        end
+        tc.require_assigneable(t, tc.type_of_var("this"), TC.lazy_str(e));
+    end;
+    case Identifier(name, lty) := do 
+        lty.init(t);
+        tc.require_assigneable(t, tc.type_of_var(name), TC.lazy_str(e));
+        if matches(name, "__.*") do 
+            panic("Names may not start with __: '"+name+"'")
+        end;
+    end;
+    case BinaryOperation(op, lhs, rhs) := tc.require_assigneable(t, EI.infer_binary(tc, op, lhs, rhs), TC.lazy_str(e));
+    case UnaryOperation(op, operand) := tc.require_assigneable(t, EI.infer_unary(tc, op, operand), TC.lazy_str(e));
+    case IfExpr(linit, cond, thenBr, elseBr) := do 
+        linit.init(t);
+        check(tc, cond, Ast.BooleanT());
+        check(tc, thenBr, t);
+        check(tc, elseBr, t);
+    end;
+    case IfValExpr(lrety, pat, matched, thenBr, elseBr, lenv, lmatchty) := do 
+        val matched_ty := EI.infer(tc, matched);
+        lmatchty.init(matched_ty);
+        tc.open_scope();
+            PC.check_pattern(tc, pat, matched_ty);
+            check(tc, thenBr, t);
+            lrety.init(t);
+            lenv.init(tc.names);
+        tc.close_scope();
+        check(tc, elseBr, t);
+    end;
+    case BlockExpr(stmts, end_expr, lt, lenv) := do 
+        check_block(tc, t, stmts, end_expr, e, lenv);
+        lt.init(t);
+    end;
+    case ForExpr(setter, iterated, body, lenv, lt, lit) := check_for(tc, t, setter, iterated, body, lenv, lt, lit);
+    case WhileExpr(cond, body, lenv, lty) := check_while(tc, t, cond, body, lenv, lty);
+    case WhileValExpr(pat, matched, body, lmatched_ty, lenv, lty) := check_while_val(tc, t, pat, matched, body, lmatched_ty, lenv, lty);
+    case FunctionCall(callee, fargs) := do 
+        val callee_type := EI.infer(tc, callee);
+        // TODO: Generics
+        val Function(typarams, param_types, ret_type) := callee_type else do 
+            panic("Cannot call non-function-type "+callee_type+" in "+e)
+        end;
+        tc.require_assigneable(t, ret_type, TC.lazy_str(e));
+        if param_types.length != fargs.length do 
+            panic("Error: tried to call function "+callee+" with "+fargs.length+
+                " parameters, but "+callee+" expects "+param_types.length+" parameters");
+        end;
+        for i in [0..fargs.length] do 
+            check(tc, fargs[i], param_types[i]);
+        end
+    end;
+    case InstantiationExpr(instantiated, typarams, lty) := tc.require_assigneable(t, EI.infer(tc, e), TC.lazy_str(e));
+    case FunctionExpr(params, return_type, body, lenv) := tc.require_assigneable(
+        t, 
+        EI.infer_function(
+            tc, 
+            params, 
+            return_type, 
+            body,
+            lenv),
+        TC.lazy_str(e));
+    case TupleExpr(subexprs, lt) := do 
+        val Tuple(subtypes) := t else panic("Cannot use expression "+e+" with non-tuple-type "+t);
+        lt.init(t);
+        if subexprs.length != subtypes.length do 
+            panic("Expected tuple of length "+subtypes.length+" in "+e);
+        end
+        for i in [0..subexprs.length] do 
+            check(tc, subexprs[i], subtypes[i]);
+        end;
+    end;
+    case ListExpr(subexprs, lt) := do 
+        val ListOf(et) := t else panic("Expected "+t+", got expression of list type: "+e);
+        for subexpr in subexprs do 
+            check(tc, subexpr, et);
+        end;
+        lt.init(Ast.ListOf(et));
+    end;
+    case RangeExpr(start, end_expr) := do
+        check(tc, start, Ast.NumberT());
+        check(tc, end_expr, Ast.NumberT());
+        tc.require_assigneable(t, Ast.ListOf(Ast.NumberT()), TC.lazy_str(e));
+    end;
+    case PropertyExpr(obj, name, la, lt, lft) := do
+        val infered_type := EI.infer(tc, e);
+        tc.require_assigneable(t, infered_type, TC.lazy_str(e));
+    end;
+    case IndexExpr(lst, idx, llist_ty) := do
+        check(tc, idx, Ast.NumberT());
+        val list_ty := EI.infer(tc, lst);
+        llist_ty.init(list_ty);
+        tc.require_assigneable(t, match list_ty do case StringT() := Ast.StringT(); case ListOf(et) := et; end, TC.lazy_str(e));
+    end;
+    case MatchExpr(matched, arms, lmty, lty) := do
+        val matched_ty := EI.infer(tc, matched);
+        lmty.init(matched_ty);
+        for (pattern, expr, lenv) in arms do
+            tc.open_scope(); 
+                PC.check_pattern(tc, pattern, matched_ty);
+                check(tc, expr, t);
+                lenv.init(tc.names);
+            tc.close_scope();
+        end;
+        lty.init(t);
+    end;
+    case ReturnExpr(ret, lty) := do 
+        lty.init(t);
+        val (can_return, return_ty) := tc.return_tys.last;
+        if !can_return do panic("Cannot return outside of functions or methods: "+e) end
+        check(tc, ret, return_ty);
+    end;
+    case Break(lty) := do 
+        if !tc.in_loops.last do panic("Cannot break outside of loops"); end;
+        lty.init(t);
+    end;
+end;
+
+fun check_block(
+    tc : TC.Typechecker, 
+    t : Ast.Type, 
+    stmts : Ast.Stmt[], 
+    end_expr : Optional(Ast.Expr),
+    total : Ast.Expr, 
+    lenv : Util.LateInitialized(Ast.Namespace))
+do 
+    tc.open_scope();
+        for stmt in stmts do 
+            SC.check_stmt(tc, stmt);
+        end;
+        if val Some(e) := end_expr then do 
+            check(tc, e, t);
+        end else do 
+            tc.require_assigneable(t, Ast.VoidT(), TC.lazy_str(total));
+        end;
+        lenv.init(tc.names);
+    tc.close_scope();
+end
+
+fun check_for(
+    tc : TC.Typechecker, 
+    result_ty : Ast.Type,
+    setter : Ast.Setter, 
+    iterated : Ast.Expr,
+    body : Ast.Expr, 
+    lenv : Util.LateInitialized(Ast.Namespace), 
+    lt : Util.LateInitialized(Ast.Type),
+    lit : Util.LateInitialized(Ast.Type)) 
+do 
+    val iterated_ty := EI.infer(tc, iterated);
+    tc.open_scope();
+        tc.in_loops.push(true);
+        val ListOf(elem_ty) := iterated_ty else panic("Cannot iterate non-list-type "+iterated_ty);
+        lit.init(elem_ty);
+        DC.check_declaration_setter(tc, setter, elem_ty, false);
+        if val VoidT() := result_ty then do 
+            check(tc, body, Ast.VoidT());
+        end else if val ListOf(e_ty) := result_ty then do 
+            check(tc, body, e_ty);
+        end else do 
+            val body_ty := EI.infer(tc, body);
+            tc.error.[Void]("Expected "+result_ty+", got "+Ast.ListOf(body_ty));
+        end;
+        lenv.init(tc.names);
+        lt.init(result_ty);
+        tc.in_loops.pop();
+    tc.close_scope();
+end
+
+fun check_while(
+    tc : TC.Typechecker,  
+    expected : Ast.Type, 
+    cond : Ast.Expr, 
+    body : Ast.Expr, 
+    lenv : Util.LateInitialized(Ast.Namespace), 
+    lty : Util.LateInitialized(Ast.Type)) 
+do 
+    check(tc, cond, Ast.BooleanT());
+    tc.open_scope();
+        tc.in_loops.push(true);
+        if val VoidT() := expected then do 
+            check(tc, body, Ast.VoidT());
+        end else if val ListOf(elem_ty) := expected then do 
+            check(tc, body, elem_ty);
+        end else do 
+            val elem_ty := EI.infer(tc, body);
+            tc.error.[Void]("Expected "+expected+", got "+Ast.ListOf(elem_ty)+" in "+ Ast.WhileExpr(cond, body, lenv, lty));
+        end;
+        lty.init(expected); // The resulting type of the entire expression, not the element type
+        lenv.init(tc.names);
+        tc.in_loops.pop();
+    tc.close_scope();
+end
+
+fun check_while_val(
+    tc : TC.Typechecker, 
+    expected : Ast.Type, 
+    pat : Ast.Pattern, 
+    matched : Ast.Expr, 
+    body : Ast.Expr, 
+    lmatched_ty : Util.LateInitialized(Ast.Type), 
+    lenv : Util.LateInitialized(Ast.Namespace), 
+    lty : Util.LateInitialized(Ast.Type)) 
+do 
+    val matched_ty := EI.infer(tc, matched);
+    lmatched_ty.init(matched_ty);
+    tc.open_scope();
+        tc.in_loops.push(true);
+        PC.check_pattern(tc, pat, matched_ty);
+        if val VoidT() := expected then do 
+            check(tc, body, Ast.VoidT());
+        end else if val ListOf(elem_ty) := expected then do
+            check(tc, body, elem_ty);
+        end else do 
+            val elem_ty := EI.infer(tc, body);
+            tc.error.[Void]("Expected "+expected+", got "+Ast.ListOf(elem_ty)+" in "+Ast.WhileValExpr(pat, matched, body, lmatched_ty, lenv, lty));
+        end;
+        lty.init(expected);
+        lenv.init(tc.names);
+        tc.in_loops.pop();
+    tc.close_scope();
+end

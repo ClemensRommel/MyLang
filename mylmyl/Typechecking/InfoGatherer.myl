@@ -4,8 +4,8 @@ import Ast := Syntax.Ast;
 import Env := Syntax.Env;
 import Util;
 import SFG := IO.SourceFileGatherer;
-import Typechecking.Typechecker;
-
+import DC := Typechecking.DeclChecker;
+import Subst := Typechecking.Substitute;
 
 fun add_imports(sfg : SFG.SFGatherer, file : SFG.SourceFile) do 
     for imported in file.ast.imports do 
@@ -103,15 +103,15 @@ fun declare_functions_and_types(file : SFG.SourceFile) do
                 val info := Ast.ClassInfo(
                     name, 
                     targs,
-                    Typechecking.Typechecker.fields_in_class(body, scope),
-                    Typechecking.Typechecker.methods_in_class(body, scope),
+                    DC.fields_in_class(body, scope),
+                    DC.methods_in_class(body, scope),
                     exported,
                     scope
                 );
                 file.names.types.insert(name, info);
                 val constr_ty := if val Some(con) := constr 
-                    then Ast.Function(targs, Ast.param_types(con.params), Typechecking.Typechecker.class_constr_ret_ty(targs, name, scope))
-                    else Ast.Function(targs, [], Typechecking.Typechecker.class_constr_ret_ty(targs, name, scope));
+                    then Ast.Function(targs, Ast.param_types(con.params), DC.class_constr_ret_ty(targs, name, scope))
+                    else Ast.Function(targs, [], DC.class_constr_ret_ty(targs, name, scope));
                 val varinf := Ast.VarInfo(false, constr_ty, name, scope);
                 varinf.is_constructor := true;
                 varinf.is_exported := exported;
@@ -125,11 +125,11 @@ fun declare_functions_and_types(file : SFG.SourceFile) do
                     end;
                     inner
                 end;
-                val funs := Typechecking.Typechecker.methods_in_class(members, scope);
+                val funs := DC.methods_in_class(members, scope);
                 file.names.types.insert(name, Ast.EnumInfo(name, targs, constructors, funs, exported, scope));
                 for constr in constructors do 
                     val param_tys := early_bind_type_vars(constr.fields, targs, scope);
-                    val info := Ast.VarInfo(false, Ast.Function(targs, param_tys, Typechecking.Typechecker.class_constr_ret_ty(targs, name, scope)), constr.name, scope);
+                    val info := Ast.VarInfo(false, Ast.Function(targs, param_tys, DC.class_constr_ret_ty(targs, name, scope)), constr.name, scope);
                     info.is_constructor := true;
                     info.is_exported := exported;
                     file.names.values.insert(constr.name, info);
@@ -144,7 +144,7 @@ end
 
 fun early_bind_type_vars(fields : Ast.Type[], targs : Ast.TypeParameter[], scope : Ast.Namespace) : Ast.Type[] do 
     val substitutes := Env.AListOf.[Ast.Type](for arg in targs yield (arg.name, Ast.Name(arg.name, Util.wrap_linit.[Ast.Namespace](scope))) end);
-    for field in fields yield Typechecking.Typechecker.substitute(field, substitutes) end
+    for field in fields yield Subst.substitute(field, substitutes) end
 end
 
 

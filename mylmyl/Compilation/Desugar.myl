@@ -5,6 +5,7 @@ import Util;
 import Env := Syntax.Env;
 import CB := Compilation.CodeBuffers;
 import Typechecking.Typechecker;
+import Analyze := Typechecking.Analyze;
 
 class Desugarer where 
     val name_gen : CB.NameGenerator;
@@ -95,7 +96,7 @@ end;
 
 fun declared_vars(pat : Ast.Pattern, ty : Ast.Type) : (String, Ast.Type)[] do 
     val lst : (String, Ast.Type)[] := [];
-    Typechecking.Typechecker.declared_vars_in(pat, ty, lst);
+    Analyze.declared_vars_in(pat, ty, lst);
     lst
 end;
 

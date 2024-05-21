@@ -2,11 +2,10 @@ module Compilation.CodeGenerator;
 
 import Ast := Syntax.Ast;
 import Env := Syntax.Env;
-import Analyze;
+import Analyze := Typechecking.Analyze;
 import Util;
 import SFG := IO.SourceFileGatherer;
 import CB := Compilation.CodeBuffers;
-import TC := Typechecking.Typechecker;
 
 class Compiler where 
     var buf : CB.StringBuffer := CB.StringBuffer();
@@ -912,7 +911,7 @@ fun compile_complex_pattern(
     case WildcardPattern() := c.append(compile_type(c, matched_ty)+" "+c.new_var());
     case ConstructorPattern(name, subpatterns, constr, lenum_ty, linf) := do 
         val enum_info := linf.get();
-        val scope := TC.scope_of_info(enum_info, c.current_env); // Just any namespace, won't be use
+        val scope := Ast.scope_of_info(enum_info, c.current_env); // Just any namespace, won't be use
         val full_name := name_in_module(c, name, scope);
         c.append(full_name); 
 

@@ -1,0 +1,77 @@
+module Typechecking.PatternChecker;
+
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+import TC := Typechecking.Typechecker;
+import TR := Syntax.TypeResolver;
+import Subst := Typechecking.Substitute;
+
+fun check_pattern(tc : TC.Typechecker, pattern : Ast.Pattern, matched_ty : Ast.Type) do 
+    fun pat_str() : String := "" + pattern;
+    match pattern do 
+        case NumericPattern(?) := do 
+            tc.require_assigneable(Ast.NumberT(), matched_ty, pat_str);
+        end;
+        case StringPattern(?) := do 
+            tc.require_assigneable(Ast.StringT(), matched_ty, pat_str);
+        end;
+        case BooleanPattern(?) := do 
+            tc.require_assigneable(Ast.BooleanT(), matched_ty, pat_str);
+        end;
+        case NamePattern(name) := do 
+            if tc.names.values.has(name) do 
+                panic("Variable already declared: "+name+" in pattern");
+            end;
+            tc.declare(name, matched_ty, false);
+        end;
+        case WildcardPattern() := do end; // Wildcard is ok for everything
+        case TuplePattern(patterns) := do 
+            if val Tuple(parts) := matched_ty then do
+                if parts.length != patterns.length do 
+                    panic("Expected tuple of length "+patterns.length+", got tuple of "+parts.length+" in pattern "+pat_str());
+                end;
+                for i in [0..parts.length] do 
+                    check_pattern(tc, patterns[i], parts[i]);
+                end;
+            end else do 
+                panic("Cannot match on non-tuple-type "+matched_ty+" in pattern "+pattern);
+            end;
+        end;
+        case ConstructorPattern(name, subpatterns, lconstr, lenum_ty, linf) := do 
+            lenum_ty.init(matched_ty);
+            var typarams : Ast.Type[] := [];
+            val inf := if val Applied(a, params) := matched_ty 
+                then do 
+                    typarams := params;
+                    Ast.info_for(tc.names, a, fun(ty : Ast.Type) : String := "Cannot match on non-enum-type" + matched_ty+" in "+pattern)
+                end
+                else Ast.info_for(tc.names, matched_ty, fun(ty : Ast.Type) : String := "Cannot match on non-enum-type "+matched_ty+" in "+pattern);
+            val EnumInfo(enum_name, targs, constructors, methods, exported, scope) := inf
+            else panic("Cannot match on non-enum type "+matched_ty+"in "+pattern);
+            linf.init(inf);
+            val subst := if typarams.length != 0 then do 
+                val s : Env.AList(Ast.Type) := Env.AList.[Ast.Type]();
+                if typarams.length != targs.length do panic("Expected "+targs.length+" type parameters, got "+typarams.length); end;
+                for i in [0..typarams.length] do 
+                    s.insert(targs[i].name, typarams[i]);
+                end;
+                s
+            end else Env.AList.[Ast.Type]();
+            for constr in constructors do 
+                if constr.name = name do 
+                    val tys := for ty in constr.fields yield Subst.substitute(TR.resolve(scope, ty), subst) end;
+                    lconstr.init(Ast.EnumConstructor(constr.name, tys));
+                    val constr_params := constr.fields;
+                    if constr_params.length != subpatterns.length do 
+                        panic("Expected "+constr_params.length+" parameters, got "+subpatterns.length+" in "+pattern);
+                    end;
+                    for i in [0..constr_params.length] do 
+                        check_pattern(tc, subpatterns[i], tys[i]);
+                    end;
+                    return null;
+                end;
+            end;
+            panic("Enum "+enum_name+" has no constructor of name "+name);
+        end;
+    end;
+end

@@ -1,6 +1,7 @@
 module Ast;
 
 import Env := Syntax.Env;
+import TR := Syntax.TypeResolver;
 import Util;
 
 enum Expr where 
@@ -264,5 +265,25 @@ class Namespace where
         result.types := ty_env;
         result.imported_modules := this.imported_modules;
         result
+    end
+end
+
+fun is_type_exported(info : TyInfo) : Bool := match info do 
+    case ClassInfo(?, ?, ?, ?, exported, ?) := exported;
+    case EnumInfo(?, ?, ?, ?, exported, ?) := exported;
+end;
+
+fun scope_of_info(info : TyInfo, fallback : Namespace) : Namespace := match info do 
+    case TypeParameterInfo(name) := fallback.env_defined_in(name);
+    case ClassInfo(?, ?, ?, ?, ?, scope) := scope;
+    case EnumInfo(?, ?, ?, ?, ?, scope) := scope;
+end;
+
+fun info_for(names : Namespace, ty : Type, error_message : Fun(Type) : String) : TyInfo do 
+    match ty do 
+        case Applied(aty, params) := info_for(names ,aty, error_message);
+        case Name(name, lenv) := lenv.get().types.get(name);
+        case ModuleAccess(path, name, lty) := do TR.resolve(names, ty); info_for(names, lty.get(), fun(other_ty : Type) : String := error_message(ty)) end;
+        case ? := panic(error_message(ty));
     end
 end

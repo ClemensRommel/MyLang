@@ -1,7 +1,8 @@
-module Analyze;
+module Typechecking.Analyze;
 
 import Ast := Syntax.Ast;
 import Env := Syntax.Env;
+import Subst := Typechecking.Substitute;
 import Util;
 
 // Search for mutable variables that are captured by functions in this block
@@ -77,6 +78,36 @@ end;
 
 fun constr_mentions_var(constr : Ast.Constructor, name : String) : Bool := mentions_var(constr.body, name);
     
+fun declared_vars_in(pat : Ast.Pattern, ty : Ast.Type, lst : (String, Ast.Type)[]) := match pat do 
+    case NumericPattern(?) := do end;
+    case StringPattern(?) := do end;
+    case BooleanPattern(?) := do end;
+    case NamePattern(n) := do lst.push((n, ty)); end;
+    case WildcardPattern() := do end;
+    case TuplePattern(pats) := do 
+        val Tuple(tys) := ty else panic("Error: No tuple type in tuple pattern: "+pat+", "+ty);
+        for i in [0..tys.length] do 
+            declared_vars_in(pats[i], tys[i], lst);
+        end;
+    end;
+    case ConstructorPattern(name, pats, lenumc, lenum, lenum_info) := do 
+        val subst := if val Applied(from, to) := lenum.get() then do 
+            val slst := Env.AList.[Ast.Type]();
+            val EnumInfo(?, targs, ?, ?, ?, ?) := lenum_info.get() else panic("Cannot match on non-enum-type");
+            for i in [0..targs.length] do 
+                slst.insert(targs[i].name, to[i]);
+            end;
+            slst
+        end else Env.AList.[Ast.Type]();
+        val constr := lenumc.get();
+        for i in [0..constr.fields.length] do 
+            val field := constr.fields[i];
+            val new_ty := Subst.substitute(field, subst);
+            declared_vars_in(pats[i], new_ty, lst);
+        end;
+    end;
+end;
+
 
 fun analyze_stmt(scan_env : Env.AList(Bool), stmt : Ast.Stmt) do 
     match stmt do

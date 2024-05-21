@@ -1,0 +1,65 @@
+module Syntax.TypeResolver;
+
+import Ast := Syntax.Ast;
+import SFG := IO.SourceFileGatherer;
+import Util;
+
+// resolve funktioniert über side effects (d.h. der parameter wird verändert),
+// gibt den parameter aber zurück
+// Macht auch das was require_types_exist tut
+fun resolve(names : Ast.Namespace, ty : Ast.Type) : Ast.Type do 
+    match ty do 
+        case NumberT() := do end;
+        case Any() := do end;
+        case BooleanT() := do end;
+        case StringT() := do end;
+        case VoidT() := do end;
+        case Tuple(parts) := do for part in parts do resolve(names, part) end; end;
+        case Name(name, lenv) := do
+            if !lenv.is_init() do // Name belongs to current scope
+                if !names.types.has(name) do panic("Unknown type "+name+": available: "+names.types.bindings.bindings+"values: "+names.values.bindings.bindings); end
+                val info := names.types.get(name);
+                lenv.init(Ast.scope_of_info(info, names));
+            end;
+            if !lenv.get().types.has(name) do // Typ existiert nicht im ziel / derzeitigen scope
+                panic("Unknown type "+name);
+            end
+        end;
+        //TODO: Generics
+        case Function(typarams, params, ret_ty) := do 
+            for param in params do resolve(names, param); end;
+            resolve(names, ret_ty);
+        end;
+        case ListOf(tys) := do resolve(names, tys); end;
+        case ModuleAccess(path, name, laccessed) := if laccessed.is_init() then do end else do 
+            if !has_imported_module(names, path) do
+                panic("Unknown module "+SFG.path_to_module(path)+" in "+ty);
+            end;
+            val imported_names := get_imported_module(names, path);
+            if !imported_names.types.has(name) do  // Type is not declared
+                panic("Module "+join(".", path)+" does not declare "+name);
+            end
+            val ty_info := imported_names.types.get(name); 
+            if !Ast.is_type_exported(ty_info) do  // Type is not visible from this module
+                panic("Module "+join(".", path)+" does not export "+name);
+            end
+            val scope := Ast.scope_of_info(ty_info, imported_names);
+            laccessed.init(Ast.Name(name, Util.wrap_linit.[Ast.Namespace](scope)));
+        end;
+        case Applied(applied, params) := do 
+            for param in params do resolve(names, param); end;
+            resolve(names, applied);
+        end;
+        case Never() := do end;
+    end;
+    ty
+end
+
+fun get_imported_module(names : Ast.Namespace, path : String[]) : Ast.Namespace :=
+    if path.length = 1 and names.imported_modules.has(path[0]) 
+        then names.imported_modules.get(path[0])
+        else names.imported_modules.get(SFG.path_to_module(path));
+
+fun has_imported_module(names : Ast.Namespace, path : String[]) : Bool := 
+    (path.length = 1 and names.imported_modules.has(path[0]))
+    or names.imported_modules.has(SFG.path_to_module(path));

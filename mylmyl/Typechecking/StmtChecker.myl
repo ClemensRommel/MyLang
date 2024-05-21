@@ -1,0 +1,77 @@
+module Typechecking.StmtChecker;
+
+import TC := Typechecking.Typechecker;
+import DC := Typechecking.DeclChecker;
+import KC := Typechecking.Kindchecker;
+import EI := Typechecking.ExprInferrer;
+import EC := Typechecking.ExprChecker;
+import Ast := Syntax.Ast;
+
+fun check_stmt(tc : TC.Typechecker, stmt : Ast.Stmt) := match stmt do 
+    case ExprStmt(arg) := do 
+        EI.infer(tc, arg);
+    end;
+    case IfStmt(cond, body) := do 
+        EC.check(tc, cond, Ast.BooleanT());
+        EC.check(tc, body, Ast.VoidT());
+    end;
+    case Declaration(decl) := DC.check_decl(tc, decl);
+    case SetStatement(setter, value) := check_set_stmt(tc, setter, value);
+    case EmptyStmt() := do end;
+end;
+
+fun check_set_stmt(tc : TC.Typechecker, setter : Ast.Setter, value : Ast.Expr) do 
+    val expected_type := infer_setter(tc, setter);
+    EC.check(tc, value, expected_type);
+    check_mutability(tc, setter);
+end
+
+fun infer_setter(tc : TC.Typechecker, s : Ast.Setter) : Ast.Type := match s do 
+    case Variable(name) := tc.type_of_var(name);
+    case WildcardSetter() := do panic("Cannot infer wildcard setter") end;
+    case TupleSetter(subsetters, lt) := do 
+        val parts : Ast.Type[] := [];
+        for setter in subsetters do 
+            parts.push(infer_setter(tc, setter));
+        end;
+        val ty := Ast.Tuple(parts);
+        lt.init(ty);
+        ty
+    end;
+    case IndexSetter(indexed, idx) := do 
+        EC.check(tc, idx, Ast.NumberT());
+        val list_ty := EI.infer(tc, indexed);
+        val ListOf(elem_ty) := list_ty else panic("Cannot reassign index of non-list type "+list_ty+" in "+s);
+        elem_ty
+    end;
+    case Property(obj, name, lcty) := do
+        val obj_ty := EI.infer(tc, obj);
+        lcty.init(obj_ty);
+        val (property_ty, aty) := EI.get_property_ty(tc, name, obj_ty, fun() : String := "" + s);
+        property_ty
+    end;
+end;
+
+fun check_mutability(tc : TC.Typechecker, setter : Ast.Setter) := match setter do 
+    case Variable(name) := do 
+        if !tc.is_var_mutable(name) do 
+            panic("Error: '"+name+"' is not mutable");
+        end;
+    end;
+    case WildcardSetter() := do end;
+    case TupleSetter(parts, ?) := do 
+        for part in parts do 
+            check_mutability(tc, part);
+        end;
+    end;
+    case IndexSetter(?, ?) := do end; // Can always reassign fields of list
+    case Property(obj, name, lt) := do 
+        val ClassInfo(class_name, targs, fields, methods, ?, ?) := Ast.info_for(tc.names, lt.get(), fun(ty : Ast.Type) : String := "Cannot reassign to property "+name+" of non_class_type"+ty)
+            else panic("Should be unreachable: Non-class info in setter");
+        val field_info := fields.get(name);
+        if not field_info.is_mutable and not tc.is_in_constructor do 
+            panic("Cannot change immutable field "+name+" of class "+class_name);
+        end
+        if methods.has(name) do panic("Cannot change method "+name+"of class "+class_name+" in: "+setter); end
+    end;
+end;

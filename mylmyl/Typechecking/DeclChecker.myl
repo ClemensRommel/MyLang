@@ -1,0 +1,321 @@
+module Typechecking.DeclChecker;
+
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+import TC := Typechecking.Typechecker;
+import TR := Syntax.TypeResolver;
+import KC := Typechecking.Kindchecker;
+import EC := Typechecking.ExprChecker;
+import EI := Typechecking.ExprInferrer;
+import PC := Typechecking.PatternChecker;
+import Util;
+
+fun check_decl(tc : TC.Typechecker, decl : Ast.Decl) := match decl do 
+    case VarDecl(setter, lt, init, mutable, ?) := do 
+        if lt.is_init() then do 
+            KC.check_kind(tc, lt.get(), Ast.ConcreteType());
+            val ty := TR.resolve(tc.names, lt.get());
+            if val Some(e) := init then do 
+                EC.check(tc, e, ty);
+            end else do
+                if not mutable and not tc.is_in_class do 
+                    panic("Immutable variable requires initializer: "+setter);
+                end
+                if not tc.is_in_class do 
+                    panic("Variables outside of classes require a initializer: "+setter);
+                end
+            end;
+        end else do
+            if val Some(e) := init then do  
+                val inferred := EI.infer(tc, e);
+                lt.init(inferred); // Infer always returns a concrete type
+            end else do 
+                panic("Require either an initializer or a type annotation for variable "+setter+"\n"
+                    + (if not mutable and not tc.is_in_class then "Immutable variable requires initializer: "+setter else "")
+                    + (if not tc.is_in_class then "Variables outside of classes require a initializer: "+setter else ""));
+            end;
+        end;
+        TR.resolve(tc.names, lt.get());
+        check_declaration_setter(tc, setter, lt.get(), mutable);
+    end;
+    case DesugarableDecl(md) := check_decl(tc, md.get());
+    case EmptyDecl() := do end;
+    case ValElseDeclaration(pat, matched, else_br, is_mut, is_export, ldecl_ty, lmatched_ty, lenv) := do 
+        if ldecl_ty.is_init() then do 
+            KC.check_kind(tc, ldecl_ty.get(), Ast.ConcreteType());
+            val ty := TR.resolve(tc.names, ldecl_ty.get());
+            PC.check_pattern(tc, pat, ty);
+            EC.check(tc, matched, ty);
+            EC.check(tc, else_br, Ast.Never());
+            lmatched_ty.init(ty);
+            lenv.init(tc.names);
+        end else do 
+            val matched_ty := EI.infer(tc, matched); // Infer always returns a concrete type
+            lmatched_ty.init(matched_ty);
+            ldecl_ty.init(matched_ty);
+            PC.check_pattern(tc, pat, matched_ty);
+            EC.check(tc, else_br, Ast.Never());
+            lenv.init(tc.names);
+        end;
+    end;
+    case FunDecl(name, typarams, params, return_type, body, ?, lenv) := do 
+        if matches(name, "__.*") do 
+            panic("Names may not start with __: '"+name+"'")
+        end
+        if tc.var_declared(name) and tc.scope_depth > 0  do 
+            panic("Function already declared: '"+name+"'");
+        end;
+        tc.open_scope();
+            for param in typarams do 
+                if tc.names.types.has(param.name) do 
+                    panic("Type name already declared: "+param.name);
+                end
+                tc.declare_type(param.name, Ast.TypeParameterInfo(param.name));
+            end;
+            KC.check_kind(tc, return_type, Ast.ConcreteType());
+            val resolved_ret_ty := TR.resolve(tc.names, return_type);
+            val fun_type := Ast.Function(typarams, for ty in Ast.param_types(params) yield TR.resolve(tc.names, ty) end, resolved_ret_ty);
+            val closed_scope := tc.names;
+        tc.close_scope();
+        tc.declare(name, fun_type, false);
+        tc.open_scope();
+        tc.names := closed_scope;
+            tc.in_loops.push(false);
+            tc.return_tys.push((true, resolved_ret_ty));
+            for param in params do 
+                declare_param(tc, param); // ?
+            end;
+            EC.check(tc, body, resolved_ret_ty);
+            lenv.init(tc.names);
+            tc.return_tys.pop();
+            tc.in_loops.pop();
+        tc.close_scope();
+        tc.declare(name, fun_type, false);
+        if tc.is_global() and name = "main" and return_type != Ast.VoidT() do 
+            panic("Main may not return anything other than Void");
+        end
+        if tc.is_global() and name = "main" and params != [] do 
+            panic("Main may not define any parameters");
+        end;
+    end;
+    case ClassDecl(name, targs, members, constructor, exported, lenv) := do 
+        val (info, new_scope) := if tc.scope_depth = 0 then do 
+            val declared_info := tc.names.types.get(name); // Pre-created info
+            val declared_scope := Ast.scope_of_info(declared_info, tc.names);
+            (declared_info, declared_scope)
+        end else do 
+            val created_scope := tc.names.open_scope();
+            for t in targs do 
+                created_scope.types.insert(t.name, Ast.TypeParameterInfo(t.name));
+            end;
+            val new_info := Ast.ClassInfo(
+                name, 
+                targs,
+                fields_in_class(members, created_scope),
+                methods_in_class(members, created_scope),
+                exported,
+                created_scope
+            );
+            (new_info, created_scope)
+        end;
+        tc.declare_type(name, info);
+        tc.open_scope();
+        val prev_scope := tc.names;
+        tc.names := new_scope; 
+            tc.in_loops.push(false);
+            tc.return_tys.push((false, Ast.Never()));
+            val this_ty := class_constr_ret_ty(targs, name, new_scope);
+            tc.declare("this", this_ty, false);
+            check_body(tc, members);
+            val prev_in_constr := tc.is_in_constructor;
+            tc.is_in_constructor := true;
+            val constr_type := check_constructor(tc, constructor, targs, name, new_scope);
+            tc.is_in_constructor := prev_in_constr;
+            val body_env := tc.names;
+            tc.return_tys.pop();
+            tc.in_loops.pop();
+        tc.names := prev_scope;
+        if tc.names.values.has("this") do print("" + (prev_scope = new_scope) + "" + (tc.names = new_scope)); panic("Still has this after block"); end;
+        tc.close_scope();
+        lenv.init(body_env);
+        
+        tc.declare(name, constr_type, false);
+    end;
+    case EnumDecl(name, targs, variants, members, is_export, lenv) := do 
+        val (info, new_scope) := if tc.scope_depth = 0 then do 
+            val ty_info := tc.names.types.get(name);
+            (ty_info, Ast.scope_of_info(ty_info, tc.names))
+        end else do 
+            val inner_scope := tc.names.open_scope();
+            for t in targs do 
+                inner_scope.types.insert(t.name, Ast.TypeParameterInfo(t.name));
+            end;
+            val funs := methods_in_class(members, inner_scope);
+            (Ast.EnumInfo(name, targs, variants, funs, is_export, tc.names), inner_scope)
+        end;
+        disallow_fields_in_enum(tc, members, name);
+        
+        tc.declare_type(name, info);
+        declare_enum_constructors(tc, name, targs, variants, new_scope);
+        tc.open_scope();
+        val prev_scope := tc.names;
+        tc.names := new_scope;
+            tc.in_loops.push(false);
+            tc.return_tys.push((false, Ast.Never()));
+            tc.declare("this", class_constr_ret_ty(targs, name, new_scope), false);
+            check_body(tc, members);
+            val body_env := tc.names;
+            tc.return_tys.pop();
+            tc.in_loops.pop();
+        tc.names := prev_scope;
+        tc.close_scope();
+        lenv.init(body_env);
+    end;
+end;
+
+fun check_body(tc : TC.Typechecker, body : Ast.Decl[]) do 
+    val prev_in_class := tc.is_in_class;
+    tc.is_in_class := true;
+    for member in body do 
+        check_decl(tc, member);
+    end;
+    tc.is_in_class := prev_in_class;
+end
+
+
+fun check_constructor(tc : TC.Typechecker, constructor : Optional(Ast.Constructor), targs : Ast.TypeParameter[], className : String, scope : Ast.Namespace) : Ast.Type do
+    val prev_in_class := tc.is_in_class;
+    tc.is_in_class := true;
+    val result := if val Some(constr) := constructor then do 
+        tc.open_scope();
+            for param in constr.params do 
+                declare_param(tc, param);
+            end;
+            EC.check(tc, constr.body, Ast.VoidT());
+            constr.lenv.init(tc.names);
+        tc.close_scope();
+        Ast.Function(targs, Ast.param_types(constr.params), class_constr_ret_ty(targs, className, scope))
+    end else do 
+        Ast.Function(targs, [], class_constr_ret_ty(targs, className, scope))
+    end;
+    tc.is_in_class := prev_in_class;
+    result
+end
+
+fun disallow_fields_in_enum(tc : TC.Typechecker, members : Ast.Decl[], name : String) do 
+    for member in members do 
+        if val VarDecl(setter, ?, ?, ?, ?) := member then do 
+            panic("Error: Fields are not allowed as members of enums (in enum "+name+"): "+setter);
+        end else do end;
+    end;
+end
+
+fun declare_enum_constructors(tc : TC.Typechecker, name : String, targs : Ast.TypeParameter[], variants : Ast.EnumConstructor[], scope : Ast.Namespace) do 
+    for constr in variants do 
+        val prv_names := tc.names;
+        tc.names := scope;
+        for field in constr.fields do 
+            KC.check_kind(tc, field, Ast.ConcreteType());
+            TR.resolve(scope, field);
+        end;
+        tc.names := prv_names;
+        tc.declare(constr.name, Ast.Function(targs, constr.fields, class_constr_ret_ty(targs, name, scope)), false);
+    end;
+end
+
+fun class_constr_ret_ty(targs : Ast.TypeParameter[], className : String, nmspc : Ast.Namespace) : Ast.Type do 
+    if targs.length = 0 then do 
+        Ast.Name(className, Util.wrap_linit.[Ast.Namespace](nmspc))
+    end else do
+        val ty_params : Ast.Type[] := [];
+        for arg in targs do 
+            ty_params.push(Ast.Name(arg.name, Util.wrap_linit.[Ast.Namespace](nmspc)));
+        end;
+        Ast.Applied(Ast.Name(className, Util.wrap_linit.[Ast.Namespace](nmspc)), ty_params)
+    end
+end
+
+fun fields_in_class(members : Ast.Decl[], scope : Ast.Namespace) : Env.AList(Ast.VarInfo) do 
+    val types : Env.AList(Ast.VarInfo) := Env.AList.[Ast.VarInfo]();
+    for member in members do 
+        match member do 
+            case VarDecl(setter, ty, ?, m, ?) := do 
+                gather_types(setter, ty.get(), m, types, scope);
+            end;
+            case ? := do end;
+        end;
+    end;
+    types
+end
+
+fun methods_in_class(members : Ast.Decl[], scope : Ast.Namespace) : Env.AList(Ast.VarInfo) do 
+    val types : Env.AList(Ast.VarInfo) := Env.AList.[Ast.VarInfo]();
+    for member in members do 
+        match member do 
+            case FunDecl(name, typarams, params, ret_ty, body, ?, lenv) := do
+                val fun_ty := Ast.Function(typarams, Ast.param_types(params), ret_ty);
+                types.insert(name, Ast.VarInfo(false, fun_ty, name, scope));
+            end;
+            case ClassDecl(name, ?, ?, ?, ?, ?) := do panic("Error: Do not allow class as member of another class or enum: "+name); end;
+            case EnumDecl(name, ?, ?, ?, ?, ?) := do panic("Error: Do not allow enum as member of another class or enum: "+name); end;
+            case ? := do end;
+        end;
+    end;
+    types
+end
+
+fun gather_types(setter : Ast.Setter, ty : Ast.Type, mutable : Bool, list : Env.AList(Ast.VarInfo), scope : Ast.Namespace) do 
+    match setter do 
+        case Variable(name) := list.insert(name, Ast.VarInfo(mutable, ty, name, scope));
+        case WildcardSetter() := do end;
+        case TupleSetter(setters, lt) := do 
+            lt.init(ty);
+            val Tuple(parts) := ty else panic("Require type "+ty+" to be a tuple in declaration of "+setter);
+            if parts.length != setters.length do 
+                panic("Expected tuple of length "+parts.length+" in declaration of field "+setter);
+            end;
+            for i in [0..setters.length] do 
+                gather_types(setters[i], parts[i], mutable, list, scope);
+            end;
+        end;
+        case Property(?, ?, ?) := do end;
+    end
+end
+
+fun check_declaration_setter(tc : TC.Typechecker, setter : Ast.Setter, ty : Ast.Type, mut : Bool) do 
+    match setter do 
+        case Variable(name) := do 
+            if tc.names.values.has(name) and tc.scope_depth > 0 do 
+                panic("Variable '"+name+"' is already declared");
+            end
+            tc.declare(name, ty, mut);
+        end;
+        case WildcardSetter() := do end;
+        case TupleSetter(setters, lt) := do 
+            lt.init(ty);
+            val Tuple(parts) := ty else panic("Require type "+ty+" to be a tuple in declaration of "+setter);
+            if parts.length != setters.length do 
+                panic("Expected tuple of length "+parts.length+" in declaration of "+setter);
+            end;
+            for i in [0..setters.length] do 
+                check_declaration_setter(tc, setters[i], parts[i], mut);
+            end;
+        end;
+        case Property(?, ?, ?) := panic("Cannot use property as variable declaration: " + setter);
+    end;
+end
+
+fun declare_param(tc : TC.Typechecker, param : Ast.Parameter) := match param do 
+    case NormalParam(name, ty) := do 
+        if matches(name, "__.*") do 
+            panic("Names may not start with __: '"+name+"'")
+        end
+        if tc.var_declared(name) then do 
+            panic("Parameter already declared: '"+name+"'");
+        end else do 
+            KC.check_kind(tc, ty, Ast.ConcreteType());
+            TR.resolve(tc.names, ty);
+            tc.declare(name, ty, false);
+        end
+    end;
+end;
