@@ -217,13 +217,13 @@ fun class_decl(p : Parser) : Ast.Decl do
     end else [];
     p.consume(Tokenizer.WHERE(), "Expect start of class body after class name: 'where'");
     val members : Ast.Decl[] := [];
-    var constr : Util.Optional(Ast.Constructor) := Util.None.[Ast.Constructor]();
+    var constr : Optional(Ast.Constructor) := None.[Ast.Constructor]();
     while !p.matches_type(Tokenizer.END()) do 
         if p.matches_type(Tokenizer.NEW()) then do 
             if val Some(?) := constr then do 
                 panic("Error: Class '"+name.src+"' can only have on constructor");
             end else do end;
-            constr := Util.Some.[Ast.Constructor](constructor(p));
+            constr := Some.[Ast.Constructor](constructor(p));
         end else do 
             val member : Ast.Decl := decl(p);
             members.push(member);
@@ -302,8 +302,8 @@ fun var_decl(p : Parser, mutable : Bool) : Ast.Decl do
         ty.init(type_literal(p));
     end;
     val initializer := if p.matches_type(Tokenizer.ASSIGN()) then do 
-        Util.Some.[Ast.Expr](expr(p))
-    end else Util.None.[Ast.Expr]();
+        Some.[Ast.Expr](expr(p))
+    end else None.[Ast.Expr]();
     if p.matches_type(Tokenizer.ELSE()) then do 
         val else_br := expr(p);
         p.consume(Tokenizer.SEMICOLON(), "Expect ';' after variable declaration with else branch");
@@ -549,7 +549,7 @@ end
 // Expects that starting do is already consumed
 fun block_expr(p : Parser) : Ast.Expr do 
     val stmts : Ast.Stmt[] := [];
-    var end_expr := Util.None.[Ast.Expr]();
+    var end_expr := None.[Ast.Expr]();
     var no_end_expr_found := true;
     while no_end_expr_found and !p.matches_type(Tokenizer.END()) do 
         match block_part(p) do 
@@ -557,7 +557,7 @@ fun block_expr(p : Parser) : Ast.Expr do
                 stmts.push(st);
             end;
             case Expression(e) := do 
-                end_expr := Util.Some.[Ast.Expr](e);
+                end_expr := Some.[Ast.Expr](e);
                 p.consume(Tokenizer.END(), "Expect block to end with 'end'");
                 no_end_expr_found := false;
             end;
@@ -696,10 +696,10 @@ fun list(p : Parser) : Ast.Expr do
     if !p.matches_type(Tokenizer.RBRACKET()) do 
         parts.push(expr(p));
         if p.matches_type(Tokenizer.DOTS()) then do 
-            val fst := parts.pop();
+            val start := parts.pop();
             val end_expr := expr(p);
             p.consume(Tokenizer.RBRACKET(), "Expect closing ']' after range expression");
-            return Ast.RangeExpr(fst, end_expr);
+            return Ast.RangeExpr(start, end_expr);
         end else do 
             while !p.matches_type(Tokenizer.RBRACKET()) do 
                 p.consume(Tokenizer.COMMA(), "Expect ',' to separate list parts");

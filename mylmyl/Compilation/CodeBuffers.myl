@@ -65,21 +65,21 @@ class UncreatedTypes where
             end;
         end;
     end
-    fun get_enqueued_type(t : Ast.Type) : Util.Optional(String) do
+    fun get_enqueued_type(t : Ast.Type) : Optional(String) do
         if val Function(typarams, fargs, ret) := t then do 
             for task in this.ungenerated_functions do 
                 if task.param_count = fargs.length do 
-                    return Util.Some.[String](task.name);
+                    return Some.[String](task.name);
                 end
             end
         end else if val Tuple(parts) := t then do 
             for task in this.ungenerated_tuples do 
                 if task.elem_count = parts.length do 
-                    return Util.Some.[String](task.name);
+                    return Some.[String](task.name);
                 end
             end
         end else panic("Cannot get unsupported enqueued type: "+t);
-        Util.None.[String]()
+        None.[String]()
     end
 end
 

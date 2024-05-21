@@ -72,7 +72,7 @@ class Compiler where
         this.ungenerated_types.enqueue_type(t, type_name);
     end
     
-    fun get_enqueued_type(t : Ast.Type) : Util.Optional(String) do
+    fun get_enqueued_type(t : Ast.Type) : Optional(String) do
         this.ungenerated_types.get_enqueued_type(t)
     end
 
@@ -118,33 +118,38 @@ enum Target where
 end
 
 class VariableInfo where 
+    val defined_file : String[];
     var is_no_fc_fn : Bool := false;
     var is_constructor : Bool := false;
     var is_upvalue : Bool := false;
+    new(mod_path : String[]) do 
+        this.defined_file := mod_path;
+    end
 end
 
 fun declare_builtins(c : Compiler) do 
-    c.env.insert("panic", do val panic_info := VariableInfo(); panic_info.is_no_fc_fn := true; panic_info end);
-    c.env.insert("print", do val print_info := VariableInfo(); print_info.is_no_fc_fn := true; print_info end);
-    c.env.insert("args", do val args_info := VariableInfo(); args_info.is_no_fc_fn := true; args_info end);
-    c.env.insert("join", do val join_info := VariableInfo(); join_info.is_no_fc_fn := true; join_info end);
-    c.env.insert("split", do val split_info := VariableInfo(); split_info.is_no_fc_fn := true; split_info end);
-    c.env.insert("number", do val number_info := VariableInfo(); number_info.is_no_fc_fn := true; number_info end);
-    c.env.insert("len", do val len_info := VariableInfo(); len_info.is_no_fc_fn := true; len_info end);
-    c.env.insert("strip", do val strip_info := VariableInfo(); strip_info.is_no_fc_fn := true; strip_info end);
-    c.env.insert("matches", do val match_info := VariableInfo(); match_info.is_no_fc_fn := true; match_info end);
-    c.env.insert("openFile", do val of_info := VariableInfo(); of_info.is_no_fc_fn := true; of_info end);
-    c.env.insert("writeToFile", do val write_info := VariableInfo(); write_info.is_no_fc_fn := true; write_info end);
-    c.env.insert("isNull", do val isn_info := VariableInfo(); isn_info.is_no_fc_fn := true; isn_info end);
-    c.env.insert("replace", do val repl_info := VariableInfo(); repl_info.is_no_fc_fn := true; repl_info end);
-    c.env.insert("move_line_up", do val move_info := VariableInfo(); move_info.is_no_fc_fn := true; move_info end);
+    val p := c.current_env.module_path;
+    c.env.insert("panic", do val panic_info := VariableInfo(p); panic_info.is_no_fc_fn := true; panic_info end);
+    c.env.insert("print", do val print_info := VariableInfo(p); print_info.is_no_fc_fn := true; print_info end);
+    c.env.insert("args", do val args_info := VariableInfo(p); args_info.is_no_fc_fn := true; args_info end);
+    c.env.insert("join", do val join_info := VariableInfo(p); join_info.is_no_fc_fn := true; join_info end);
+    c.env.insert("split", do val split_info := VariableInfo(p); split_info.is_no_fc_fn := true; split_info end);
+    c.env.insert("number", do val number_info := VariableInfo(p); number_info.is_no_fc_fn := true; number_info end);
+    c.env.insert("len", do val len_info := VariableInfo(p); len_info.is_no_fc_fn := true; len_info end);
+    c.env.insert("strip", do val strip_info := VariableInfo(p); strip_info.is_no_fc_fn := true; strip_info end);
+    c.env.insert("matches", do val match_info := VariableInfo(p); match_info.is_no_fc_fn := true; match_info end);
+    c.env.insert("openFile", do val of_info := VariableInfo(p); of_info.is_no_fc_fn := true; of_info end);
+    c.env.insert("writeToFile", do val write_info := VariableInfo(p); write_info.is_no_fc_fn := true; write_info end);
+    c.env.insert("isNull", do val isn_info := VariableInfo(p); isn_info.is_no_fc_fn := true; isn_info end);
+    c.env.insert("replace", do val repl_info := VariableInfo(p); repl_info.is_no_fc_fn := true; repl_info end);
+    c.env.insert("move_line_up", do val move_info := VariableInfo(p); move_info.is_no_fc_fn := true; move_info end);
 end
 
 fun gather_global_variable_info(files : Env.AList(SFG.SourceFile)) : Env.AList(Env.Env(VariableInfo)) do 
     val list := Env.AList.[Env.Env(VariableInfo)]();
     for (?, file) in files.bindings do 
         val env := Env.Env.[VariableInfo]();
-        gather_variable_info(env, file.ast.decls);
+        gather_variable_info(env, file.ast.decls, file.names.module_path);
         list.insert(file.path, env);
     end;
     list
@@ -162,10 +167,16 @@ do
     val file_name_parts := split(path_parts.last, "\\."); // Name before extension
     val file_name := file_name_parts.first;
     val generated_prefix := split(the_sfg.file_prefix, "/");
-    val generated_prefix_str := join(".", generated_prefix) + (if generated_prefix.length > 0 then "." else "");
-    val c := Compiler(file.names, name_gen, infos, generated_prefix_str + join(".", generated_path), ungenerated_types, the_sfg, file);
+    val generated_prefix_str := 
+        join(".", generated_prefix) 
+        + (if generated_prefix.length > 0 then "." else "");
+    val c := Compiler(
+        file.names, name_gen, 
+        infos, generated_prefix_str + join(".", generated_path), 
+        ungenerated_types, the_sfg, file);
     c.env := infos.get(file.path);
     declare_builtins(c);
+    if  file.path != SFG.std_implicit_path do add_implicit_imports(c, infos.get(SFG.std_implicit_path)); end;
     declare_package(c, path_parts);
     import_implicits(c);
 
@@ -187,36 +198,41 @@ do
     c.buf.buf
 end
 
+fun add_implicit_imports(c : Compiler, file : Env.Env(VariableInfo)) do 
+    for (name, info) in file.bindings.bindings do 
+        c.env.insert(name, info);
+    end
+end
 
-fun gather_variable_info(env : Env.Env(VariableInfo), decls : Ast.Decl[]) do 
+fun gather_variable_info(env : Env.Env(VariableInfo), decls : Ast.Decl[], p : String[]) do 
     fun gather_info(decl : Ast.Decl) do 
         match decl do 
             case DesugarableDecl(mutdecl) := gather_info(mutdecl.get());
             case EmptyDecl() := do end;
             case FunDecl(name, typarams, ?, ?, ?, ?, ?) := do 
-                val info := VariableInfo();
+                val info := VariableInfo(p);
                 info.is_no_fc_fn := true; // Global functions cant be lambdas
                 env.insert(name, info);
             end;
             case ClassDecl(name, ?, ?, ?, ?, ?) := do 
-                val info := VariableInfo();
+                val info := VariableInfo(p);
                 info.is_constructor := true;
                 info.is_no_fc_fn := true;
                 env.insert(name, info);
             end;
             case EnumDecl(?, ?, constrs, ?, ?, ?) := do 
                 for constr in constrs do 
-                    val info := VariableInfo();
+                    val info := VariableInfo(p);
                     info.is_constructor := true;
                     info.is_no_fc_fn := true;
                     env.insert(constr.name, info);
                 end;
             end;
             case VarDecl(setter, ?, ?, ?, ?) := do 
-                gather_info_for_setter(env, setter);
+                gather_info_for_setter(env, setter, p);
             end;
             case ValElseDeclaration(pat, ?, ?, ?, ?, ?, ?, ?) := do 
-                gather_info_for_pattern(env, pat);
+                gather_info_for_pattern(env, pat, p);
             end;
         end;
     end
@@ -225,24 +241,24 @@ fun gather_variable_info(env : Env.Env(VariableInfo), decls : Ast.Decl[]) do
     end
 end
 
-fun gather_info_for_setter(env : Env.Env(VariableInfo), setter : Ast.Setter) do 
+fun gather_info_for_setter(env : Env.Env(VariableInfo), setter : Ast.Setter, p : String[]) do 
     match setter do 
-        case Variable(name) := do env.insert(name, VariableInfo()); end; //Globals cant be upvalues
+        case Variable(name) := do env.insert(name, VariableInfo(p)); end; //Globals cant be upvalues
         case WildcardSetter() := do end;
-        case TupleSetter(parts, ?) := do for part in parts do gather_info_for_setter(env, part); end; end;
+        case TupleSetter(parts, ?) := do for part in parts do gather_info_for_setter(env, part, p); end; end;
         case Property(?, ?, ?) := do end;
     end;
 end
 
-fun gather_info_for_pattern(env : Env.Env(VariableInfo), pat : Ast.Pattern) do 
+fun gather_info_for_pattern(env : Env.Env(VariableInfo), pat : Ast.Pattern, p : String[]) do 
     match pat do 
         case NumericPattern(?) := do end;
         case StringPattern(?) := do end;
         case BooleanPattern(?) := do end;
-        case NamePattern(name) := do env.insert(name, VariableInfo()); end;
+        case NamePattern(name) := do env.insert(name, VariableInfo(p)); end;
         case WildcardPattern() := do end;
-        case TuplePattern(parts) := do for part in parts do gather_info_for_pattern(env, part); end; end;
-        case ConstructorPattern(?, parts, ? , lenum_ty, linf) := do for part in parts do gather_info_for_pattern(env, part); end; end;
+        case TuplePattern(parts) := do for part in parts do gather_info_for_pattern(env, part, p); end; end;
+        case ConstructorPattern(?, parts, ? , lenum_ty, linf) := do for part in parts do gather_info_for_pattern(env, part, p); end; end;
     end;
 end;
 
@@ -422,7 +438,7 @@ fun compile_enum_variant(c : Compiler, name : String, targs : Ast.TypeParameter[
         c.append("return __builder.toString();"); c.dedent(); c.newline();
         c.append("} "); c.dedent(); c.newline();
     c.append("}"); c.newline();
-    val info := VariableInfo();
+    val info := VariableInfo(c.current_env.module_path);
     info.is_constructor := true;
     info.is_no_fc_fn := true;
     c.env.insert(variant.name, info);
@@ -433,7 +449,7 @@ fun compile_class_decl(
     name : String, 
     targs: Ast.TypeParameter[],
     members : Ast.Decl[], 
-    constr : Util.Optional(Ast.Constructor), 
+    constr : Optional(Ast.Constructor), 
     env : Ast.Namespace) 
 do
     if c.is_class do 
@@ -455,6 +471,10 @@ do
     end;
     c.append(" {");
     c.indent(); c.newline();
+    val info := VariableInfo(c.current_env.module_path);
+    info.is_constructor := true;
+    info.is_no_fc_fn := true;
+    c.env.insert(name, info);
     val prv := c.open_scope(env);
     c.is_class := true;
     for member in members do 
@@ -465,13 +485,10 @@ do
     c.append("}");
     c.newline();
     c.close_scope(prv);
-    val info := VariableInfo();
-    info.is_constructor := true;
-    info.is_no_fc_fn := true;
-    c.env.insert(name, info);
+    
 end
 
-fun compile_constructor(c : Compiler, constr : Util.Optional(Ast.Constructor), name : String) do
+fun compile_constructor(c : Compiler, constr : Optional(Ast.Constructor), name : String) do
     val Some(construct) := constr else return null;
     c.append("public "+name);
     c.append("(");
@@ -482,6 +499,8 @@ fun compile_constructor(c : Compiler, constr : Util.Optional(Ast.Constructor), n
         end;
         match param do 
             case NormalParam(param_name, ty) := do 
+                val info := VariableInfo(c.current_env.module_path);
+                c.env.insert(param_name, info);
                 c.append(compile_type(c, ty)); c.append(" "+param_name);
             end;
         end;
@@ -504,6 +523,9 @@ do
             if c.is_class do c.append("public "); end;
             if c.is_static do c.append("static "); end;
             if !mutable do c.append("final "); end;
+            val info := VariableInfo(c.current_env.module_path);
+            info.is_upvalue := is_upvalue;
+            c.env.insert(name, info);
             val ty_compiled := if is_upvalue then compile_upvalue_type(c, ty) else compile_type(c, ty);
             c.append(ty_compiled); c.append(" "); c.append(name); 
             if is_upvalue do 
@@ -529,10 +551,10 @@ fun compile_var_decl(
     c : Compiler, 
     setter : Ast.Setter, 
     lt : Util.LateInitialized(Ast.Type), 
-    init_mut : Util.Optional(Ast.Expr), 
+    init_mut : Optional(Ast.Expr), 
     mutable : Bool) 
 do
-    val init := if val Some(e) := init_mut then Util.Some.[Ast.Expr](e) else Util.None.[Ast.Expr]();
+    val init := if val Some(e) := init_mut then Some.[Ast.Expr](e) else None.[Ast.Expr]();
     if c.is_class then do
         compile_variables(c, setter, lt.get(), true, mutable, false);
         if val Some(e) := init then do 
@@ -558,7 +580,7 @@ end
 
 fun declare_variables(c : Compiler, setter : Ast.Setter) do 
     match setter do 
-        case Variable(name) := c.env.insert_if_missing(name, VariableInfo());
+        case Variable(name) := c.env.insert_if_missing(name, VariableInfo(c.current_env.module_path));
         case TupleSetter(parts, ?) := do 
             for part in parts do 
                 declare_variables(c, part);
@@ -591,7 +613,7 @@ fun compile_fun_decl(
     body : Ast.Expr,
     lenv : Util.LateInitialized(Ast.Namespace))
 do 
-    val info := VariableInfo();
+    val info := VariableInfo(c.current_env.module_path);
     info.is_no_fc_fn := c.is_class; // Local functions cannot be compiled directly but to lambdas
     c.env.insert(name, info); // Functions can never be captured, so unconditionally insert info
     val is_main := c.is_static and name = "main" and return_type = Ast.VoidT();
@@ -628,7 +650,7 @@ do
             c.append("final " + compile_type(c, ty) + " ");
         end;
     end;
-    c.append(maybe_upvalue(c, name));
+    c.append(maybe_upvalue(c, name, ""));
     if !c.is_class do 
         c.append(" = ");
     end
@@ -636,13 +658,14 @@ do
     var needs_comma := false;
     val prev_expect_ref_ty := c.expect_ref_ty;
     c.expect_ref_ty := !c.is_class; // If we're not in a class, we're compiling to a lambda
+    val params_to_be_added : (String, VariableInfo)[] := [];
     for param in params do 
         if needs_comma do 
             c.append(", ");
         end;
         match param do 
             case NormalParam(param_name, ty) := do 
-                c.env.insert(param_name, VariableInfo());
+                params_to_be_added.push((param_name, VariableInfo(c.current_env.module_path)));
                 c.append(compile_type(c, ty)); c.append(" "); c.append(param_name);
             end;
         end;
@@ -652,10 +675,14 @@ do
     c.append(") ");
     if !c.is_class do 
         c.append("-> ");
-    end
+    end;
+    
     val prv := c.open_scope(lenv.get());
     c.is_class := false;
     c.is_static := false;
+    for (n, i) in params_to_be_added do 
+        c.env.insert(n, i);
+    end;
     val body_is_block := if val BlockExpr(?, ?, ?, ?) := body then true else false;
     if !body_is_block do c.append(" {"); c.indent(); c.newline(); end;
     val body_compiled := compile_expr(c, body, if is_main then Ignore() else Return());
@@ -752,7 +779,7 @@ fun compile_instantiated(c : Compiler, instantiated : Ast.Expr, typarams : Ast.T
     // TODO: objekte sollten außerhalb kompiliert werden
     val prv := c.open_scope(c.current_env);
         for i in [0..param_vars.length] do 
-            c.env.insert(param_vars[i], VariableInfo());
+            c.env.insert(param_vars[i], VariableInfo(c.current_env.module_path));
             c.current_env.values.insert(param_vars[i], Ast.VarInfo(false, param_tys[i], param_vars[i], c.current_env));
         end;
         compile_expr(c, 
@@ -836,6 +863,8 @@ fun compile_pattern(c : Compiler, pattern : Ast.Pattern, matched_ty : Ast.Type) 
         val temp := c.new_var();
         c.append("Double "+temp+" when "+temp+" == "+n);
     end else if val NamePattern(n) := pattern then do 
+        val info := VariableInfo(c.current_env.module_path);
+        c.env.insert(n, info);
         val prv_box_ty := c.expect_ref_ty;
         c.expect_ref_ty := true;
         c.append(compile_type(c, matched_ty)); c.append(" "); c.append(n);
@@ -875,7 +904,11 @@ fun compile_complex_pattern(
         c.append(compile_type(c, matched_ty)+" "+variable);
         guard_queue.push(if b then variable else "!"+variable);
     end;
-    case NamePattern(n) := c.append(compile_type(c, matched_ty)+" "+n);
+    case NamePattern(n) := do 
+        val info := VariableInfo(c.current_env.module_path);
+        c.env.insert(n, info);
+        c.append(compile_type(c, matched_ty)+" "+n);
+    end;
     case WildcardPattern() := c.append(compile_type(c, matched_ty)+" "+c.new_var());
     case ConstructorPattern(name, subpatterns, constr, lenum_ty, linf) := do 
         val enum_info := linf.get();
@@ -973,7 +1006,7 @@ do
         val captures := Analyze.analyze_captures(stmts, end_expr); 
         for (name, is_captured) in captures.bindings do 
             if is_captured do 
-                val info := VariableInfo();
+                val info := VariableInfo(c.current_env.module_path);
                 info.is_upvalue := true;
                 c.env.insert(name, info); // Mark as upvalue
             end
@@ -1018,7 +1051,7 @@ do
         val captures := Analyze.analyze_captures(stmts, end_expr); // There are no loop variables
         for (name, is_captured) in captures.bindings do 
             if is_captured do 
-                val info := VariableInfo();
+                val info := VariableInfo(c.current_env.module_path);
                 info.is_upvalue := true;
                 c.env.insert(name, info); // Mark as upvalue
             end
@@ -1371,7 +1404,7 @@ do
         end;
         match param do 
             case NormalParam(param_name, ty) := do 
-                c.env.insert(param_name, VariableInfo());
+                c.env.insert(param_name, VariableInfo(c.current_env.module_path));
                 c.append(compile_type(c, ty)); c.append(" "); c.append(param_name);
             end;
         end;
@@ -1406,20 +1439,25 @@ fun param_types(params : Ast.Parameter[]) : Ast.Type[] := for param in params yi
     end
 end;
 
-fun maybe_upvalue(c : Compiler, name : String) : String := 
+fun maybe_upvalue(c : Compiler, name : String, extra_path : String) : String := 
     if c.env.has(name) and c.env.get(name).is_upvalue then 
-        name + ".value"
+        extra_path + name + ".value"
     else 
-        name;
+        extra_path + name;
 
 fun compile_identifier(c : Compiler, fname : String, expected_ty : Ast.Type, target : Target) : String do
     if Ignore() = target do // Identifier has no side effects, so ignore means nothing has to be compiled
         return "";
     end;
+    val defined_file := c.env.get(fname).defined_file;
+    val current_file := c.current_env.module_path;
+    val path := if defined_file != current_file 
+            then SFG.path_to_generated_module(c.sfg, defined_file, false)+"."
+            else "";
     if val Function(type_params, arg_tys, ret_type) := c.current_env.values.get(fname).ty then do
         if !c.env.get(fname).is_no_fc_fn do // Value is a first class function already
             // Value might be an upvalue
-            return use_with_target(c, maybe_upvalue(c, fname), target); // No lambda has to be created
+            return use_with_target(c, maybe_upvalue(c, fname, path), target); // No lambda has to be created
         end;
         // Value is a first class function and therefore cannot be an upvalue
         val ty := compile_type(c, c.current_env.values.get(fname).ty);
@@ -1455,7 +1493,8 @@ fun compile_identifier(c : Compiler, fname : String, expected_ty : Ast.Type, tar
             params.push(arg_name);
             needs_comma := true;
         end;
-        c.append(") -> "); if c.env.get(fname).is_constructor do c.append("new "); end; c.append(fname); c.append("(");
+        c.append(") -> "); if c.env.get(fname).is_constructor do c.append("new "); end; 
+        c.append(path+fname); c.append("(");
         needs_comma := false;
         for param in params do 
             if needs_comma do 
@@ -1470,7 +1509,7 @@ fun compile_identifier(c : Compiler, fname : String, expected_ty : Ast.Type, tar
         use_with_target(c, default_value(expected_ty), target)
     end else do 
         // Normal variable, might be an upvalue
-        use_with_target(c, maybe_upvalue(c, fname), target)
+        use_with_target(c, maybe_upvalue(c, fname, path), target)
     end
 end
 
@@ -1487,12 +1526,17 @@ end
 fun compile_call(c : Compiler, callee : Ast.Expr, call_args : Ast.Expr[], target : Target) : String do 
     var is_builtin_list_method := false;
     fun compile_callee(called : Ast.Expr) : String := match called do 
-        case Identifier(name, ?) := do 
+        case Identifier(name, lty) := do 
             val info := c.env.get(name);
+            val defined_file := info.defined_file;
+            val current_file := c.current_env.module_path;
+            val path := if defined_file != current_file 
+                then SFG.path_to_generated_module(c.sfg, defined_file, false) + "."
+                else "";
             if info.is_constructor then 
-                "new " + name
+                "new " + path + name
             else if info.is_no_fc_fn then do 
-                name 
+                path + name 
             end else
                 compile_expr(c, called, UsedDirectly()) + ".call"
         end;
@@ -1558,7 +1602,7 @@ end
 fun compile_block(
     c : Compiler, 
     stmts : Ast.Stmt[], 
-    end_expr : Util.Optional(Ast.Expr),
+    end_expr : Optional(Ast.Expr),
     t : Ast.Type,
     lenv : Util.LateInitialized(Ast.Namespace),
     target : Target) : String 
@@ -1586,7 +1630,7 @@ do
     val captures := Analyze.analyze_captures(stmts, end_expr);
     for (binding_name, is_captured) in captures.bindings do 
         if is_captured do 
-            val info := VariableInfo();
+            val info := VariableInfo(c.current_env.module_path);
             info.is_upvalue := true;
             c.env.insert(binding_name, info); // Mark as upvalue
         end
@@ -1812,7 +1856,7 @@ fun assign(c : Compiler, to : Ast.Setter, from : String) : String do
     match to do 
         case Variable(name) := do 
             if from = "()" do panic("Got just ()"); end;
-            c.append(maybe_upvalue(c, name));
+            c.append(maybe_upvalue(c, name, ""));
             c.append(" = ");
             c.append(from);
             c.append(";");

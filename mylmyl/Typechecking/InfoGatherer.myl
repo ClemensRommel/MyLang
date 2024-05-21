@@ -27,9 +27,25 @@ fun add_imports(sfg : SFG.SFGatherer, file : SFG.SourceFile) do
 end
 
 
+fun import_implicit(sfg : SFG.SFGatherer, file : SFG.SourceFile) do 
+    if file.path = SFG.std_implicit_path do return null; end; // Skip implicits if they are being defined
+    val implicit_file := sfg.parsed_sourcefiles.get(SFG.std_implicit_path);
+    val file_names := file.names;
+    for (name, v) in implicit_file.names.values.bindings.bindings do 
+        if !file_names.values.has(name) do
+            file_names.values.insert(name, v);
+        end
+    end;
+    for (name, t) in implicit_file.names.types.bindings.bindings do 
+        if !file_names.types.has(name) do
+            file_names.types.insert(name, t);
+        end
+    end;
+end
 
 fun declare_globals(sfg : SFG.SFGatherer, file : SFG.SourceFile) do 
     add_imports(sfg, file);
+    import_implicit(sfg, file);
     declare_functions_and_types(file); // Need to do functions and types first,
     declare_global_variables(file);    // as information about enum constructors is needed for val-else
 end

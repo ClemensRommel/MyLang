@@ -26,7 +26,7 @@ enum Expr where
     PropertyExpr(Expr, String, Util.LateInitialized(AccessType), Util.LateInitialized(Type), 
                                Util.LateInitialized(Type)),
     TupleExpr(Expr[], Util.LateInitialized(Type)),
-    BlockExpr(Stmt[], Util.Optional(Expr), Util.LateInitialized(Type), Util.LateInitialized(Namespace)),
+    BlockExpr(Stmt[], Optional(Expr), Util.LateInitialized(Type), Util.LateInitialized(Namespace)),
     WhileExpr(Expr, Expr, Util.LateInitialized(Namespace), Util.LateInitialized(Type)),
     WhileValExpr(Pattern, Expr, Expr, Util.LateInitialized(Type), Util.LateInitialized(Namespace), Util.LateInitialized(Type)),
     ForExpr(Setter, Expr, Expr, Util.LateInitialized(Namespace), Util.LateInitialized(Type), 
@@ -90,11 +90,11 @@ end
 enum Decl where 
     DesugarableDecl(Mut(Decl)),
     EmptyDecl(),
-    VarDecl(Setter, Util.LateInitialized(Type), Util.Optional(Expr), Bool /* mut */, Bool /* */),
+    VarDecl(Setter, Util.LateInitialized(Type), Optional(Expr), Bool /* mut */, Bool /* */),
     ValElseDeclaration(Pattern, Expr, Expr, Bool /* mut */, Bool /* */, Util.LateInitialized(Type), 
                        Util.LateInitialized(Type), Util.LateInitialized(Namespace)),
     FunDecl(String, TypeParameter[], Parameter[], Type, Expr, Bool /* */, Util.LateInitialized(Namespace)),
-    ClassDecl(String, TypeParameter[], Decl[], Util.Optional(Constructor), Bool /* */, Util.LateInitialized(Namespace)),
+    ClassDecl(String, TypeParameter[], Decl[], Optional(Constructor), Bool /* */, Util.LateInitialized(Namespace)),
     EnumDecl(String, TypeParameter[], EnumConstructor[], Decl[], Bool /* */, Util.LateInitialized(Namespace));
 end;
 

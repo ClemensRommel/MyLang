@@ -32,21 +32,21 @@ class SourceFile where
     end
 end;
 
-fun open_and_parse(sfg : SFGatherer, file : String) : Util.Optional(SourceFile) do 
+fun open_and_parse(sfg : SFGatherer, file : String) : Optional(SourceFile) do 
     val Some(source) := Util.read_file(file) else do 
         sfg.files_not_found.push(file);
-        return Util.None.[SourceFile]()
+        return None.[SourceFile]()
     end;
     val (ast, (undesugared_exprs, undesugared_decls)) := Parser.parse(source);
-    Util.Some.[SourceFile](SourceFile(ast, undesugared_exprs, undesugared_decls, file))
+    Some.[SourceFile](SourceFile(ast, undesugared_exprs, undesugared_decls, file))
 end
 
-fun process_file(sfg : SFGatherer, path : String) : Util.Optional(SourceFile) do 
+fun process_file(sfg : SFGatherer, path : String) : Optional(SourceFile) do 
     print("Processing: "+path);
-    val Some(file) := open_and_parse(sfg, path) else return Util.None.[SourceFile]();
+    val Some(file) := open_and_parse(sfg, path) else return None.[SourceFile]();
     move_line_up();
     sfg.parsed_sourcefiles.insert(path, file);
-    Util.Some.[SourceFile](file)
+    Some.[SourceFile](file)
 end
 
 fun get_all_files(sfg : SFGatherer, starting_file : String) do 
@@ -75,7 +75,7 @@ val std_implicit_path : String := "std/implicit.myl";
 fun gather_files(start : String) : SFGatherer do 
     val sfg := SFGatherer();
     sfg.file_prefix := file_path_prefix(start);
-    process_file(sfg, std_implicit_path);
+    process_file(sfg, std_implicit_path); // Process first, as its needed for other files
     get_all_files(sfg, start);
     if sfg.files_not_found.length != 0 do 
         for file in sfg.files_not_found do 

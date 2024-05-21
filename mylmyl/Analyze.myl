@@ -5,7 +5,7 @@ import Env := Syntax.Env;
 import Util;
 
 // Search for mutable variables that are captured by functions in this block
-fun analyze_captures(stmts : Ast.Stmt[], last : Util.Optional(Ast.Expr)) : Env.AList(Bool) do
+fun analyze_captures(stmts : Ast.Stmt[], last : Optional(Ast.Expr)) : Env.AList(Bool) do
     val scan_env : Env.AList(Bool) := Env.AList.[Bool]();
     for stmt in stmts do 
         analyze_stmt(scan_env, stmt);   
@@ -26,17 +26,17 @@ fun mentions_var(expr : Ast.Expr, name : String) : Bool := match expr do
     case BinaryOperation(?, left, right) := mentions_var(left, name) or mentions_var(right, name);
     case UnaryOperation(?, part) := mentions_var(part, name);
     case FunctionCall(callee, called) := mentions_var(callee, name) or 
-                                         Util.any.[Ast.Expr](called, fun(t : Ast.Expr) : Bool := mentions_var(t, name));
+                                         any.[Ast.Expr](called, fun(t : Ast.Expr) : Bool := mentions_var(t, name));
                                         // Name shadowing is not allowed. If it will be, this has to change
     case FunctionExpr(?, ?, body, ?) := mentions_var(body, name);
     case IfExpr(?, cond, th, el) := mentions_var(cond, name) or mentions_var(th, name) or mentions_var(el, name);
     case PropertyExpr(obj, ?, ?, ?, ?) := mentions_var(obj, name);
-    case TupleExpr(parts, ?) := Util.any.[Ast.Expr](parts, fun(t : Ast.Expr) : Bool := mentions_var(t, name));
-    case BlockExpr(parts, last, ?, ?) := Util.any.[Ast.Stmt](parts, fun(t : Ast.Stmt) : Bool := stmt_mentions_var(t, name)) or 
+    case TupleExpr(parts, ?) := any.[Ast.Expr](parts, fun(t : Ast.Expr) : Bool := mentions_var(t, name));
+    case BlockExpr(parts, last, ?, ?) := any.[Ast.Stmt](parts, fun(t : Ast.Stmt) : Bool := stmt_mentions_var(t, name)) or 
                                          if val Some(l) := last then mentions_var(l, name) else false;
     case ThisExpr() := false;
     case InstantiationExpr(instantiated, ?, ?) := mentions_var(instantiated, name);
-    case ListExpr(exprs, ?) := Util.any.[Ast.Expr](exprs, fun(t : Ast.Expr) : Bool := mentions_var(t, name));
+    case ListExpr(exprs, ?) := any.[Ast.Expr](exprs, fun(t : Ast.Expr) : Bool := mentions_var(t, name));
     case IndexExpr(lst, idx, ?) := mentions_var(lst, name) or mentions_var(idx, name);
     case MatchExpr(matched, arms, ?, ?) := mentions_var(matched, name) or do 
         var mentions := false;
@@ -63,14 +63,14 @@ end;
 fun setter_mentions_var(setter : Ast.Setter, name : String) : Bool := match setter do
     case Variable(n) := n = name;
     case WildcardSetter() := false;
-    case TupleSetter(parts, ?) := Util.any.[Ast.Setter](parts, fun(t : Ast.Setter) : Bool := setter_mentions_var(t, name));
+    case TupleSetter(parts, ?) := any.[Ast.Setter](parts, fun(t : Ast.Setter) : Bool := setter_mentions_var(t, name));
     case Property(obj, ?, ?) := mentions_var(obj, name);
 end;
 
 fun decl_mentions_var(decl : Ast.Decl, name : String) : Bool := match decl do
     case VarDecl(?, ?, init, ?, ?) := if val Some(e) := init then mentions_var(e, name) else false;
     case FunDecl(?, ?, ?, ?, body, ?, ?) := mentions_var(body, name);
-    case ClassDecl(?, ?, members, constr, ?, ?) := Util.any.[Ast.Decl](members, fun(t : Ast.Decl) : Bool := decl_mentions_var(t, name))
+    case ClassDecl(?, ?, members, constr, ?, ?) := any.[Ast.Decl](members, fun(t : Ast.Decl) : Bool := decl_mentions_var(t, name))
                                                 or (if val Some(c) := constr
                                                 then constr_mentions_var(c, name) else false);
 end;

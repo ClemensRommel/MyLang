@@ -9,7 +9,6 @@ fun typecheck(sfg : SFG.SFGatherer, file : SFG.SourceFile) do
     val tc := Typechecker(file);
 
     declare_builtins(tc);
-    if file.path != SFG.std_implicit_path do import_implicit(tc, sfg); end;
 
     print("== Typechecking "+file.path+" ==");
 
@@ -77,7 +76,7 @@ class Typechecker where
     end
     fun declare_type(name : String, ty_info : Ast.TyInfo) := this.names.types.insert(name, ty_info);
 
-    fun is_global() : Bool := this.names.values.outer = Util.None.[Env.Env(Ast.VarInfo)]();
+    fun is_global() : Bool := this.names.values.outer = None.[Env.Env(Ast.VarInfo)]();
 
     
     fun types_equal(to : Ast.Type, from : Ast.Type) : Bool := match (to, from) do 
@@ -134,7 +133,7 @@ class Typechecker where
 end
 
 fun print_namespace(nmscp : Ast.Namespace) do 
-    var env := Util.Some.[Env.Env(Ast.TyInfo)](nmscp.types);
+    var env := Some.[Env.Env(Ast.TyInfo)](nmscp.types);
     while val Some(e) := env do 
         print(""+e.bindings.bindings);
         env := e.outer;
@@ -158,16 +157,6 @@ fun declare_builtins(tc : Typechecker) do
     tc.names.values.insert("writeToFile", Ast.VarInfo(false, Ast.Function([], [Ast.StringT(), Ast.StringT()], Ast.VoidT()), "writeToFile", tc.names));
     tc.names.values.insert("replace", Ast.VarInfo(false, Ast.Function([], [Ast.StringT(), Ast.StringT(), Ast.StringT()], Ast.StringT()), "replace", tc.names));
     tc.names.values.insert("move_line_up", Ast.VarInfo(false, Ast.Function([], [], Ast.VoidT()), "move_line_up", tc.names));
-end
-
-fun import_implicit(tc : Typechecker, sfg : SFG.SFGatherer) do 
-    val implicit_file := sfg.parsed_sourcefiles.get(SFG.std_implicit_path);
-    for (name, v) in implicit_file.names.values.bindings.bindings do 
-        tc.names.values.insert(name, v);
-    end;
-    for (name, t) in implicit_file.names.types.bindings.bindings do 
-        tc.names.types.insert(name, t);
-    end
 end
 
 fun check_stmt(tc : Typechecker, stmt : Ast.Stmt) := match stmt do 
@@ -457,10 +446,13 @@ end;
 
 fun declare_enum_constructors(tc : Typechecker, name : String, targs : Ast.TypeParameter[], variants : Ast.EnumConstructor[], scope : Ast.Namespace) do 
     for constr in variants do 
+        val prv_names := tc.names;
+        tc.names := scope;
         for field in constr.fields do 
             check_kind(tc, field, Ast.ConcreteType());
             resolve(scope, field);
         end;
+        tc.names := prv_names;
         tc.declare(constr.name, Ast.Function(targs, constr.fields, class_constr_ret_ty(targs, name, scope)), false);
     end;
 end
@@ -529,7 +521,7 @@ fun check_body(tc : Typechecker, body : Ast.Decl[]) do
 
 end
 
-fun check_constructor(tc : Typechecker, constructor : Util.Optional(Ast.Constructor), targs : Ast.TypeParameter[], className : String, scope : Ast.Namespace) : Ast.Type do
+fun check_constructor(tc : Typechecker, constructor : Optional(Ast.Constructor), targs : Ast.TypeParameter[], className : String, scope : Ast.Namespace) : Ast.Type do
     val prev_in_class := tc.is_in_class;
     tc.is_in_class := true;
     val result := if val Some(constr) := constructor then do 
@@ -597,7 +589,7 @@ fun resolve(names : Ast.Namespace, ty : Ast.Type) : Ast.Type do
         case Tuple(parts) := do for part in parts do resolve(names, part) end; end;
         case Name(name, lenv) := do
             if !lenv.is_init() do // Name belongs to current scope
-                if !names.types.has(name) do panic("Unknown type "+name+": available: "+names.types.bindings.bindings); end
+                if !names.types.has(name) do panic("Unknown type "+name+": available: "+names.types.bindings.bindings+"values: "+names.values.bindings.bindings); end
                 val info := names.types.get(name);
                 lenv.init(scope_of_info(info, names));
             end;
@@ -902,7 +894,7 @@ fun check_block(
     tc : Typechecker, 
     t : Ast.Type, 
     stmts : Ast.Stmt[], 
-    end_expr : Util.Optional(Ast.Expr),
+    end_expr : Optional(Ast.Expr),
     total : Ast.Expr, 
     lenv : Util.LateInitialized(Ast.Namespace))
 do 
@@ -1151,13 +1143,13 @@ fun infer(t : Typechecker, e : Ast.Expr) : Ast.Type := match e do
             panic("Cannot infer type of match with out arms: "+e);
         end;
         lmty.init(matched_ty);
-        var resulting := Util.None.[Ast.Type]();
+        var resulting := None.[Ast.Type]();
         for (pattern, expr, lenv) in arms do 
             t.open_scope();
                 check_pattern(t, pattern, matched_ty);
                 fun infer_match_ty() do 
                     val ty := infer(t, expr);
-                    resulting := Util.Some.[Ast.Type](ty);
+                    resulting := Some.[Ast.Type](ty);
                 end;
                 if val Some(ty) := resulting then do 
                     if val VoidT() := ty then do 
@@ -1253,7 +1245,7 @@ end
 fun infer_block(
     t : Typechecker, 
     stmts : Ast.Stmt[], 
-    end_expr : Util.Optional(Ast.Expr),
+    end_expr : Optional(Ast.Expr),
     lt : Util.LateInitialized(Ast.Type),
     lenv : Util.LateInitialized(Ast.Namespace)) : Ast.Type
 do 

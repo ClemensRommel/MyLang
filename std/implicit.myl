@@ -1,0 +1,42 @@
+enum Optional(T) where
+    None(), Some(T);
+
+    fun unwrap() : T := match this do 
+        case Some(t) := t;
+        case None() := panic("Error: called unwrap on empty Optional");
+    end;
+
+    fun map[K](f : Fun(T) : K) : Optional(K) := match this do 
+        case None() := None.[K]();
+        case Some(t) := Some.[K](f(t));
+    end;
+
+    fun expect(e : String) : T := match this do 
+        case Some(t) := t;
+        case None() := panic(e);
+    end;
+    fun is_some() : Bool := match this do 
+        case Some(?) := true;
+        case None() := false;
+    end;
+    fun is_none() : Bool := match this do 
+        case Some(?) := false;
+        case None() := true;
+    end;
+end;
+
+fun any[T](list : T[], pred : Fun(T) : Bool) : Bool do
+    for t in list do
+        if pred(t) do return true; end;
+    end;
+    false
+end
+
+fun snd[A, B](tuple : (A, B)) : B do 
+    val (a, b) := tuple;
+    b
+end;
+fun fst[A, B](tuple : (A, B)) : A do 
+    val (a, b) := tuple;
+    a
+end
