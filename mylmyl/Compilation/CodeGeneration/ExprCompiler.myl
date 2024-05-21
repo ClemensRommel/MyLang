@@ -48,7 +48,7 @@ fun compile_tuple(c : CG.Compiler, subexprs : Ast.Expr[], ty : Ast.Type, target 
         case Ignore() := CG.Ignore();
         case ? := CG.UsedDirectly();
     end;
-    val exprs := for expr in subexprs yield compile_expr(c, expr, subexpr_target) end;
+    val exprs := for expr in subexprs do compile_expr(c, expr, subexpr_target) end;
     if val Ignore() := target then do 
         return "";
     end else do end;
@@ -599,7 +599,7 @@ fun compile_call(c : CG.Compiler, callee : Ast.Expr, call_args : Ast.Expr[], tar
     end;
     val callee_compiled : String := compile_callee(callee);
     if is_builtin_list_method do return callee_compiled; end;
-    val args_compiled := for arg in call_args yield 
+    val args_compiled := for arg in call_args do 
         compile_expr(c, arg, CG.UsedDirectly())
     end;
     var str := callee_compiled + "(";
@@ -629,7 +629,7 @@ fun compile_call(c : CG.Compiler, callee : Ast.Expr, call_args : Ast.Expr[], tar
 end
 
 fun builtin_list_method_call(c : CG.Compiler, obj : String, acc : String, call_args : Ast.Expr[], target : CG.Target) : String do 
-    val args_compiled : String[] := for arg in call_args yield 
+    val args_compiled : String[] := for arg in call_args do 
         compile_expr(c, arg, CG.UsedDirectly())
     end;
 
@@ -663,7 +663,7 @@ fun compile_instantiated(c : CG.Compiler, instantiated : Ast.Expr, typarams : As
     c.append("final "); c.append(TC.compile_type(c, resulting_type)); c.append(" ");
     val variable := c.new_var();
     c.append(variable); c.append(" = "); 
-    val param_vars := for ty in param_tys yield c.new_var() end;
+    val param_vars := for ty in param_tys do c.new_var() end;
     c.append("("); 
     var needs_comma := false;
     for i in [0..param_tys.length] do 
@@ -682,7 +682,7 @@ fun compile_instantiated(c : CG.Compiler, instantiated : Ast.Expr, typarams : As
             Ast.FunctionCall(
                 instantiated, 
                 for i in [0..param_vars.length] 
-                    yield Ast.Identifier(param_vars[i], Util.wrap_linit.[Ast.Type](param_tys[i])) end), 
+                    do Ast.Identifier(param_vars[i], Util.wrap_linit.[Ast.Type](param_tys[i])) end), 
             CG.Return());
     c.append("};");
     c.close_scope(prv);

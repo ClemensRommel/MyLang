@@ -143,8 +143,8 @@ fun declare_functions_and_types(file : SFG.SourceFile) do
 end
 
 fun early_bind_type_vars(fields : Ast.Type[], targs : Ast.TypeParameter[], scope : Ast.Namespace) : Ast.Type[] do 
-    val substitutes := Env.AListOf.[Ast.Type](for arg in targs yield (arg.name, Ast.Name(arg.name, Util.wrap_linit.[Ast.Namespace](scope))) end);
-    for field in fields yield Subst.substitute(field, substitutes) end
+    val substitutes := Env.AListOf.[Ast.Type](for arg in targs do (arg.name, Ast.Name(arg.name, Util.wrap_linit.[Ast.Namespace](scope))) end);
+    for field in fields do Subst.substitute(field, substitutes) end
 end
 
 

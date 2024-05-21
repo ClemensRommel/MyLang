@@ -610,7 +610,7 @@ end
 fun convert_setter(s : Ast.Expr) : Ast.Setter := match s do 
     case Identifier(name, ?) := Ast.Variable(name);
     case WildCardExpression() := Ast.WildcardSetter();
-    case TupleExpr(subexprs, lt) := Ast.TupleSetter(for subexpr in subexprs yield convert_setter(subexpr) end, lt);
+    case TupleExpr(subexprs, lt) := Ast.TupleSetter(for subexpr in subexprs do convert_setter(subexpr) end, lt);
     case PropertyExpr(obj, name, ?, ?, ?) := do 
         Ast.Property(obj, name, Ast.late_type())
     end;
@@ -623,10 +623,10 @@ fun convert_pattern(p : Ast.Expr) : Ast.Pattern := match p do
     case StringLiteral(s) := Ast.StringPattern(s);
     case Boolean(b) := Ast.BooleanPattern(b);
     case Identifier(i, ?) := Ast.NamePattern(i);
-    case TupleExpr(exprs, ?) := Ast.TuplePattern(for e in exprs yield convert_pattern(e) end);
+    case TupleExpr(exprs, ?) := Ast.TuplePattern(for e in exprs do convert_pattern(e) end);
     case FunctionCall(callee, arg_exprs) := do 
         val Identifier(name, ?) := callee else panic("Invalid constructor: "+callee);
-        Ast.ConstructorPattern(name, for arg in arg_exprs yield convert_pattern(arg) end, Util.LateInitialized.[Ast.EnumConstructor](), Ast.late_type(), Util.LateInitialized.[Ast.TyInfo]())
+        Ast.ConstructorPattern(name, for arg in arg_exprs do convert_pattern(arg) end, Util.LateInitialized.[Ast.EnumConstructor](), Ast.late_type(), Util.LateInitialized.[Ast.TyInfo]())
     end;
     case WildCardExpression() := Ast.WildcardPattern();
     case ? := panic("Invalid pattern: "+p);

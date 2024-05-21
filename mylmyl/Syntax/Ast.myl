@@ -149,7 +149,7 @@ end
 
 
 fun param_types(params : Parameter[]) : Type[] := 
-    for param in params yield 
+    for param in params do 
         match param do 
             case NormalParam(?, ty) := ty;
         end

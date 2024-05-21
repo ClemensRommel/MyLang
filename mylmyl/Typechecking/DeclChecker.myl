@@ -74,7 +74,7 @@ fun check_decl(tc : TC.Typechecker, decl : Ast.Decl) := match decl do
             end;
             KC.check_kind(tc, return_type, Ast.ConcreteType());
             val resolved_ret_ty := TR.resolve(tc.names, return_type);
-            val fun_type := Ast.Function(typarams, for ty in Ast.param_types(params) yield TR.resolve(tc.names, ty) end, resolved_ret_ty);
+            val fun_type := Ast.Function(typarams, for ty in Ast.param_types(params) do TR.resolve(tc.names, ty) end, resolved_ret_ty);
             val closed_scope := tc.names;
         tc.close_scope();
         tc.declare(name, fun_type, false);

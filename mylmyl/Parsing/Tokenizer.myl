@@ -17,7 +17,7 @@ enum TokenType where
     IDENTIFIER(),
 
     // Value kexwords
-    VAR(), VAL(), VALUE_THIS(), NEW(), FUN(), IF(), THEN(), ELSE(), WHILE(), FOR(), IN(), YIELD(), BREAK(),
+    VAR(), VAL(), VALUE_THIS(), NEW(), FUN(), IF(), THEN(), ELSE(), WHILE(), FOR(), IN(), BREAK(),
     RETURN(), MATCH(), CASE(),
 
     // Namespacing Keywords
@@ -221,7 +221,6 @@ class Tokenizer where
         case "for" := FOR();
         case "in" := IN();
         case "do" := DO();
-        case "yield" := DO();
         case "and" := AND();
         case "or" := OR();
         case "xor" := XOR();
