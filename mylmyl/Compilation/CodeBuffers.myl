@@ -1,6 +1,6 @@
 module Compilation.CodeBuffers;
 
-import Ast;
+import Ast := Syntax.Ast;
 import Util;
 
 class StringBuffer where 
@@ -82,3 +82,13 @@ class UncreatedTypes where
         Util.None.[String]()
     end
 end
+
+class NameGenerator where 
+    var counter : Number := 0;
+
+    fun next_name() : String := do 
+        val c := this.counter;
+        this.counter := this.counter + 1;
+        "__var"+c
+    end;
+end;

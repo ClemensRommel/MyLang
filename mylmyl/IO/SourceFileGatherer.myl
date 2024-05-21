@@ -1,10 +1,10 @@
-module SourceFileGatherer;
+module IO.SourceFileGatherer;
 // Gathers all source files for a program and parses them
 
-import Parser;
-import Ast;
+import Parser := Parsing.Parser;
+import Ast := Syntax.Ast;
 import Util;
-import Env;
+import Env := Syntax.Env;
 
 class SFGatherer where 
     val files_not_found : String[] := [];
@@ -41,11 +41,16 @@ fun open_and_parse(sfg : SFGatherer, file : String) : Util.Optional(SourceFile) 
     Util.Some.[SourceFile](SourceFile(ast, undesugared_exprs, undesugared_decls, file))
 end
 
-fun get_all_files(sfg : SFGatherer, starting_file : String) do 
-    print("Processing: "+starting_file);
-    val Some(file) := open_and_parse(sfg, starting_file) else return null;
+fun process_file(sfg : SFGatherer, path : String) : Util.Optional(SourceFile) do 
+    print("Processing: "+path);
+    val Some(file) := open_and_parse(sfg, path) else return Util.None.[SourceFile]();
     move_line_up();
-    sfg.parsed_sourcefiles.insert(starting_file, file);
+    sfg.parsed_sourcefiles.insert(path, file);
+    Util.Some.[SourceFile](file)
+end
+
+fun get_all_files(sfg : SFGatherer, starting_file : String) do 
+    val Some(file) := process_file(sfg, starting_file) else return null;
     for imported in file.ast.imports do 
         val path := path_to(imported);
         if !sfg.parsed_sourcefiles.has(sfg.file_prefix + path) do 
@@ -65,9 +70,12 @@ fun generated_code_path(starting_file : String) : String[] do
     output_parts
 end
 
+val std_implicit_path : String := "std/implicit.myl";
+
 fun gather_files(start : String) : SFGatherer do 
     val sfg := SFGatherer();
     sfg.file_prefix := file_path_prefix(start);
+    process_file(sfg, std_implicit_path);
     get_all_files(sfg, start);
     if sfg.files_not_found.length != 0 do 
         for file in sfg.files_not_found do 

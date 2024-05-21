@@ -1,7 +1,7 @@
 module Analyze;
 
-import Ast;
-import Env;
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
 import Util;
 
 // Search for mutable variables that are captured by functions in this block

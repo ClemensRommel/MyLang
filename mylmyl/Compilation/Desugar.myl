@@ -1,21 +1,21 @@
-module Desugar;
+module Compilation.Desugar;
 
-import Ast;
+import Ast := Syntax.Ast;
 import Util;
-import Env;
-import NameGen;
+import Env := Syntax.Env;
+import CB := Compilation.CodeBuffers;
 import Typechecking.Typechecker;
 
 class Desugarer where 
-    val name_gen : NameGen.NameGenerator;
-    new(n : NameGen.NameGenerator) do 
+    val name_gen : CB.NameGenerator;
+    new(n : CB.NameGenerator) do 
         this.name_gen := n;
     end;
 
     fun new_var() : String := this.name_gen.next_name();
 end
 
-fun desugar(sugared : (Ast.Mut(Ast.Expr)[], Ast.Mut(Ast.Decl)[]), name_gen : NameGen.NameGenerator) do 
+fun desugar(sugared : (Ast.Mut(Ast.Expr)[], Ast.Mut(Ast.Decl)[]), name_gen : CB.NameGenerator) do 
     val desugarer := Desugarer(name_gen);
     val (sugared_exprs, sugared_decls) := sugared;
     for expr in sugared_exprs do 

@@ -1,9 +1,9 @@
-module Parser;
+module Parsing.Parser;
 
-import Tokenizer;
-import Ast;
+import Tokenizer := Parsing.Tokenizer;
+import Ast := Syntax.Ast;
 import Util;
-import Env;
+import Env := Syntax.Env;
 
 class Parser where 
     val tokens : Tokenizer.Token[];

@@ -1,25 +1,24 @@
 module Compilation.CodeGenerator;
 
-import Ast;
-import Env;
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
 import Analyze;
 import Util;
-import NameGen;
-import SourceFileGatherer;
-import Compilation.CodeBuffers;
+import SFG := IO.SourceFileGatherer;
+import CB := Compilation.CodeBuffers;
 import TC := Typechecking.Typechecker;
 
 class Compiler where 
-    var buf : Compilation.CodeBuffers.StringBuffer := Compilation.CodeBuffers.StringBuffer();
-    var name_gen : NameGen.NameGenerator;
-    val sfg : SourceFileGatherer.SFGatherer;
+    var buf : CB.StringBuffer := CB.StringBuffer();
+    var name_gen : CB.NameGenerator;
+    val sfg : SFG.SFGatherer;
 
     var is_class : Bool := true;
     var is_static : Bool := true;
     var is_generated_interface : Bool := false;
     var expect_ref_ty : Bool := false; // Wether we're currently compiling a type that is a type parameter
 
-    val ungenerated_types : Compilation.CodeBuffers.UncreatedTypes;
+    val ungenerated_types : CB.UncreatedTypes;
 
     var current_env : Ast.Namespace;
 
@@ -32,12 +31,12 @@ class Compiler where
     val generated_module_path : String;
 
     new(globals : Ast.Namespace, 
-        nameg : NameGen.NameGenerator, 
+        nameg : CB.NameGenerator, 
         modules : Env.AList(Env.Env(VariableInfo)), 
         gen_mod_path : String,
-        uncreated_types : Compilation.CodeBuffers.UncreatedTypes,
-        the_sfg : SourceFileGatherer.SFGatherer,
-        file : SourceFileGatherer.SourceFile) 
+        uncreated_types : CB.UncreatedTypes,
+        the_sfg : SFG.SFGatherer,
+        file : SFG.SourceFile) 
     do 
         this.sfg := the_sfg;
         this.current_env := globals;
@@ -141,7 +140,7 @@ fun declare_builtins(c : Compiler) do
     c.env.insert("move_line_up", do val move_info := VariableInfo(); move_info.is_no_fc_fn := true; move_info end);
 end
 
-fun gather_global_variable_info(files : Env.AList(SourceFileGatherer.SourceFile)) : Env.AList(Env.Env(VariableInfo)) do 
+fun gather_global_variable_info(files : Env.AList(SFG.SourceFile)) : Env.AList(Env.Env(VariableInfo)) do 
     val list := Env.AList.[Env.Env(VariableInfo)]();
     for (?, file) in files.bindings do 
         val env := Env.Env.[VariableInfo]();
@@ -152,12 +151,12 @@ fun gather_global_variable_info(files : Env.AList(SourceFileGatherer.SourceFile)
 end
 
 fun compile(
-    file : SourceFileGatherer.SourceFile, 
-    name_gen : NameGen.NameGenerator, 
+    file : SFG.SourceFile, 
+    name_gen : CB.NameGenerator, 
     infos : Env.AList(Env.Env(VariableInfo)), 
     generated_path : String[], 
-    ungenerated_types : Compilation.CodeBuffers.UncreatedTypes,
-    the_sfg : SourceFileGatherer.SFGatherer) : String 
+    ungenerated_types : CB.UncreatedTypes,
+    the_sfg : SFG.SFGatherer) : String 
 do 
     val path_parts := split(file.path, "/"); // Parts of path
     val file_name_parts := split(path_parts.last, "\\."); // Name before extension
@@ -1116,7 +1115,7 @@ do
                 val nmsp := namespace_for_path(c, obj);
                 val mod_info := var_info_for_namespace(c, nmsp);
                 val accessed_info := mod_info.get(name);
-                val accessed_path := SourceFileGatherer.path_to_generated_module(c.sfg, nmsp.module_path, false);
+                val accessed_path := SFG.path_to_generated_module(c.sfg, nmsp.module_path, false);
                 val access_compiled := if accessed_info.is_constructor 
                     then accessed_path+"."+name+"::new"
                     else if accessed_info.is_no_fc_fn
@@ -1143,7 +1142,7 @@ fun namespace_for_path_parts(c : Compiler, path : String[]) : Ast.Namespace :=
         else c.current_env.imported_modules.get(
             join("/", path) + ".myl");
 fun var_info_for_namespace(c : Compiler, nmscp : Ast.Namespace) : Env.Env(VariableInfo) do 
-    val file_path := SourceFileGatherer.path_to_module(nmscp.module_path);
+    val file_path := SFG.path_to_module(nmscp.module_path);
     c.all_modules.get(file_path)
 end
 
@@ -1505,7 +1504,7 @@ fun compile_call(c : Compiler, callee : Ast.Expr, call_args : Ast.Expr[], target
                 val nmscp := namespace_for_path(c, obj);
                 val mod_info := var_info_for_namespace(c, nmscp);
                 val accessed_info := mod_info.get(name);
-                val accessed_path := SourceFileGatherer.path_to_generated_module(c.sfg, nmscp.module_path, false);
+                val accessed_path := SFG.path_to_generated_module(c.sfg, nmscp.module_path, false);
                 if accessed_info.is_constructor 
                     then "new "+accessed_path+"."+name
                 else if accessed_info.is_no_fc_fn 
@@ -1754,7 +1753,7 @@ fun compile_type(c : Compiler, t : Ast.Type) : String := match t do
     case ModuleAccess(given_path, accessed, lty) := do 
         val nmscp := scope_of_name(lty.get());
         val path := nmscp.module_path;
-        SourceFileGatherer.path_to_generated_module(c.sfg, path, false)+"."+accessed
+        SFG.path_to_generated_module(c.sfg, path, false)+"."+accessed
     end;
     case Applied(ap, tys) := do 
         var ty := compile_type(c, ap);

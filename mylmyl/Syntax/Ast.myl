@@ -1,6 +1,6 @@
 module Ast;
 
-import Env;
+import Env := Syntax.Env;
 import Util;
 
 enum Expr where 

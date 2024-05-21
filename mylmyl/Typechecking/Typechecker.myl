@@ -1,15 +1,15 @@
 module Typechecker;
 
-import Ast;
-import Env;
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
 import Util;
-import SourceFileGatherer;
+import SFG := IO.SourceFileGatherer;
 
-fun typecheck(file : SourceFileGatherer.SourceFile) do 
+fun typecheck(sfg : SFG.SFGatherer, file : SFG.SourceFile) do 
     val tc := Typechecker(file);
 
     declare_builtins(tc);
-
+    if file.path != SFG.std_implicit_path do import_implicit(tc, sfg); end;
 
     print("== Typechecking "+file.path+" ==");
 
@@ -26,10 +26,10 @@ class Typechecker where
     var is_in_class : Bool := false;
     var is_in_constructor : Bool := false;
     var scope_depth : Number := 0; // 0 means global
-    val file : SourceFileGatherer.SourceFile;
+    val file : SFG.SourceFile;
     var predeclared_variables : String[] := [];
     
-    new(checked_file : SourceFileGatherer.SourceFile) do 
+    new(checked_file : SFG.SourceFile) do 
         this.names := checked_file.names;
         this.file := checked_file;
     end
@@ -158,6 +158,16 @@ fun declare_builtins(tc : Typechecker) do
     tc.names.values.insert("writeToFile", Ast.VarInfo(false, Ast.Function([], [Ast.StringT(), Ast.StringT()], Ast.VoidT()), "writeToFile", tc.names));
     tc.names.values.insert("replace", Ast.VarInfo(false, Ast.Function([], [Ast.StringT(), Ast.StringT(), Ast.StringT()], Ast.StringT()), "replace", tc.names));
     tc.names.values.insert("move_line_up", Ast.VarInfo(false, Ast.Function([], [], Ast.VoidT()), "move_line_up", tc.names));
+end
+
+fun import_implicit(tc : Typechecker, sfg : SFG.SFGatherer) do 
+    val implicit_file := sfg.parsed_sourcefiles.get(SFG.std_implicit_path);
+    for (name, v) in implicit_file.names.values.bindings.bindings do 
+        tc.names.values.insert(name, v);
+    end;
+    for (name, t) in implicit_file.names.types.bindings.bindings do 
+        tc.names.types.insert(name, t);
+    end
 end
 
 fun check_stmt(tc : Typechecker, stmt : Ast.Stmt) := match stmt do 
@@ -603,7 +613,7 @@ fun resolve(names : Ast.Namespace, ty : Ast.Type) : Ast.Type do
         case ListOf(tys) := do resolve(names, tys); end;
         case ModuleAccess(path, name, laccessed) := if laccessed.is_init() then do end else do 
             if !has_imported_module(names, path) do
-                panic("Unknown module "+SourceFileGatherer.path_to_module(path)+" in "+ty);
+                panic("Unknown module "+SFG.path_to_module(path)+" in "+ty);
             end;
             val imported_names := get_imported_module(names, path);
             if !imported_names.types.has(name) do  // Type is not declared
@@ -1206,11 +1216,11 @@ end;
 fun get_imported_module(names : Ast.Namespace, path : String[]) : Ast.Namespace :=
     if path.length = 1 and names.imported_modules.has(path[0]) 
         then names.imported_modules.get(path[0])
-        else names.imported_modules.get(SourceFileGatherer.path_to_module(path));
+        else names.imported_modules.get(SFG.path_to_module(path));
 
 fun has_imported_module(names : Ast.Namespace, path : String[]) : Bool := 
     (path.length = 1 and names.imported_modules.has(path[0]))
-    or names.imported_modules.has(SourceFileGatherer.path_to_module(path));
+    or names.imported_modules.has(SFG.path_to_module(path));
 
 fun accessed_object(tc : Typechecker, expr : Ast.Expr) : Ast.AccessedObjectType do 
     val Module(path) := Ast.get_as_path(expr) else return Ast.NormalObject(); // Expression has to be a path

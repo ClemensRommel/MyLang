@@ -1,12 +1,11 @@
 module Main;
 
-import Compiler;
-import Compilation.CodeBuffers;
+import Compiler := Compilation.Compiler;
+import CB := Compilation.CodeBuffers;
 import Typechecking.Typechecker;
 import Typechecking.InfoGatherer;
-import Desugar;
-import NameGen;
-import SourceFileGatherer;
+import Desugar := Compilation.Desugar;
+import SFG := IO.SourceFileGatherer;
 import Util;
 
 fun main() do 
@@ -14,21 +13,21 @@ fun main() do
     if cli_args.length != 1 do 
         panic("Invalid argument count: Only 1 is allowed (input file)");
     end
-    val sfg := SourceFileGatherer.gather_files(cli_args[0]);
+    val sfg := SFG.gather_files(cli_args[0]);
     val files := sfg.parsed_sourcefiles;
-    val path_to_generated_code := SourceFileGatherer.generated_code_path(cli_args[0]);
+    val path_to_generated_code := SFG.generated_code_path(cli_args[0]);
     for (?, file) in files.bindings do 
         Typechecking.InfoGatherer.declare_globals(sfg, file);
     end;
     for (?, file) in files.bindings do
-        Typechecking.Typechecker.typecheck(file);
+        Typechecking.Typechecker.typecheck(sfg, file);
     end;
-    val name_gen := NameGen.NameGenerator();
+    val name_gen := CB.NameGenerator();
     for (?, file) in files.bindings do 
         Desugar.desugar((file.undesugared_exprs, file.undesugared_decls), name_gen);
     end;
     val global_info := Compiler.gather_global_variable_info(files);
-    val ungenerated_types : Compilation.CodeBuffers.UncreatedTypes := Compilation.CodeBuffers.UncreatedTypes();
+    val ungenerated_types : CB.UncreatedTypes := CB.UncreatedTypes();
     for (path, file) in files.bindings do 
         print("== Compiling "+path+" ==");
         val compiled := Compiler.compile(file, name_gen, global_info, path_to_generated_code, ungenerated_types, sfg);

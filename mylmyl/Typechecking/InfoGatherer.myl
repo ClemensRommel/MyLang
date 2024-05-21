@@ -1,22 +1,22 @@
 module InfoGatherer;
 
-import Ast;
-import Env;
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
 import Util;
-import SourceFileGatherer;
+import SFG := IO.SourceFileGatherer;
 import Typechecking.Typechecker;
 
 
-fun add_imports(sfg : SourceFileGatherer.SFGatherer, file : SourceFileGatherer.SourceFile) do 
+fun add_imports(sfg : SFG.SFGatherer, file : SFG.SourceFile) do 
     for imported in file.ast.imports do 
         match imported do 
             case BasicImport(path) := do
-                val path_as_str := SourceFileGatherer.path_to(imported);
+                val path_as_str := SFG.path_to(imported);
                 val imported_file := sfg.parsed_sourcefiles.get(sfg.file_prefix + path_as_str);
                 file.names.imported_modules.insert(path_as_str, imported_file.names);
             end;
             case AliasImport(alias, path) := do 
-                val path_as_str := SourceFileGatherer.path_to(imported);
+                val path_as_str := SFG.path_to(imported);
                 val imported_file := sfg.parsed_sourcefiles.get(sfg.file_prefix + path_as_str);
                 file.names.imported_modules.insert(path_as_str, imported_file.names);
                 file.names.imported_modules.insert(alias, imported_file.names);
@@ -28,13 +28,13 @@ end
 
 
 
-fun declare_globals(sfg : SourceFileGatherer.SFGatherer, file : SourceFileGatherer.SourceFile) do 
+fun declare_globals(sfg : SFG.SFGatherer, file : SFG.SourceFile) do 
     add_imports(sfg, file);
     declare_functions_and_types(file); // Need to do functions and types first,
     declare_global_variables(file);    // as information about enum constructors is needed for val-else
 end
 
-fun declare_global_variables(file : SourceFileGatherer.SourceFile) do
+fun declare_global_variables(file : SFG.SourceFile) do
     fun declare_global_variable(decl : Ast.Decl) do 
         match decl do 
             case VarDecl(setter, tyd, ?, mutable, exported) := do 
@@ -61,7 +61,7 @@ fun declare_global_variables(file : SourceFileGatherer.SourceFile) do
     end;
 end
 
-fun declare_functions_and_types(file : SourceFileGatherer.SourceFile) do 
+fun declare_functions_and_types(file : SFG.SourceFile) do 
     fun declare_function_and_type(decl : Ast.Decl) do 
         match decl do 
             case DesugarableDecl(mutdecl) := declare_function_and_type(mutdecl.get());
@@ -132,7 +132,7 @@ fun early_bind_type_vars(fields : Ast.Type[], targs : Ast.TypeParameter[], scope
 end
 
 
-fun declare_setter(file : SourceFileGatherer.SourceFile, setter : Ast.Setter, ty : Ast.Type, mutable : Bool, exported : Bool) do 
+fun declare_setter(file : SFG.SourceFile, setter : Ast.Setter, ty : Ast.Type, mutable : Bool, exported : Bool) do 
     match setter do 
         case Variable(name) := do 
             val info := Ast.VarInfo(mutable, ty, name, file.names);
@@ -153,7 +153,7 @@ fun declare_setter(file : SourceFileGatherer.SourceFile, setter : Ast.Setter, ty
     end;
 end
 
-fun declare_pattern(file : SourceFileGatherer.SourceFile, pat : Ast.Pattern, ty : Ast.Type, mutable : Bool, exported : Bool) do 
+fun declare_pattern(file : SFG.SourceFile, pat : Ast.Pattern, ty : Ast.Type, mutable : Bool, exported : Bool) do 
     match pat do 
         case NumericPattern(?) := do end;
         case StringPattern(?) := do end;
