@@ -98,6 +98,7 @@ enum Decl where
     ValElseDeclaration(Pattern, Expr, Expr, Bool /* mut */, Bool /* */, Util.LateInitialized(Type), 
                        Util.LateInitialized(Type), Util.LateInitialized(Namespace)),
     FunDecl(String, TypeParameter[], Parameter[], Type, Expr, Bool /* */, Util.LateInitialized(Namespace)),
+    TypeAliasDecl(String, Type, Bool, Util.LateInitialized(Namespace)),
     ClassDecl(String, TypeParameter[], Decl[], Optional(Constructor), Bool /* */, Util.LateInitialized(Namespace)),
     EnumDecl(String, TypeParameter[], EnumConstructor[], Decl[], Bool /* */, Util.LateInitialized(Namespace));
 end;
@@ -143,6 +144,7 @@ end
 enum TyInfo where 
     ClassInfo(String, TypeParameter[], Env.AList(VarInfo) /* fields */, Env.AList(VarInfo) /* methods */, Bool /* exported */, Namespace),
     EnumInfo(String, TypeParameter[], EnumConstructor[], Env.AList(VarInfo) /* methods, doesn't have fields */, Bool /* exported */, Namespace),
+    TyAliasInfo(String, Type, Bool, Namespace),
     TypeParameterInfo(String);
 end
 
@@ -273,11 +275,13 @@ end
 
 fun is_type_exported(info : TyInfo) : Bool := match info do 
     case ClassInfo(?, ?, ?, ?, exported, ?) := exported;
+    case TyAliasInfo(?, ?, exported, ?) := exported;
     case EnumInfo(?, ?, ?, ?, exported, ?) := exported;
 end;
 
 fun scope_of_info(info : TyInfo, fallback : Namespace) : Namespace := match info do 
     case TypeParameterInfo(name) := fallback.env_defined_in(name);
+    case TyAliasInfo(?, ?, ?, scope) := scope;
     case ClassInfo(?, ?, ?, ?, ?, scope) := scope;
     case EnumInfo(?, ?, ?, ?, ?, scope) := scope;
 end;

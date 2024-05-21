@@ -44,6 +44,7 @@ fun is_decl_start(p : P.Parser) : Bool := match p.peek().kind do
     case FUN() := p.peekNext().kind = Tokenizer.IDENTIFIER();
     case CLASS() := true;
     case ENUM() := true;
+    case TYPE() := true;
     case ? := false;
 end;
 fun is_stmt_start(p : P.Parser) : Bool := is_decl_start(p) or 

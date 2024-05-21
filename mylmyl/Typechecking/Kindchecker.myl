@@ -77,6 +77,7 @@ fun kind_of(tc : TC.Typechecker, ty : Ast.Type) : Ast.Kind do
 end
 
 fun kind_of_info(tc : TC.Typechecker, info : Ast.TyInfo) : Ast.Kind := match info do 
+    case TyAliasInfo(name, definition, exported, scope) := kind_of(tc, definition);
     case TypeParameterInfo(?) := Ast.ConcreteType(); // Type parameters cannot be generic (no higher kinded types)
     case ClassInfo(name, targs, fields, methods, exported, ?) := if targs.length = 0 then Ast.ConcreteType() else generic_kind(targs.length); 
     case EnumInfo(name, targs, constructors, methods, exported, ?) := if targs.length = 0 then Ast.ConcreteType() else generic_kind(targs.length); 

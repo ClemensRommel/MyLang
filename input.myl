@@ -4,3 +4,5 @@ fun main() do
         print(""+x);
     end else do end;
 end
+
+type PairOfNumbers := (Number, Number);

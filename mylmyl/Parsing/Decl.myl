@@ -19,6 +19,7 @@ fun decl(p : P.Parser) : Ast.Decl do
         case FUN() := fun_decl(p);
         case CLASS() := class_decl(p);
         case ENUM() := enum_decl(p);
+        case TYPE() := type_alias_decl(p);
         case SEMICOLON() := Ast.EmptyDecl();
     end
 end
@@ -175,4 +176,12 @@ fun enum_decl(p : P.Parser) : Ast.Decl do
         members.push(decl(p));
     end;
     Ast.EnumDecl(name.src, targs, constructors, members, true, Ast.late_namespace())
+end
+
+fun type_alias_decl(p : P.Parser) : Ast.Decl do 
+    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect name after beginning of type alias").src;
+    p.consume(Tokenizer.ASSIGN(), "Expect ':=' after name of type alias");
+    val definition := Type.type_literal(p);
+    p.consume(Tokenizer.SEMICOLON(), "Expect ';' after type alias");
+    Ast.TypeAliasDecl(name, definition, true, Ast.late_namespace())
 end

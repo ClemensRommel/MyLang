@@ -5,7 +5,6 @@ import std.runtime.*;
 
 import java.util.ArrayList;
 
-import mylmyl.__generated_Main;
 
 public class _implicit {
     public static  sealed interface Optional<T> {
@@ -21,14 +20,14 @@ public class _implicit {
                 
             }
         }
-        public default <K> Optional<K> map(mylmyl.__generated_Main.__var54<T, K> f)  {
+        public default <K> Optional<K> map(.__generated_input.__var0<T, K> f)  {
             switch(this) {
                 case None<T>() -> {
                     return new None();
                 }
                 case Some<T>(T t) -> {
-                    var __var55 = f.call(t);
-                    return new Some(__var55);
+                    var __var1 = f.call(t);
+                    return new Some(__var1);
                 }
                 default -> { panic("Inexhaustive match: "+this); throw new RuntimeException();}
                 
@@ -48,7 +47,7 @@ public class _implicit {
         }
         public default boolean is_some()  {
             switch(this) {
-                case Some<T>(T __var56) -> {
+                case Some<T>(T __var2) -> {
                     return true;
                 }
                 case None<T>() -> {
@@ -60,7 +59,7 @@ public class _implicit {
         }
         public default boolean is_none()  {
             switch(this) {
-                case Some<T>(T __var57) -> {
+                case Some<T>(T __var3) -> {
                     return false;
                 }
                 case None<T>() -> {
@@ -88,13 +87,13 @@ public class _implicit {
             return __builder.toString();
         } 
     }
-    public static <T> boolean any(ArrayList<T> list, mylmyl.__generated_Main.__var54<T, Boolean> pred) {
-        __var59: for(var __var58 : list) {
+    public static <T> boolean any(ArrayList<T> list, .__generated_input.__var0<T, Boolean> pred) {
+        __var5: for(var __var4 : list) {
             final T t;
-            t = __var58;
+            t = __var4;
             {
-                var __var60 = pred.call(t);
-                if(__var60) {
+                var __var6 = pred.call(t);
+                if(__var6) {
                     {
                         if(true) {
                             return true;
@@ -108,20 +107,20 @@ public class _implicit {
         }
         return false;
     }
-    public static <A, B> B snd(mylmyl.__generated_Main.__var61<A, B> tuple) {
+    public static <A, B> B snd(.__generated_input.__var7<A, B> tuple) {
         final A a;
         final B b;
-        final mylmyl.__generated_Main.__var61<A, B> __var62 = tuple;
-        a = __var62.field0();
-        b = __var62.field1();
+        final .__generated_input.__var7<A, B> __var8 = tuple;
+        a = __var8.field0();
+        b = __var8.field1();
         return b;
     }
-    public static <A, B> A fst(mylmyl.__generated_Main.__var61<A, B> tuple) {
+    public static <A, B> A fst(.__generated_input.__var7<A, B> tuple) {
         final A a;
         final B b;
-        final mylmyl.__generated_Main.__var61<A, B> __var63 = tuple;
-        a = __var63.field0();
-        b = __var63.field1();
+        final .__generated_input.__var7<A, B> __var9 = tuple;
+        a = __var9.field0();
+        b = __var9.field1();
         return a;
     }
     

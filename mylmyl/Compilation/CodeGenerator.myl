@@ -171,11 +171,13 @@ do
     declare_package(c, path_parts);
     import_implicits(c);
 
-    c.append("import ");
     val output_path_parts := split(the_sfg.file_prefix, "/");
-    c.append(join(".", output_path_parts));
-    if output_path_parts.length > 0 do c.append("."); end;
-    c.append(join(".", generated_path)); c.append(";"); c.newline();
+    if generated_path.length > 1 do
+        c.append("import ");
+        c.append(join(".", output_path_parts));
+        if output_path_parts.length > 0 and output_path_parts != [""] do c.append("."); end;
+        c.append(join(".", generated_path)); c.append(";"); c.newline();
+    end;
     
     compile_imports(c, file.ast.imports, output_path_parts);
     c.append("public class _"+file_name+" {");
