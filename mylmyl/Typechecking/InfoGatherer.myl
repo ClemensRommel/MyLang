@@ -158,13 +158,13 @@ fun declare_setter(file : SFG.SourceFile, setter : Ast.Setter, ty : Ast.Type, mu
         case WildcardSetter() := do end;
         case Property(?, ?, ?) := do panic("Error: top level declaration cannot be property"); end;
         case TupleSetter(parts, lty) := do 
-            if val Tuple(tys) := ty then do 
+            if val Tuple(tys) := ty do 
                 if tys.length = parts.length do 
                     for i in [0..tys.length] do 
                         declare_setter(file, parts[i], tys[i], mutable, exported);
                     end;
                 end;
-            end else do end; // Error will be detected by typechecker
+            end; // Error will be detected by typechecker
         end;
     end;
 end
@@ -181,13 +181,13 @@ fun declare_pattern(file : SFG.SourceFile, pat : Ast.Pattern, ty : Ast.Type, mut
         end;
         case WildcardPattern() := do end;
         case TuplePattern(pats) := do 
-            if val Tuple(tys) := ty then do 
+            if val Tuple(tys) := ty do 
                 if tys.length = pats.length do 
                     for i in [0..tys.length] do 
                         declare_pattern(file, pats[i], tys[i], mutable, exported);
                     end;
                 end;
-            end else do end;
+            end;
         end;
         case ConstructorPattern(constr, patterns, lenumconstr, lenum_ty, linf) := do 
             val Name(enum_name, ltype_env) := ty else return null; // All enums must be represented by names

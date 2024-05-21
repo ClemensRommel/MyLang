@@ -18,12 +18,14 @@ class SourceFile where
     val ast : Ast.Program;
     val undesugared_exprs : Ast.Mut(Ast.Expr)[];
     val undesugared_decls : Ast.Mut(Ast.Decl)[];
+    val undesugared_stmts : Ast.Mut(Ast.Stmt)[];
     val names : Ast.Namespace;
     val path : String;
-    new(a : Ast.Program, ue : Ast.Mut(Ast.Expr)[], ud : Ast.Mut(Ast.Decl)[], p : String) do 
+    new(a : Ast.Program, ue : Ast.Mut(Ast.Expr)[], ud : Ast.Mut(Ast.Decl)[], us : Ast.Mut(Ast.Stmt)[], p : String) do 
         this.ast := a;
         this.undesugared_exprs := ue;
         this.undesugared_decls := ud;
+        this.undesugared_stmts := us;
         this.path := p;
         val before_dots := split(p, "\\.");
         before_dots.pop();
@@ -37,8 +39,8 @@ fun open_and_parse(sfg : SFGatherer, file : String) : Optional(SourceFile) do
         sfg.files_not_found.push(file);
         return None.[SourceFile]()
     end;
-    val (ast, (undesugared_exprs, undesugared_decls)) := Parser.parse(source);
-    Some.[SourceFile](SourceFile(ast, undesugared_exprs, undesugared_decls, file))
+    val (ast, (undesugared_exprs, undesugared_decls, undesugared_stmts)) := Parser.parse(source);
+    Some.[SourceFile](SourceFile(ast, undesugared_exprs, undesugared_decls, undesugared_stmts, file))
 end
 
 fun process_file(sfg : SFGatherer, path : String) : Optional(SourceFile) do 

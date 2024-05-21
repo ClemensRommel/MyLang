@@ -158,26 +158,25 @@ fun primary(p : P.Parser) : Ast.Expr :=
 
 // Expects that if is already consumed
 fun if_expr(p : P.Parser) : Ast.Expr do 
+    val condition := if_condition(p);
+    p.consume(Tokenizer.THEN(), "Expect then branch after if condition");
+    val thenBranch := expr(p);
+    p.consume(Tokenizer.ELSE(), "Expect else branch in if expression");
+    val elseBranch := expr(p);
+    p.wrap_sugared_expr(
+        Ast.IfExpr(Ast.late_type(), condition, thenBranch, elseBranch)
+    )
+end
+
+fun if_condition(p : P.Parser) : Ast.IfCondition do 
     if p.matches_type(Tokenizer.VAL()) then do 
         val pat := Pattern.pattern(p);
         p.consume(Tokenizer.ASSIGN(), "Expect := after pattern of if val expression");
         val matched := expr(p);
-        p.consume(Tokenizer.THEN(), "Expect then branch after if val condition");
-        val thenBranch := expr(p);
-        p.consume(Tokenizer.ELSE(), "Expect else branch in if val expression");
-        val elseBranch := expr(p);
-        p.wrap_sugared_expr(Ast.IfValExpr(
-                        Ast.late_type(), 
-                        pat, matched, 
-                        thenBranch, elseBranch, 
-                        Ast.late_namespace(), Ast.late_type()))
+        Ast.PatternCond(pat, matched, Ast.late_type(), Ast.late_namespace())
     end else do 
-        val cond := expr(p);
-        p.consume(Tokenizer.THEN(), "Expect then branch after if condition");
-        val thenBranch := expr(p);
-        p.consume(Tokenizer.ELSE(), "Expect else branch in if expression");
-        val elseBranch := expr(p);
-        Ast.IfExpr(Ast.late_type(), cond, thenBranch, elseBranch)
+        val cond_boolean := expr(p);
+        Ast.BooleanCond(cond_boolean)
     end
 end
 
@@ -217,18 +216,13 @@ fun block_part(p : P.Parser) : Ast.BlockPart do
     end else if val IF() := p.peek().kind then do 
         val pos := p.pos;
         p.next();
-        if val VAL() := p.peek().kind then do 
+        val cond := if_condition(p);
+        if p.matches_type(Tokenizer.DO()) then do 
+            val body := block_expr(p);
+            Ast.Statement(p.wrap_sugared_stmt(Ast.IfStmt(cond, body)))
+        end else do 
             p.pos := pos;
             potential_end_expr()
-        end else do 
-            val cond := expr(p);
-            if p.matches_type(Tokenizer.DO()) then do 
-                val body := block_expr(p);
-                Ast.Statement(Ast.IfStmt(cond, body))
-            end else do 
-                p.pos := pos;
-                potential_end_expr()
-            end
         end
     end else do 
         potential_end_expr()

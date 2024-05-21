@@ -277,7 +277,7 @@ do
     val init := if val Some(e) := init_mut then Some.[Ast.Expr](e) else None.[Ast.Expr]();
     if c.is_class then do
         compile_variables(c, setter, lt.get(), true, mutable, false);
-        if val Some(e) := init then do 
+        if val Some(e) := init  do 
             if c.is_static do c.append("static "); end;
             c.append("{");
             c.indent(); c.newline();
@@ -285,15 +285,15 @@ do
             c.strip_trailing();
             c.dedent(); c.newline();
             c.append("}");
-        end else do end;
+        end;
         c.newline();
         // Global variables are not pre-analyzed for captures, because they cannot be captured
     end else do
         val is_upvalue := setter_is_upvalue(c, setter);
         compile_variables(c, setter, lt.get(), false, mutable, is_upvalue);
-        if val Some(e) := init then do
+        if val Some(e) := init do
             EC.compile_expr(c, e, CG.AssignTo(setter));
-        end else do end;
+        end;
     end;
     declare_variables(c, setter);
 end

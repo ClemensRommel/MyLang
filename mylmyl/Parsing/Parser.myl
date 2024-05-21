@@ -12,6 +12,7 @@ class Parser where
 
     val undesugared_exprs : Ast.Mut(Ast.Expr)[] := [];
     val undesugared_decls : Ast.Mut(Ast.Decl)[] := [];
+    val undesugared_stmts : Ast.Mut(Ast.Stmt)[] := [];
 
     new(source : String) do
         this.tokens := Tokenizer.tokenize_all(source);
@@ -47,16 +48,21 @@ class Parser where
     fun previous() : Tokenizer.Token := this.tokens[this.pos - 1];
     fun at_end() : Bool := this.peek().kind = Tokenizer.EOF();
 
-    fun wrap_sugared_expr(e : Ast.Expr) : Ast.Expr := do 
+    fun wrap_sugared_expr(e : Ast.Expr) : Ast.Expr do 
         val mut_expr := Ast.Mut.[Ast.Expr](e);
         this.undesugared_exprs.push(mut_expr);
         Ast.DesugarableExpr(mut_expr)
-    end;
-    fun wrap_sugared_decl(d : Ast.Decl) : Ast.Decl := do 
+    end
+    fun wrap_sugared_decl(d : Ast.Decl) : Ast.Decl do 
         val mut_decl  := Ast.Mut.[Ast.Decl](d);
         this.undesugared_decls.push(mut_decl);
         Ast.DesugarableDecl(mut_decl)
-    end;
+    end
+    fun wrap_sugared_stmt(s : Ast.Stmt) : Ast.Stmt do 
+        val mut_stmt := Ast.Mut.[Ast.Stmt](s);
+        this.undesugared_stmts.push(mut_stmt);
+        Ast.DesugarableStmt(mut_stmt)
+    end
 
     fun err(str: String): String do 
         val nxt := this.peek();
@@ -64,10 +70,10 @@ class Parser where
     end
 end;
 
-fun parse(source : String) : (Ast.Program, (Ast.Mut(Ast.Expr)[], Ast.Mut(Ast.Decl)[])) do 
+fun parse(source : String) : (Ast.Program, (Ast.Mut(Ast.Expr)[], Ast.Mut(Ast.Decl)[], Ast.Mut(Ast.Stmt)[])) do 
     val parser := Parser(source);
     val prg := program(parser); 
-    (prg, (parser.undesugared_exprs, parser.undesugared_decls))
+    (prg, (parser.undesugared_exprs, parser.undesugared_decls, parser.undesugared_stmts))
 end
 
 fun program(p : Parser) : Ast.Program do 

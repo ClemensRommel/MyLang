@@ -16,9 +16,7 @@ enum Expr where
     InstantiationExpr(Expr, Type[], Util.LateInitialized(Type)),
     FunctionCall(Expr, Expr[]),
     FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Namespace)),
-    IfExpr(Util.LateInitialized(Type), Expr, Expr, Expr),
-    IfValExpr(Util.LateInitialized(Type), Pattern, Expr, Expr, Expr,  
-              Util.LateInitialized(Namespace), Util.LateInitialized(Type)),
+    IfExpr(Util.LateInitialized(Type), IfCondition, Expr, Expr),
     MatchExpr(Expr, (Pattern, Expr, Util.LateInitialized(Namespace))[], 
               Util.LateInitialized(Type), Util.LateInitialized(Type)),
     ListExpr(Expr[], Util.LateInitialized(Type)),
@@ -36,6 +34,10 @@ enum Expr where
     ReturnExpr(Expr, Util.LateInitialized(Type)),
     Break(Util.LateInitialized(Type)),
     ThisExpr();
+end
+enum IfCondition where 
+    BooleanCond(Expr),
+    PatternCond(Pattern, Expr, Util.LateInitialized(Type), Util.LateInitialized(Namespace));
 end
 
 class Mut(E) where 
@@ -69,8 +71,9 @@ enum UnOp where
 end
 
 enum Stmt where 
+    DesugarableStmt(Mut(Stmt)),
     ExprStmt(Expr),
-    IfStmt(Expr, Expr),
+    IfStmt(IfCondition, Expr),
     SetStatement(Setter, Expr),
     Declaration(Decl),
     EmptyStmt();

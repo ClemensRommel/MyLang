@@ -8,12 +8,15 @@ import EC := Typechecking.ExprChecker;
 import Ast := Syntax.Ast;
 
 fun check_stmt(tc : TC.Typechecker, stmt : Ast.Stmt) := match stmt do 
+    case DesugarableStmt(s) := check_stmt(tc, s.get());
     case ExprStmt(arg) := do 
         EI.infer(tc, arg);
     end;
     case IfStmt(cond, body) := do 
-        EC.check(tc, cond, Ast.BooleanT());
-        EC.check(tc, body, Ast.VoidT());
+        tc.open_scope();
+            EC.check_condition(tc, cond);
+            EC.check(tc, body, Ast.VoidT());
+        tc.close_scope();
     end;
     case Declaration(decl) := DC.check_decl(tc, decl);
     case SetStatement(setter, value) := check_set_stmt(tc, setter, value);

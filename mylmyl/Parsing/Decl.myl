@@ -118,9 +118,9 @@ fun class_decl(p : P.Parser) : Ast.Decl do
     var constr : Optional(Ast.Constructor) := None.[Ast.Constructor]();
     while !p.matches_type(Tokenizer.END()) do 
         if p.matches_type(Tokenizer.NEW()) then do 
-            if val Some(?) := constr then do 
+            if val Some(?) := constr do 
                 panic("Error: Class '"+name.src+"' can only have on constructor");
-            end else do end;
+            end;
             constr := Some.[Ast.Constructor](constructor(p));
         end else do 
             val member : Ast.Decl := decl(p);

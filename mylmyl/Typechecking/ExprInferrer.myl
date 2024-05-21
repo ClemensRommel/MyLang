@@ -40,23 +40,13 @@ fun infer(t : TC.Typechecker, e : Ast.Expr) : Ast.Type := match e do
     case BinaryOperation(op, lhs, rhs) := infer_binary(t, op, lhs, rhs);
     case UnaryOperation(op, operand) := infer_unary(t, op, operand);
     case IfExpr(linit, cond, thenBr, elseBr) := do 
-        EC.check(t, cond, Ast.BooleanT());
-        val ret_type := infer(t, thenBr);
+        t.open_scope();
+            EC.check_condition(t, cond);
+            val ret_type := infer(t, thenBr);
+        t.close_scope();
         EC.check(t, elseBr, ret_type);
         linit.init(ret_type);
         ret_type
-    end;
-    case IfValExpr(lrety, pat, matched, thenBr, elseBr, lenv, lmatchty) := do 
-        val matched_ty := infer(t, matched);
-        lmatchty.init(matched_ty);
-        t.open_scope();
-            PC.check_pattern(t, pat, matched_ty);
-            val resulting_ty := infer(t, thenBr);
-            lrety.init(resulting_ty);
-            lenv.init(t.names);
-        t.close_scope();
-        EC.check(t, elseBr, resulting_ty);
-        resulting_ty
     end;
     case FunctionExpr(params, return_type, body, lenv) := infer_function(t, params, return_type, body, lenv);
     case BlockExpr(stmts, end_expr, lt, lenv) := infer_block(t, stmts, end_expr, lt, lenv);
@@ -236,9 +226,9 @@ do
             SC.check_stmt(t, stmt);
         end;
         var result_type := Ast.VoidT();
-        if val Some(e) := end_expr then do 
+        if val Some(e) := end_expr do 
             result_type := infer(t, e);
-        end else do end;
+        end;
         lenv.init(t.names);
     t.close_scope();
     lt.init(result_type);

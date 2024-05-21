@@ -204,9 +204,9 @@ end
 
 fun disallow_fields_in_enum(tc : TC.Typechecker, members : Ast.Decl[], name : String) do 
     for member in members do 
-        if val VarDecl(setter, ?, ?, ?, ?) := member then do 
+        if val VarDecl(setter, ?, ?, ?, ?) := member do 
             panic("Error: Fields are not allowed as members of enums (in enum "+name+"): "+setter);
-        end else do end;
+        end;
     end;
 end
 

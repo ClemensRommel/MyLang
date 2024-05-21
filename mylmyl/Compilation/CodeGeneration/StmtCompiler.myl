@@ -7,10 +7,12 @@ import Ast := Syntax.Ast;
 import Env := Syntax.Env;
 
 fun compile_stmt(c : CG.Compiler, stmt : Ast.Stmt) := match stmt do 
+    case DesugarableStmt(s) := compile_stmt(c, s.get());
     case ExprStmt(expr) := do 
         val arg := EC.compile_expr(c, expr, CG.Ignore());
     end;
-    case IfStmt(cond, body) := do 
+    case IfStmt(condition, body) := do 
+        val BooleanCond(cond) := condition else panic("Error: Did not desugar condition "+condition);
         val cond_compiled := EC.compile_expr(c, cond, CG.UsedDirectly());
         c.append("if("); c.append(cond_compiled); c.append(") {"); c.indent(); c.newline();
         EC.compile_expr(c, body, CG.Ignore());

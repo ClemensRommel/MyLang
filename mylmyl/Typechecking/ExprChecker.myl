@@ -36,18 +36,9 @@ fun check(tc : TC.Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
     case UnaryOperation(op, operand) := tc.require_assigneable(t, EI.infer_unary(tc, op, operand), TC.lazy_str(e));
     case IfExpr(linit, cond, thenBr, elseBr) := do 
         linit.init(t);
-        check(tc, cond, Ast.BooleanT());
-        check(tc, thenBr, t);
-        check(tc, elseBr, t);
-    end;
-    case IfValExpr(lrety, pat, matched, thenBr, elseBr, lenv, lmatchty) := do 
-        val matched_ty := EI.infer(tc, matched);
-        lmatchty.init(matched_ty);
         tc.open_scope();
-            PC.check_pattern(tc, pat, matched_ty);
+            check_condition(tc, cond);
             check(tc, thenBr, t);
-            lrety.init(t);
-            lenv.init(tc.names);
         tc.close_scope();
         check(tc, elseBr, t);
     end;
@@ -138,6 +129,20 @@ fun check(tc : TC.Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
         lty.init(t);
     end;
 end;
+
+fun check_condition(tc : TC.Typechecker, cond : Ast.IfCondition) do 
+    match cond do 
+        case BooleanCond(c) := do 
+            check(tc, c, Ast.BooleanT());
+        end;
+        case PatternCond(pat, matched, lmatchty, lenv) := do 
+            val matched_ty := EI.infer(tc, matched);
+            lmatchty.init(matched_ty);
+            PC.check_pattern(tc, pat, matched_ty);
+            lenv.init(tc.names);
+        end;
+    end;
+end
 
 fun check_block(
     tc : TC.Typechecker, 

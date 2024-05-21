@@ -24,7 +24,7 @@ fun main() do
     end;
     val name_gen := CB.NameGenerator();
     for (?, file) in files.bindings do 
-        Desugar.desugar((file.undesugared_exprs, file.undesugared_decls), name_gen);
+        Desugar.desugar((file.undesugared_exprs, file.undesugared_decls, file.undesugared_stmts), name_gen);
     end;
     val global_info := Compiler.gather_global_variable_info(files);
     val ungenerated_types : CB.UncreatedTypes := CB.UncreatedTypes();

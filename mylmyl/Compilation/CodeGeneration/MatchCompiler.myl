@@ -22,9 +22,9 @@ do
         CG.AssignTo(Ast.Variable(temp_var))
     end else target;
     c.append("switch("); 
-    if val NumberT() := matched_ty then do 
+    if val NumberT() := matched_ty do 
         c.append("(Double) "); 
-    end else do end; 
+    end; 
     c.append(matched_compiled); c.append(") {"); c.indent(); c.newline();
     var had_unconditional_pattern := false;
     for (patt, expr, lenv) in arms do 
@@ -105,7 +105,7 @@ fun compile_complex_pattern(
         val full_name := TC.name_in_module(c, name, scope);
         c.append(full_name); 
 
-        if val Applied(t, to) := lenum_ty.get() then do 
+        if val Applied(t, to) := lenum_ty.get() do 
             if to.length > 0 do 
                 c.append("<");
                 var need_comma := false;
@@ -116,7 +116,7 @@ fun compile_complex_pattern(
                 end;
                 c.append(">");
             end;
-        end else do end;
+        end;
         
         c.append("(");
         var needs_comma := false;

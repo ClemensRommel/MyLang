@@ -16,19 +16,35 @@ class Desugarer where
     fun new_var() : String := this.name_gen.next_name();
 end
 
-fun desugar(sugared : (Ast.Mut(Ast.Expr)[], Ast.Mut(Ast.Decl)[]), name_gen : CB.NameGenerator) do 
+fun desugar(sugared : (Ast.Mut(Ast.Expr)[], Ast.Mut(Ast.Decl)[], Ast.Mut(Ast.Stmt)[]), name_gen : CB.NameGenerator) do 
     val desugarer := Desugarer(name_gen);
-    val (sugared_exprs, sugared_decls) := sugared;
+    val (sugared_exprs, sugared_decls, sugared_stmts) := sugared;
     for expr in sugared_exprs do 
         expr.set(desugar_expr(desugarer, expr.get()));
     end;
     for decl in sugared_decls do 
         decl.set(desugar_decl(desugarer, decl.get()));
     end;
+    for stmt in sugared_stmts do 
+        stmt.set(desugar_stmt(desugarer, stmt.get()));
+    end
+end;
+
+fun desugar_stmt(d : Desugarer, s : Ast.Stmt) : Ast.Stmt := match s do 
+    case IfStmt(PatternCond(pat, matched, match_ty, env), body) := do 
+        val ret_ty : Util.LateInitialized(Ast.Type) := Util.wrap_linit.[Ast.Type](Ast.VoidT());
+        Ast.ExprStmt(Ast.MatchExpr(
+            matched, 
+            [(pat, body, env), (Ast.WildcardPattern(), Ast.NullLiteral(), get_outer_env(env))],
+            match_ty,
+            ret_ty
+        )) 
+    end;
+    case ? := s;
 end;
 
 fun desugar_expr(d : Desugarer, e : Ast.Expr) : Ast.Expr := match e do 
-    case IfValExpr(return_ty, pat, matched, thenBr, elseBr, env, match_ty) := Ast.MatchExpr(
+    case IfExpr(return_ty, PatternCond(pat, matched, match_ty, env), thenBr, elseBr) := Ast.MatchExpr(
         matched,
         [(pat, thenBr, env), (Ast.WildcardPattern(), elseBr, get_outer_env(env))],
         match_ty,
@@ -53,6 +69,7 @@ fun desugar_expr(d : Desugarer, e : Ast.Expr) : Ast.Expr := match e do
             lresult_ty
         )
     end;
+    case ? := e;
 end;
 
 fun get_outer_env(e : Util.LateInitialized(Ast.Namespace)) : Util.LateInitialized(Ast.Namespace) do 
@@ -99,8 +116,6 @@ fun declared_vars(pat : Ast.Pattern, ty : Ast.Type) : (String, Ast.Type)[] do
     Analyze.declared_vars_in(pat, ty, lst);
     lst
 end;
-
-
 
 fun replace_vars(map : Env.AList(String), pat : Ast.Pattern) : Ast.Pattern := match pat do 
     case NumericPattern(?) := pat; case StringPattern(?) := pat; case BooleanPattern(?) := pat;

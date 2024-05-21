@@ -11,9 +11,9 @@ fun analyze_captures(stmts : Ast.Stmt[], last : Optional(Ast.Expr)) : Env.AList(
     for stmt in stmts do 
         analyze_stmt(scan_env, stmt);   
     end;
-    if val Some(e) := last then do 
+    if val Some(e) := last do 
         analyze_expr(scan_env, e);
-    end else do end;
+    end;
     scan_env
 end
 
@@ -30,7 +30,7 @@ fun mentions_var(expr : Ast.Expr, name : String) : Bool := match expr do
                                          any.[Ast.Expr](called, fun(t : Ast.Expr) : Bool := mentions_var(t, name));
                                         // Name shadowing is not allowed. If it will be, this has to change
     case FunctionExpr(?, ?, body, ?) := mentions_var(body, name);
-    case IfExpr(?, cond, th, el) := mentions_var(cond, name) or mentions_var(th, name) or mentions_var(el, name);
+    case IfExpr(?, cond, th, el) := condition_mentions_var(cond, name) or mentions_var(th, name) or mentions_var(el, name);
     case PropertyExpr(obj, ?, ?, ?, ?) := mentions_var(obj, name);
     case TupleExpr(parts, ?) := any.[Ast.Expr](parts, fun(t : Ast.Expr) : Bool := mentions_var(t, name));
     case BlockExpr(parts, last, ?, ?) := any.[Ast.Stmt](parts, fun(t : Ast.Stmt) : Bool := stmt_mentions_var(t, name)) or 
@@ -53,11 +53,17 @@ fun mentions_var(expr : Ast.Expr, name : String) : Bool := match expr do
     case Break(?) := false;
 end;
 
+fun condition_mentions_var(cond : Ast.IfCondition, name : String) : Bool := match cond do 
+    case BooleanCond(e) := mentions_var(e, name);
+    case PatternCond(pat, matched, ?, ?) := mentions_var(matched, name);
+end;
+
 fun stmt_mentions_var(stmt : Ast.Stmt, name : String) : Bool := match stmt do
+    case DesugarableStmt(s) := stmt_mentions_var(s.get(), name);
     case ExprStmt(expr) := mentions_var(expr, name);
     case SetStatement(setter, expr) := setter_mentions_var(setter, name) or mentions_var(expr, name);
     case Declaration(decl) := decl_mentions_var(decl, name);
-    case IfStmt(cond, body) := mentions_var(cond, name) or mentions_var(body, name);
+    case IfStmt(cond, body) := condition_mentions_var(cond, name) or mentions_var(body, name);
     case EmptyStmt() := false;
 end;
 
@@ -111,14 +117,22 @@ end;
 
 fun analyze_stmt(scan_env : Env.AList(Bool), stmt : Ast.Stmt) do 
     match stmt do
+        case DesugarableStmt(s) := analyze_stmt(scan_env, s.get());
         case ExprStmt(expr) := analyze_expr(scan_env, expr);
         case SetStatement(setter, arg) := analyze_expr(scan_env, arg);
         case Declaration(decl) := analyze_decl(scan_env, decl);
         case IfStmt(cond, body) := do 
-            analyze_expr(scan_env, cond); 
+            analyze_condition(scan_env, cond); 
             analyze_expr(scan_env, body); 
         end;
         case EmptyStmt() := null;
+    end;
+end
+
+fun analyze_condition(scan_env : Env.AList(Bool), cond : Ast.IfCondition) do 
+    match cond do 
+        case BooleanCond(c) := do analyze_expr(scan_env, c); end;
+        case PatternCond(pat, matched, ?, ?) := do analyze_expr(scan_env, matched); end;
     end;
 end
 
@@ -130,9 +144,9 @@ fun analyze_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do
             if mut do 
                 insert_vars(scan_env, setter); // Possible mutable variable that is captured
             end
-            if val Some(e) := init then do 
+            if val Some(e) := init do 
                 analyze_expr(scan_env, e);
-            end else do end;
+            end;
         end;
         case EmptyDecl() := do end;
         case FunDecl(name, typarams, parameters, ret_type, body, ?, ?) := scan_expr(scan_env, body);
@@ -167,8 +181,8 @@ fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
             end;
         end;
         case InstantiationExpr(instantiated, ?, ?) := analyze_expr(scan_env, instantiated);
-        case IfExpr(?, thenBranch, elseBranch, cond) := do 
-            analyze_expr(scan_env, cond);
+        case IfExpr(?, condition, thenBranch, elseBranch) := do 
+            analyze_condition(scan_env, condition);
             analyze_expr(scan_env, thenBranch);
             analyze_expr(scan_env, elseBranch);
         end;
@@ -176,9 +190,9 @@ fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
             for stmt in stmts do 
                 analyze_stmt(scan_env, stmt);
             end;        
-            if val Some(e) := last then do 
+            if val Some(e) := last do 
                 analyze_expr(scan_env, e);
-            end else do end;
+            end;
         end;
         case FunctionExpr(?, ?, body, ?) := do 
             scan_expr(scan_env, body); // Important part : Switch to scan mode
@@ -237,8 +251,8 @@ fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
             end;
         end;
         case InstantiationExpr(instantiated, ?, ?) := scan_expr(scan_env, instantiated);
-        case IfExpr(?, thenBranch, elseBranch, cond) := do 
-            scan_expr(scan_env, cond);
+        case IfExpr(?, cond, thenBranch, elseBranch) := do 
+            scan_condition(scan_env, cond);
             scan_expr(scan_env, thenBranch);
             scan_expr(scan_env, elseBranch);
         end;
@@ -246,9 +260,9 @@ fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do
             for stmt in stmts do 
                 scan_stmt(scan_env, stmt);
             end;        
-            if val Some(e) := last then do 
+            if val Some(e) := last do 
                 scan_expr(scan_env, e);
-            end else do end;
+            end;
         end;
         case FunctionExpr(?, ?, body, ?) := do 
             scan_expr(scan_env, body); // Important part : Switch to scan mode
@@ -303,17 +317,25 @@ end
 
 fun scan_stmt(scan_env : Env.AList(Bool), stmt : Ast.Stmt) do 
     match stmt do
+        case DesugarableStmt(s) := scan_stmt(scan_env, s.get());
         case ExprStmt(expr) := scan_expr(scan_env, expr);
         case SetStatement(setter, arg) := do 
             scan_expr(scan_env, arg);
             scan_setter(scan_env, setter);
         end;
         case IfStmt(cond, body) := do 
-            scan_expr(scan_env, cond);
+            scan_condition(scan_env, cond);
             scan_expr(scan_env, body);
         end;
         case Declaration(decl) := scan_decl(scan_env, decl);
         case EmptyStmt() := null;
+    end;
+end
+
+fun scan_condition(scan_env : Env.AList(Bool), cond : Ast.IfCondition) do 
+    match cond do 
+        case BooleanCond(b) := do scan_expr(scan_env, b); end;
+        case PatternCond(pat, matched, ?, ?) := do scan_expr(scan_env, matched); end;
     end;
 end
 
@@ -342,7 +364,7 @@ fun scan_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do
     match decl do 
         case DesugarableDecl(md) := scan_decl(scan_env, md.get());
         case EmptyDecl() := do end;
-        case VarDecl(?, ?, init, ?, ?) := if val Some(e) := init then scan_expr(scan_env, e) else do end;
+        case VarDecl(?, ?, init, ?, ?) := do if val Some(e) := init do scan_expr(scan_env, e) end; end;
         case FunDecl(?, ?, ?, ?, body, ?, ?) := scan_expr(scan_env, body);
     end;
 end

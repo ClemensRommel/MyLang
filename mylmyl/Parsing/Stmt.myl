@@ -19,10 +19,10 @@ fun stmt(p : P.Parser) : Ast.Stmt do
     end else if val IF() := nxt.kind then do 
         val pos := p.pos;
         p.next();
-        val cond := Expr.expr(p);
+        val cond := Expr.if_condition(p);
         if p.matches_type(Tokenizer.DO()) then do 
             val body := Expr.block_expr(p);
-            Ast.IfStmt(cond, body)
+            p.wrap_sugared_stmt(Ast.IfStmt(cond, body))
         end else do 
             p.pos := pos;
             Ast.ExprStmt(Expr.expr(p))

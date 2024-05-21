@@ -49,9 +49,9 @@ fun compile_tuple(c : CG.Compiler, subexprs : Ast.Expr[], ty : Ast.Type, target 
         case ? := CG.UsedDirectly();
     end;
     val exprs := for expr in subexprs do compile_expr(c, expr, subexpr_target) end;
-    if val Ignore() := target then do 
+    if val Ignore() := target do 
         return "";
-    end else do end;
+    end;
     // Name of the corresponding tuple type (will be created and will have a constructor)
     val tuple_type := TC.compile_type(c, ty); 
     var name := "";
@@ -127,9 +127,9 @@ fun compile_range_expr(c : CG.Compiler, start : Ast.Expr, end_expr : Ast.Expr, t
 end
 
 fun compile_identifier(c : CG.Compiler, fname : String, expected_ty : Ast.Type, target : CG.Target) : String do
-    if val Ignore() := target then do // Identifier has no side effects, so ignore means nothing has to be compiled
+    if val Ignore() := target do // Identifier has no side effects, so ignore means nothing has to be compiled
         return "";
-    end else do end;
+    end;
     val defined_file := c.env.get(fname).defined_file;
     val current_file := c.current_env.module_path;
     val path := if defined_file != current_file 
@@ -218,11 +218,11 @@ do
     if is_lazy_op(op) do 
         return compile_lazy_binary(c, op, left, right, target);
     end
-    if val Ignore() := target then do // Don't need to compile the operation 
+    if val Ignore() := target do // Don't need to compile the operation 
         compile_expr(c, left, CG.Ignore());
         compile_expr(c, right, CG.Ignore());
         return "";
-    end else do end;
+    end;
     val operation := do 
         val lhs := compile_expr(c, left, CG.UsedDirectly());
         val rhs := compile_expr(c, right, CG.UsedDirectly());
@@ -303,10 +303,10 @@ fun compile_bin_op(op : Ast.BinOp, lhs : String, rhs : String) : String := match
 end;
 
 fun compile_unary(c : CG.Compiler, op : Ast.UnOp, operand : Ast.Expr, target : CG.Target) : String do 
-    if val Ignore() := target then do 
+    if val Ignore() := target do 
         compile_expr(c, operand, CG.Ignore());
         return "";
-    end else do end;
+    end;
     val operation := do 
         val operand_comp := compile_expr(c, operand, CG.UsedDirectly());
         val op_c := compile_un_op(op);
@@ -332,10 +332,11 @@ end;
 fun compile_if(
     c : CG.Compiler, 
     lt : Ast.Type,
-    cond : Ast.Expr, 
+    condition : Ast.IfCondition, 
     thenBr : Ast.Expr, 
     elseBr : Ast.Expr,
     target : CG.Target) : String do 
+    val BooleanCond(cond) := condition else panic("Error: Did not desugar if condition "+condition);
     var name := "";
     val var_name := match target do 
         case Ignore() := Ast.Variable("");
@@ -346,9 +347,9 @@ fun compile_if(
         end;
         case AssignTo(setter) := setter;
     end;
-    if val UsedDirectly() := target then do
+    if val UsedDirectly() := target do
         c.append("final "); c.append(TC.compile_type(c, lt)); c.append(" "); c.append(name); c.append(";"); c.newline();
-    end else do end;
+    end;
     val prev_buf := c.buf.buf; // Safe buffer before if to backtrack in case the if is not necessare
     c.buf.buf := "";
     val branch_target := match target do 
@@ -399,14 +400,14 @@ do
         end;
         case AssignTo(setter) := setter; 
     end;
-    if val UsedDirectly() := target then do 
+    if val UsedDirectly() := target do 
         c.append("final "); 
         c.append(TC.compile_type(c, t)); 
         c.append(" "); 
         c.append(name);
         c.append(";"); 
         c.newline(); 
-    end else do end;
+    end;
     c.append("{"); c.indent(); c.newline();
     val prv := c.open_scope(lenv);
     val captures := Analyze.analyze_captures(stmts, end_expr);
@@ -697,7 +698,7 @@ fun compile_function_expr(
     env : Ast.Namespace,
     target : CG.Target) : String
 do 
-    if val Ignore() := target then do return ""; end else do end;
+    if val Ignore() := target do return ""; end;
     val complete_ty := Ast.Function([], Ast.param_types(params), return_type);
     var name := "";
     val temp_var := match target do 
