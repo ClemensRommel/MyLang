@@ -9,29 +9,36 @@ import Util;
 // Macht auch das was require_types_exist tut
 fun resolve(names : Ast.Namespace, ty : Ast.Type) : Ast.Type do 
     match ty do 
-        case NumberT() := do end;
-        case Any() := do end;
-        case BooleanT() := do end;
-        case StringT() := do end;
-        case VoidT() := do end;
-        case Tuple(parts) := do for part in parts do resolve(names, part) end; end;
+        case NumberT() := ty;
+        case Any() := ty;
+        case BooleanT() := ty;
+        case StringT() := ty;
+        case VoidT() := ty;
+        case Tuple(parts) := Ast.Tuple(for part in parts do resolve(names, part) end);
         case Name(name, lenv) := do
-            if !lenv.is_init() do // Name belongs to current scope
+            val info := if !lenv.is_init() then do // Name belongs to current scope
                 if !names.types.has(name) do panic("Unknown type "+name+": available: "+names.types.bindings.bindings); end
-                val info := names.types.get(name);
-                lenv.init(Ast.scope_of_info(info, names));
+                val inf := names.types.get(name);
+                lenv.init(Ast.scope_of_info(inf, names));
+                inf
+            end else do
+                if !lenv.get().types.has(name) do // Typ existiert nicht im ziel / derzeitigen scope
+                    panic("Unknown type "+name);
+                end;
+                lenv.get().types.get(name)
             end;
-            if !lenv.get().types.has(name) do // Typ existiert nicht im ziel / derzeitigen scope
-                panic("Unknown type "+name);
+            match info do 
+                case TyAliasInfo(?, definition, exported, scope) := resolve(scope, definition);
+                case ? := ty;
             end
         end;
         //TODO: Generics
-        case Function(typarams, params, ret_ty) := do 
-            for param in params do resolve(names, param); end;
-            resolve(names, ret_ty);
-        end;
-        case ListOf(tys) := do resolve(names, tys); end;
-        case ModuleAccess(path, name, laccessed) := if laccessed.is_init() then do end else do 
+        case Function(typarams, params, ret_ty) := Ast.Function(
+            typarams,
+            for param in params do resolve(names, param) end,
+            resolve(names, ret_ty));
+        case ListOf(tys) := Ast.ListOf(resolve(names, tys));
+        case ModuleAccess(path, name, laccessed) := if laccessed.is_init() then do laccessed.get() end else do 
             if !has_imported_module(names, path) do
                 panic("Unknown module "+SFG.path_to_module(path)+" in "+ty);
             end;
@@ -44,15 +51,16 @@ fun resolve(names : Ast.Namespace, ty : Ast.Type) : Ast.Type do
                 panic("Module "+join(".", path)+" does not export "+name);
             end
             val scope := Ast.scope_of_info(ty_info, imported_names);
-            laccessed.init(Ast.Name(name, Util.wrap_linit.[Ast.Namespace](scope)));
+            val t := resolve(scope, Ast.Name(name, Util.wrap_linit.[Ast.Namespace](scope)));
+            laccessed.init(t);
+            t
         end;
-        case Applied(applied, params) := do 
-            for param in params do resolve(names, param); end;
-            resolve(names, applied);
-        end;
-        case Never() := do end;
-    end;
-    ty
+        case Applied(applied, params) := Ast.Applied(
+            resolve(names, applied),
+            for param in params do resolve(names, param) end
+        );
+        case Never() := ty;
+    end
 end
 
 fun get_imported_module(names : Ast.Namespace, path : String[]) : Ast.Namespace :=

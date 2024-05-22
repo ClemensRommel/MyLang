@@ -69,6 +69,7 @@ fun check_mutability(tc : TC.Typechecker, setter : Ast.Setter) := match setter d
     end;
     case IndexSetter(?, ?) := do end; // Can always reassign fields of list
     case Property(obj, name, lt) := do 
+        // TODO: Typedefs
         val ClassInfo(class_name, targs, fields, methods, ?, ?) := Ast.info_for(tc.names, lt.get(), fun(ty : Ast.Type) : String := "Cannot reassign to property "+name+" of non_class_type"+ty)
             else panic("Should be unreachable: Non-class info in setter");
         val field_info := fields.get(name);

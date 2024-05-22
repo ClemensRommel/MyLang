@@ -66,6 +66,7 @@ fun declare_global_variables(file : SFG.SourceFile) do
                 declare_pattern(file, pat, lty.get(), mutable, exported);
             end;
             case DesugarableDecl(mutdecl) := declare_global_variable(mutdecl.get());
+            case TypeAliasDecl(?, ?, ?, ?) := do end; // Declares no global variable
             case EmptyDecl() := do end;
             case FunDecl(?, ?, ?, ?, ?, ?, ?) := do end;
             case ClassDecl(?, ?, ?, ?, ?, ?) := do end;
@@ -81,6 +82,10 @@ fun declare_functions_and_types(file : SFG.SourceFile) do
     fun declare_function_and_type(decl : Ast.Decl) do 
         match decl do 
             case DesugarableDecl(mutdecl) := declare_function_and_type(mutdecl.get());
+            case TypeAliasDecl(name, definition, exported, scope) := do 
+                val info := Ast.TyAliasInfo(name, definition, exported, file.names);
+                file.names.types.insert(name, info);
+            end;
             case EmptyDecl() := do end;
             case VarDecl(setter, tyd, ?, mutable, exported) := do end;
             case ValElseDeclaration(pat, ?, ?, mutable, exported, lty, ?, ?) := do end;

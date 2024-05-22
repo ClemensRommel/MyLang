@@ -158,17 +158,17 @@ fun primary(p : P.Parser) : Ast.Expr :=
 
 // Expects that if is already consumed
 fun if_expr(p : P.Parser) : Ast.Expr do 
-    val condition := if_condition(p);
+    val cond := condition(p);
     p.consume(Tokenizer.THEN(), "Expect then branch after if condition");
     val thenBranch := expr(p);
     p.consume(Tokenizer.ELSE(), "Expect else branch in if expression");
     val elseBranch := expr(p);
     p.wrap_sugared_expr(
-        Ast.IfExpr(Ast.late_type(), condition, thenBranch, elseBranch)
+        Ast.IfExpr(Ast.late_type(), cond, thenBranch, elseBranch)
     )
 end
 
-fun if_condition(p : P.Parser) : Ast.IfCondition do 
+fun condition(p : P.Parser) : Ast.Condition do 
     if p.matches_type(Tokenizer.VAL()) then do 
         val pat := Pattern.pattern(p);
         p.consume(Tokenizer.ASSIGN(), "Expect := after pattern of if val expression");
@@ -216,7 +216,7 @@ fun block_part(p : P.Parser) : Ast.BlockPart do
     end else if val IF() := p.peek().kind then do 
         val pos := p.pos;
         p.next();
-        val cond := if_condition(p);
+        val cond := condition(p);
         if p.matches_type(Tokenizer.DO()) then do 
             val body := block_expr(p);
             Ast.Statement(p.wrap_sugared_stmt(Ast.IfStmt(cond, body)))
@@ -240,20 +240,10 @@ fun for_loop(p : P.Parser) : Ast.Expr do
 end
 
 fun while_loop(p : P.Parser) : Ast.Expr do
-    if p.matches_type(Tokenizer.VAL()) then do 
-        val pat := Pattern.pattern(p);
-        p.consume(Tokenizer.ASSIGN(), "Expect ':=' after pattern of while val loop");
-        val matched := expr(p);
-        p.consume(Tokenizer.DO(), "Expect 'do' before while loop body");
-        val body := block_expr(p);
-        val resulting_expr := Ast.WhileValExpr(pat, matched, body, Ast.late_type(), Ast.late_namespace(), Ast.late_type());
-        p.wrap_sugared_expr(resulting_expr)
-    end else do 
-        val cond := expr(p);
-        p.consume(Tokenizer.DO(), "Expect 'do' before while loop body");
-        val body := block_expr(p);
-        Ast.WhileExpr(cond, body, Ast.late_namespace(), Ast.late_type())
-    end
+    val cond := condition(p);
+    p.consume(Tokenizer.DO(), "Expect 'do' before while loop body");
+    val body := block_expr(p);
+    p.wrap_sugared_expr(Ast.WhileExpr(cond, body, Ast.late_type()))
 end
 
 fun match_expr(p : P.Parser) : Ast.Expr do 

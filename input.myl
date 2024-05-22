@@ -1,4 +1,6 @@
 fun main() do 
+    val pair : PairOfNumbers := (3, 4);
+    print(""+pair);
     val x := 3;
     if x > 2 then do 
         print(""+x);

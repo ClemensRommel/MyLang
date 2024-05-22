@@ -39,10 +39,10 @@ class Typechecker where
 
     fun error[A](message : String) : A := panic(message);
     fun require_assigneable(to : Ast.Type, from : Ast.Type, violating_section : Fun() : String) do 
-        TR.resolve(this.names, to);
-        TR.resolve(this.names, from);
+        val to_ty := TR.resolve(this.names, to);
+        val from_ty := TR.resolve(this.names, from);
         if from = Ast.Never() do return null; end;
-        if !this.types_equal(to, from) do
+        if !this.types_equal(to_ty, from_ty) do
             this.error.[Void]("" + from+" is not assigneable to "+to+" in "+violating_section());
         end;
     end
@@ -118,12 +118,12 @@ class Typechecker where
         case (ListOf(elem_ty1), ListOf(elem_ty2)) := this.types_equal(elem_ty1, elem_ty2);
         case (Never(), Never()) := true;
         case (ModuleAccess(?, ?, lty), other_ty) := do 
-            TR.resolve(this.names, to);
-            this.types_equal(lty.get(), other_ty)
+            val to_ty := TR.resolve(this.names, to);
+            this.types_equal(to_ty, other_ty)
         end;
         case (other_ty, ModuleAccess(?, ?, lty)) := do 
-            TR.resolve(this.names, from);
-            this.types_equal(other_ty, lty.get())
+            val from_ty := TR.resolve(this.names, from);
+            this.types_equal(other_ty, from_ty)
         end;
         case (Applied(a1, params1), Applied(a2, params2)) := this.types_equal(a1, a2) and params1.length = params2.length 
             and do 

@@ -51,8 +51,7 @@ fun infer(t : TC.Typechecker, e : Ast.Expr) : Ast.Type := match e do
     case FunctionExpr(params, return_type, body, lenv) := infer_function(t, params, return_type, body, lenv);
     case BlockExpr(stmts, end_expr, lt, lenv) := infer_block(t, stmts, end_expr, lt, lenv);
     case ForExpr(setter, iterated, body, lenv, lt, lit) := infer_for(t, setter, iterated, body, lenv, lt, lit);
-    case WhileExpr(cond, body, lenv, lty) := infer_while(t, cond, body, lenv, lty);
-    case WhileValExpr(pat, matched, body, lmatched_ty, lenv, lty) := infer_while_val(t, pat, matched, body, lmatched_ty, lenv, lty);
+    case WhileExpr(cond, body, lty) := infer_while(t, cond, body, lty);
     case FunctionCall(callee, fargs) := do 
         val callee_type := infer(t, callee);
         // TODO: Generics
@@ -125,8 +124,9 @@ fun infer(t : TC.Typechecker, e : Ast.Expr) : Ast.Type := match e do
         if !accessed.is_exported do 
             panic("Module "+join(".", path)+" does not export "+name);
         end
-        lft.init(accessed.ty);
-        TR.resolve(accessed.scope, accessed.ty)
+        val field_ty := TR.resolve(accessed.scope, accessed.ty);
+        lft.init(field_ty);
+        field_ty
     end else do 
         val obj_ty := infer(t, obj);
         lt.init(obj_ty);
@@ -218,7 +218,7 @@ fun infer_block(
     t : TC.Typechecker, 
     stmts : Ast.Stmt[], 
     end_expr : Optional(Ast.Expr),
-    lt : Util.LateInitialized(Ast.Type),
+    lt : Ast.LateType,
     lenv : Util.LateInitialized(Ast.Namespace)) : Ast.Type
 do 
     t.open_scope();
@@ -241,8 +241,8 @@ fun infer_for(
     iterated : Ast.Expr, 
     body : Ast.Expr, 
     lenv : Util.LateInitialized(Ast.Namespace), 
-    lt : Util.LateInitialized(Ast.Type),
-    lit : Util.LateInitialized(Ast.Type)) : Ast.Type 
+    lt : Ast.LateType,
+    lit : Ast.LateType) : Ast.Type 
 do 
     val iterated_ty := infer(tc, iterated);
     tc.open_scope();
@@ -261,40 +261,15 @@ end
 
 fun infer_while(
     tc : TC.Typechecker, 
-    cond : Ast.Expr, 
+    cond : Ast.Condition, 
     body : Ast.Expr, 
-    lenv : Util.LateInitialized(Ast.Namespace), 
-    lty : Util.LateInitialized(Ast.Type)) : Ast.Type 
+    lty : Ast.LateType) : Ast.Type 
 do 
-    EC.check(tc, cond, Ast.BooleanT());
     tc.open_scope();
+        EC.check_condition(tc, cond);
         tc.in_loops.push(true);
         val elem_ty := infer(tc, body);
         val resulting := Ast.ListOf(elem_ty);
-        lenv.init(tc.names);
-        lty.init(resulting);
-        tc.in_loops.pop();
-    tc.close_scope();
-    resulting
-end
-
-fun infer_while_val(
-    tc : TC.Typechecker,
-    pat : Ast.Pattern,
-    matched : Ast.Expr,
-    body : Ast.Expr,
-    lmatched_ty : Util.LateInitialized(Ast.Type),
-    lenv : Util.LateInitialized(Ast.Namespace), 
-    lty : Util.LateInitialized(Ast.Type)) : Ast.Type
-do 
-    val matched_ty := infer(tc, matched);
-    lmatched_ty.init(matched_ty);
-    tc.open_scope();
-        tc.in_loops.push(true);
-        PC.check_pattern(tc, pat, matched_ty);
-        val elem_ty := infer(tc, body);
-        val resulting := Ast.ListOf(elem_ty);
-        lenv.init(tc.names);
         lty.init(resulting);
         tc.in_loops.pop();
     tc.close_scope();
@@ -385,10 +360,10 @@ fun get_property_ty(tc : TC.Typechecker, name : String, ty : Ast.Type, err_str :
         val resulting := Subst.substitute(unsub_ty, substitutes);
         (resulting, acc)
     end;
-    case ? := get_property_of_info(Ast.info_for(tc.names, ty, fun(wrong_ty : Ast.Type) : String := "Cannot read property of non-class-type "+wrong_ty+"in expression "+err_str()), name, err_str);
+    case ? := get_property_of_info(tc, Ast.info_for(tc.names, ty, fun(wrong_ty : Ast.Type) : String := "Cannot read property of non-class-type "+wrong_ty+"in expression "+err_str()), name, err_str);
 end;
 
-fun get_property_of_info(class_info : Ast.TyInfo, name : String, err_str : Fun() : String) : (Ast.Type, Ast.AccessType) do 
+fun get_property_of_info(tc : TC.Typechecker, class_info : Ast.TyInfo, name : String, err_str : Fun() : String) : (Ast.Type, Ast.AccessType) do 
     match class_info do 
         case ClassInfo(class_name, targs, fields, methods, exported, nmspc) := do 
             if fields.has(name) then do 
@@ -399,6 +374,7 @@ fun get_property_of_info(class_info : Ast.TyInfo, name : String, err_str : Fun()
                 (ty, Ast.MethodAccess())
             end else panic("Type "+class_name+" has no field or method called "+name)
         end;
+        case TyAliasInfo(def_name, definition, ?, scope) := get_property_ty(tc, name, definition, err_str);
         case EnumInfo(enum_name, targs, ?, methods, exported, nmspc) := do 
             if methods.has(name) then do 
                 (TR.resolve(nmspc, methods.get(name).ty), Ast.MethodAccess())
@@ -422,6 +398,7 @@ end;
 
 fun typarams_of(inf : Ast.TyInfo) : Ast.TypeParameter[] := match inf do 
     case ClassInfo(?, params, ?, ?, ?, ?) := params;
+    case TyAliasInfo(?, ?, ?, ?) := []; // Type aliases are concrete types
     case EnumInfo(?, params, ?, ?, ?, ?) := params;
     case TypeParameterInfo(?) := [];
 end;

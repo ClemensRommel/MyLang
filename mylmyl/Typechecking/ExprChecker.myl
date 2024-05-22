@@ -47,8 +47,7 @@ fun check(tc : TC.Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
         lt.init(t);
     end;
     case ForExpr(setter, iterated, body, lenv, lt, lit) := check_for(tc, t, setter, iterated, body, lenv, lt, lit);
-    case WhileExpr(cond, body, lenv, lty) := check_while(tc, t, cond, body, lenv, lty);
-    case WhileValExpr(pat, matched, body, lmatched_ty, lenv, lty) := check_while_val(tc, t, pat, matched, body, lmatched_ty, lenv, lty);
+    case WhileExpr(cond, body, lty) := check_while(tc, t, cond, body, lty);
     case FunctionCall(callee, fargs) := do 
         val callee_type := EI.infer(tc, callee);
         // TODO: Generics
@@ -130,7 +129,7 @@ fun check(tc : TC.Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
     end;
 end;
 
-fun check_condition(tc : TC.Typechecker, cond : Ast.IfCondition) do 
+fun check_condition(tc : TC.Typechecker, cond : Ast.Condition) do 
     match cond do 
         case BooleanCond(c) := do 
             check(tc, c, Ast.BooleanT());
@@ -172,8 +171,8 @@ fun check_for(
     iterated : Ast.Expr,
     body : Ast.Expr, 
     lenv : Util.LateInitialized(Ast.Namespace), 
-    lt : Util.LateInitialized(Ast.Type),
-    lit : Util.LateInitialized(Ast.Type)) 
+    lt : Ast.LateType,
+    lit : Ast.LateType) 
 do 
     val iterated_ty := EI.infer(tc, iterated);
     tc.open_scope();
@@ -198,13 +197,12 @@ end
 fun check_while(
     tc : TC.Typechecker,  
     expected : Ast.Type, 
-    cond : Ast.Expr, 
+    cond : Ast.Condition, 
     body : Ast.Expr, 
-    lenv : Util.LateInitialized(Ast.Namespace), 
-    lty : Util.LateInitialized(Ast.Type)) 
+    lty : Ast.LateType) 
 do 
-    check(tc, cond, Ast.BooleanT());
     tc.open_scope();
+        check_condition(tc, cond);
         tc.in_loops.push(true);
         if val VoidT() := expected then do 
             check(tc, body, Ast.VoidT());
@@ -212,39 +210,9 @@ do
             check(tc, body, elem_ty);
         end else do 
             val elem_ty := EI.infer(tc, body);
-            tc.error.[Void]("Expected "+expected+", got "+Ast.ListOf(elem_ty)+" in "+ Ast.WhileExpr(cond, body, lenv, lty));
+            tc.error.[Void]("Expected "+expected+", got "+Ast.ListOf(elem_ty)+" in "+ Ast.WhileExpr(cond, body, lty));
         end;
         lty.init(expected); // The resulting type of the entire expression, not the element type
-        lenv.init(tc.names);
-        tc.in_loops.pop();
-    tc.close_scope();
-end
-
-fun check_while_val(
-    tc : TC.Typechecker, 
-    expected : Ast.Type, 
-    pat : Ast.Pattern, 
-    matched : Ast.Expr, 
-    body : Ast.Expr, 
-    lmatched_ty : Util.LateInitialized(Ast.Type), 
-    lenv : Util.LateInitialized(Ast.Namespace), 
-    lty : Util.LateInitialized(Ast.Type)) 
-do 
-    val matched_ty := EI.infer(tc, matched);
-    lmatched_ty.init(matched_ty);
-    tc.open_scope();
-        tc.in_loops.push(true);
-        PC.check_pattern(tc, pat, matched_ty);
-        if val VoidT() := expected then do 
-            check(tc, body, Ast.VoidT());
-        end else if val ListOf(elem_ty) := expected then do
-            check(tc, body, elem_ty);
-        end else do 
-            val elem_ty := EI.infer(tc, body);
-            tc.error.[Void]("Expected "+expected+", got "+Ast.ListOf(elem_ty)+" in "+Ast.WhileValExpr(pat, matched, body, lmatched_ty, lenv, lty));
-        end;
-        lty.init(expected);
-        lenv.init(tc.names);
         tc.in_loops.pop();
     tc.close_scope();
 end

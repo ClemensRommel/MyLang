@@ -12,9 +12,9 @@ import Util;
 
 fun check_decl(tc : TC.Typechecker, decl : Ast.Decl) := match decl do 
     case VarDecl(setter, lt, init, mutable, ?) := do 
-        if lt.is_init() then do 
-            KC.check_kind(tc, lt.get(), Ast.ConcreteType());
+        val decl_ty := if lt.is_init() then do 
             val ty := TR.resolve(tc.names, lt.get());
+            KC.check_kind(tc, ty, Ast.ConcreteType());
             if val Some(e) := init then do 
                 EC.check(tc, e, ty);
             end else do
@@ -25,25 +25,34 @@ fun check_decl(tc : TC.Typechecker, decl : Ast.Decl) := match decl do
                     panic("Variables outside of classes require a initializer: "+setter);
                 end
             end;
+            ty
         end else do
             if val Some(e) := init then do  
                 val inferred := EI.infer(tc, e);
                 lt.init(inferred); // Infer always returns a concrete type
+                inferred
             end else do 
                 panic("Require either an initializer or a type annotation for variable "+setter+"\n"
                     + (if not mutable and not tc.is_in_class then "Immutable variable requires initializer: "+setter else "")
-                    + (if not tc.is_in_class then "Variables outside of classes require a initializer: "+setter else ""));
-            end;
+                    + (if not tc.is_in_class then "Variables outside of classes require a initializer: "+setter else ""))
+            end
         end;
-        TR.resolve(tc.names, lt.get());
-        check_declaration_setter(tc, setter, lt.get(), mutable);
+        check_declaration_setter(tc, setter, decl_ty, mutable);
     end;
     case DesugarableDecl(md) := check_decl(tc, md.get());
+    case TypeAliasDecl(name, definition, exported, scope) := do 
+        scope.init(tc.names);
+        KC.check_kind(tc, definition, Ast.ConcreteType());
+        if tc.scope_depth != 0 do // Not already declared
+            val info := Ast.TyAliasInfo(name, definition, exported, tc.names);
+            tc.declare_type(name, info);
+        end;
+    end;
     case EmptyDecl() := do end;
     case ValElseDeclaration(pat, matched, else_br, is_mut, is_export, ldecl_ty, lmatched_ty, lenv) := do 
         if ldecl_ty.is_init() then do 
-            KC.check_kind(tc, ldecl_ty.get(), Ast.ConcreteType());
             val ty := TR.resolve(tc.names, ldecl_ty.get());
+            KC.check_kind(tc, ty, Ast.ConcreteType());
             PC.check_pattern(tc, pat, ty);
             EC.check(tc, matched, ty);
             EC.check(tc, else_br, Ast.Never());
@@ -72,8 +81,8 @@ fun check_decl(tc : TC.Typechecker, decl : Ast.Decl) := match decl do
                 end
                 tc.declare_type(param.name, Ast.TypeParameterInfo(param.name));
             end;
-            KC.check_kind(tc, return_type, Ast.ConcreteType());
             val resolved_ret_ty := TR.resolve(tc.names, return_type);
+            KC.check_kind(tc, resolved_ret_ty, Ast.ConcreteType());
             val fun_type := Ast.Function(typarams, for ty in Ast.param_types(params) do TR.resolve(tc.names, ty) end, resolved_ret_ty);
             val closed_scope := tc.names;
         tc.close_scope();
@@ -214,12 +223,13 @@ fun declare_enum_constructors(tc : TC.Typechecker, name : String, targs : Ast.Ty
     for constr in variants do 
         val prv_names := tc.names;
         tc.names := scope;
-        for field in constr.fields do 
-            KC.check_kind(tc, field, Ast.ConcreteType());
-            TR.resolve(scope, field);
+        val field_types := for field in constr.fields do 
+            val resolved_field_type := TR.resolve(scope, field);
+            KC.check_kind(tc, resolved_field_type, Ast.ConcreteType());
+            resolved_field_type
         end;
         tc.names := prv_names;
-        tc.declare(constr.name, Ast.Function(targs, constr.fields, class_constr_ret_ty(targs, name, scope)), false);
+        tc.declare(constr.name, Ast.Function(targs, field_types, class_constr_ret_ty(targs, name, scope)), false);
     end;
 end
 
@@ -313,9 +323,9 @@ fun declare_param(tc : TC.Typechecker, param : Ast.Parameter) := match param do
         if tc.var_declared(name) then do 
             panic("Parameter already declared: '"+name+"'");
         end else do 
-            KC.check_kind(tc, ty, Ast.ConcreteType());
-            TR.resolve(tc.names, ty);
-            tc.declare(name, ty, false);
+            val param_ty := TR.resolve(tc.names, ty);
+            KC.check_kind(tc, param_ty, Ast.ConcreteType());
+            tc.declare(name, param_ty, false);
         end
     end;
 end;

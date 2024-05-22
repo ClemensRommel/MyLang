@@ -32,7 +32,7 @@ end;
 
 fun desugar_stmt(d : Desugarer, s : Ast.Stmt) : Ast.Stmt := match s do 
     case IfStmt(PatternCond(pat, matched, match_ty, env), body) := do 
-        val ret_ty : Util.LateInitialized(Ast.Type) := Util.wrap_linit.[Ast.Type](Ast.VoidT());
+        val ret_ty : Ast.LateType := Util.wrap_linit.[Ast.Type](Ast.VoidT());
         Ast.ExprStmt(Ast.MatchExpr(
             matched, 
             [(pat, body, env), (Ast.WildcardPattern(), Ast.NullLiteral(), get_outer_env(env))],
@@ -50,10 +50,10 @@ fun desugar_expr(d : Desugarer, e : Ast.Expr) : Ast.Expr := match e do
         match_ty,
         return_ty
     );
-    case WhileValExpr(pat, matched, body, lmatched_ty, lenv, lresult_ty) := do
+    case WhileExpr(PatternCond(pat, matched, lmatched_ty, lenv), body, lresult_ty) := do
         val elem_ty := Util.wrap_linit.[Ast.Type](if val ListOf(e_ty) := lresult_ty.get() then e_ty else Ast.VoidT());
         Ast.WhileExpr(
-            Ast.Boolean(true),
+            Ast.BooleanCond(Ast.Boolean(true)),
             Ast.BlockExpr(
                 [],
                 Some.[Ast.Expr](Ast.MatchExpr(
@@ -65,7 +65,6 @@ fun desugar_expr(d : Desugarer, e : Ast.Expr) : Ast.Expr := match e do
                 elem_ty,
                 lenv
             ),
-            lenv,
             lresult_ty
         )
     end;

@@ -10,34 +10,36 @@ enum Expr where
     StringLiteral(String),
     Boolean(Bool),
     NullLiteral(),
-    Identifier(String, Util.LateInitialized(Type)),
+    Identifier(String, LateType),
     BinaryOperation(BinOp, Expr, Expr),
     UnaryOperation(UnOp, Expr),
-    InstantiationExpr(Expr, Type[], Util.LateInitialized(Type)),
+    InstantiationExpr(Expr, Type[], LateType),
     FunctionCall(Expr, Expr[]),
     FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Namespace)),
-    IfExpr(Util.LateInitialized(Type), IfCondition, Expr, Expr),
+    IfExpr(LateType, Condition, Expr, Expr),
     MatchExpr(Expr, (Pattern, Expr, Util.LateInitialized(Namespace))[], 
-              Util.LateInitialized(Type), Util.LateInitialized(Type)),
-    ListExpr(Expr[], Util.LateInitialized(Type)),
+              LateType, LateType),
+    ListExpr(Expr[], LateType),
     RangeExpr(Expr, Expr),
-    IndexExpr(Expr, Expr, Util.LateInitialized(Type)),
-    PropertyExpr(Expr, String, Util.LateInitialized(AccessType), Util.LateInitialized(Type), 
-                               Util.LateInitialized(Type)),
-    TupleExpr(Expr[], Util.LateInitialized(Type)),
-    BlockExpr(Stmt[], Optional(Expr), Util.LateInitialized(Type), Util.LateInitialized(Namespace)),
-    WhileExpr(Expr, Expr, Util.LateInitialized(Namespace), Util.LateInitialized(Type)),
-    WhileValExpr(Pattern, Expr, Expr, Util.LateInitialized(Type), Util.LateInitialized(Namespace), Util.LateInitialized(Type)),
-    ForExpr(Setter, Expr, Expr, Util.LateInitialized(Namespace), Util.LateInitialized(Type), 
-                                Util.LateInitialized(Type)),
+    IndexExpr(Expr, Expr, LateType),
+    PropertyExpr(Expr, String, Util.LateInitialized(AccessType), LateType, 
+                               LateType),
+    TupleExpr(Expr[], LateType),
+    BlockExpr(Stmt[], Optional(Expr), LateType, Util.LateInitialized(Namespace)),
+    WhileExpr(Condition, Expr, LateType),
+    ForExpr(Setter, Expr, Expr, Util.LateInitialized(Namespace), LateType, 
+                                LateType),
     WildCardExpression(),
-    ReturnExpr(Expr, Util.LateInitialized(Type)),
-    Break(Util.LateInitialized(Type)),
+    ReturnExpr(Expr, LateType),
+    Break(LateType),
     ThisExpr();
 end
-enum IfCondition where 
+
+type LateType := Util.LateInitialized(Type);
+
+enum Condition where 
     BooleanCond(Expr),
-    PatternCond(Pattern, Expr, Util.LateInitialized(Type), Util.LateInitialized(Namespace));
+    PatternCond(Pattern, Expr, LateType, Util.LateInitialized(Namespace));
 end
 
 class Mut(E) where 
@@ -55,7 +57,7 @@ enum Pattern where
     NamePattern(String),
     WildcardPattern(),
     TuplePattern(Pattern[]),
-    ConstructorPattern(String, Pattern[], Util.LateInitialized(EnumConstructor), Util.LateInitialized(Type), Util.LateInitialized(TyInfo));
+    ConstructorPattern(String, Pattern[], Util.LateInitialized(EnumConstructor), LateType, Util.LateInitialized(TyInfo));
 end
 
 enum AccessType where 
@@ -63,7 +65,7 @@ enum AccessType where
 end
 
 enum BinOp where 
-    Add(Util.LateInitialized(Type)), Sub(), Mul(), Div(), Mod(), LessThan(), LessEqual(), GreaterEqual(), GreaterThan(), Equals(), NotEquals(), 
+    Add(LateType), Sub(), Mul(), Div(), Mod(), LessThan(), LessEqual(), GreaterEqual(), GreaterThan(), Equals(), NotEquals(), 
     And(), Or(), Xor();
 end
 enum UnOp where 
@@ -73,16 +75,16 @@ end
 enum Stmt where 
     DesugarableStmt(Mut(Stmt)),
     ExprStmt(Expr),
-    IfStmt(IfCondition, Expr),
+    IfStmt(Condition, Expr),
     SetStatement(Setter, Expr),
     Declaration(Decl),
     EmptyStmt();
 end;
 
 enum Setter where 
-    TupleSetter(Setter[], Util.LateInitialized(Type)),
+    TupleSetter(Setter[], LateType),
     Variable(String), WildcardSetter(),
-    Property(Expr, String, Util.LateInitialized(Type)/* Should always be the Name of the Class */),
+    Property(Expr, String, LateType/* Should always be the Name of the Class */),
     IndexSetter(Expr, Expr);
 end;
 
@@ -94,9 +96,9 @@ end
 enum Decl where 
     DesugarableDecl(Mut(Decl)),
     EmptyDecl(),
-    VarDecl(Setter, Util.LateInitialized(Type), Optional(Expr), Bool /* mut */, Bool /* */),
-    ValElseDeclaration(Pattern, Expr, Expr, Bool /* mut */, Bool /* */, Util.LateInitialized(Type), 
-                       Util.LateInitialized(Type), Util.LateInitialized(Namespace)),
+    VarDecl(Setter, LateType, Optional(Expr), Bool /* mut */, Bool /* */),
+    ValElseDeclaration(Pattern, Expr, Expr, Bool /* mut */, Bool /* */, LateType, 
+                       LateType, Util.LateInitialized(Namespace)),
     FunDecl(String, TypeParameter[], Parameter[], Type, Expr, Bool /* */, Util.LateInitialized(Namespace)),
     TypeAliasDecl(String, Type, Bool, Util.LateInitialized(Namespace)),
     ClassDecl(String, TypeParameter[], Decl[], Optional(Constructor), Bool /* */, Util.LateInitialized(Namespace)),
@@ -170,7 +172,7 @@ enum Type where
     Tuple(Type[]), Any(),
     Name(String, Util.LateInitialized(Namespace)), // Enviroment the name is defined in
     Function(TypeParameter[], Type[], Type), ListOf(Type),
-    ModuleAccess(String[], String, Util.LateInitialized(Type)), // Fully resolved type at end
+    ModuleAccess(String[], String, LateType), // Fully resolved type at end
     Applied(Type, Type[]),
     Never();
 end
@@ -203,7 +205,7 @@ end
 
 */
 
-fun late_type() : Util.LateInitialized(Type) := Util.LateInitialized.[Type]();
+fun late_type() : LateType := Util.LateInitialized.[Type]();
 fun late_namespace() : Util.LateInitialized(Namespace) := Util.LateInitialized.[Namespace]();
 
 fun get_as_path(e : Expr) : AccessedObjectType := match e do 
@@ -290,7 +292,7 @@ fun info_for(names : Namespace, ty : Type, error_message : Fun(Type) : String) :
     match ty do 
         case Applied(aty, params) := info_for(names ,aty, error_message);
         case Name(name, lenv) := lenv.get().types.get(name);
-        case ModuleAccess(path, name, lty) := do TR.resolve(names, ty); info_for(names, lty.get(), fun(other_ty : Type) : String := error_message(ty)) end;
+        case ModuleAccess(path, name, lty) := do val t := TR.resolve(names, ty); info_for(names, t, fun(other_ty : Type) : String := error_message(ty)) end;
         case ? := panic(error_message(ty));
     end
 end

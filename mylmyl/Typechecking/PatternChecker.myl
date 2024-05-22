@@ -61,11 +61,10 @@ fun check_pattern(tc : TC.Typechecker, pattern : Ast.Pattern, matched_ty : Ast.T
                 if constr.name = name do 
                     val tys := for ty in constr.fields do Subst.substitute(TR.resolve(scope, ty), subst) end;
                     lconstr.init(Ast.EnumConstructor(constr.name, tys));
-                    val constr_params := constr.fields;
-                    if constr_params.length != subpatterns.length do 
-                        panic("Expected "+constr_params.length+" parameters, got "+subpatterns.length+" in "+pattern);
+                    if tys.length != subpatterns.length do 
+                        panic("Expected "+tys.length+" parameters, got "+subpatterns.length+" in "+pattern);
                     end;
-                    for i in [0..constr_params.length] do 
+                    for i in [0..tys.length] do 
                         check_pattern(tc, subpatterns[i], tys[i]);
                     end;
                     return null;

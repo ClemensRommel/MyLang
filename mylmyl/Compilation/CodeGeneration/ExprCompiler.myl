@@ -32,7 +32,7 @@ fun compile_expr(c : CG.Compiler, expr : Ast.Expr, target : CG.Target) : String 
                                                                          iterated, body, 
                                                                          lenv.get(), lt.get(), lit.get(), 
                                                                          target);
-    case WhileExpr(cond, body, lenv, lty) := compile_while(c, cond, body, lenv.get(), lty.get(), target);
+    case WhileExpr(cond, body, lty) := compile_while(c, cond, body, lty.get(), target);
     case FunctionCall(callee, call_args) := compile_call(c, callee, call_args, target);
     case InstantiationExpr(instantiated, type_args, lresult_ty) := compile_instantiated(c, instantiated, type_args, lresult_ty.get(), target); // Compiler can either infer it or go back here
     case FunctionExpr(params, return_type, body, lenv) := compile_function_expr(c, params, return_type, body, lenv.get(), target);
@@ -332,7 +332,7 @@ end;
 fun compile_if(
     c : CG.Compiler, 
     lt : Ast.Type,
-    condition : Ast.IfCondition, 
+    condition : Ast.Condition, 
     thenBr : Ast.Expr, 
     elseBr : Ast.Expr,
     target : CG.Target) : String do 
@@ -512,12 +512,12 @@ end
 
 fun compile_while(
     c : CG.Compiler, 
-    cond : Ast.Expr, 
-    body : Ast.Expr, 
-    env : Ast.Namespace, 
+    condition : Ast.Condition, 
+    body : Ast.Expr,  
     result_ty : Ast.Type, 
     target : CG.Target) : String 
 do 
+    val BooleanCond(cond) := condition else panic("Did not desugar while condition "+condition);
     val list_var := if target != CG.Ignore() and result_ty != Ast.VoidT() then do 
         val res_var := c.new_var();
         c.append("final "); c.append(TC.compile_type(c, result_ty)); c.append(" "+res_var+";"); c.newline();
@@ -531,8 +531,8 @@ do
     c.append(loop_label+": while(true) {"); c.indent(); c.newline();
         val cond_compiled := compile_expr(c, cond, CG.UsedDirectly());
         if val Boolean(b) := cond then do if !b do c.append("break;"); end; end else do c.append("if(!"+cond_compiled+") { break; }"); c.newline(); end;
-        val prv := c.open_scope(env);
-        val BlockExpr(stmts, end_expr, ?, ?) := body else panic("Internal error: non-block-expression as body of while");
+        val BlockExpr(stmts, end_expr, ?, lenv) := body else panic("Internal error: non-block-expression as body of while");
+        val prv := c.open_scope(lenv.get());
         val captures := Analyze.analyze_captures(stmts, end_expr); // There are no loop variables
         for (name, is_captured) in captures.bindings do 
             if is_captured do 

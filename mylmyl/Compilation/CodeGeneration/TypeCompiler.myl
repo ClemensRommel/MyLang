@@ -53,13 +53,13 @@ fun compile_type(c : CG.Compiler, t : Ast.Type) : String := match t do
         c.generated_module_path + "." + ty
     end;
     case Name(name, lnspc) := do 
-        name_in_module(c, name, lnspc.get())
+        val scope := lnspc.get();
+        if val TyAliasInfo(?, def, ?, ?) := scope.types.get(name) then do 
+            compile_type(c, def)
+        end else 
+            name_in_module(c, name, lnspc.get())
     end; // Classes are compiled with their name
-    case ModuleAccess(given_path, accessed, lty) := do 
-        val nmscp := Ast.scope_of_name(lty.get());
-        val path := nmscp.module_path;
-        SFG.path_to_generated_module(c.sfg, path, false)+"."+accessed
-    end;
+    case ModuleAccess(given_path, accessed, lty) := compile_type(c, lty.get());
     case Applied(ap, tys) := do 
         var ty := compile_type(c, ap);
         if tys.length > 0 do 

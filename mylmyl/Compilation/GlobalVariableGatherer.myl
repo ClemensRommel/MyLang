@@ -20,6 +20,7 @@ fun gather_variable_info(env : Env.Env(CG.VariableInfo), decls : Ast.Decl[], p :
     fun gather_info(decl : Ast.Decl) do 
         match decl do 
             case DesugarableDecl(mutdecl) := gather_info(mutdecl.get());
+            case TypeAliasDecl(name, definition, ?, ?) := do end; // Declares no values
             case EmptyDecl() := do end;
             case FunDecl(name, typarams, ?, ?, ?, ?, ?) := do 
                 val info := CG.VariableInfo(p);

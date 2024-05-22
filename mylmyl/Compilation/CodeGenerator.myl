@@ -160,7 +160,7 @@ do
     val generated_prefix := split(the_sfg.file_prefix, "/");
     val generated_prefix_str := 
         join(".", generated_prefix) 
-        + (if generated_prefix.length > 0 then "." else "");
+        + (if generated_prefix.length > 0  and generated_prefix != [""] then "." else "");
     val c := Compiler(
         file.names, name_gen, 
         infos, generated_prefix_str + join(".", generated_path), 

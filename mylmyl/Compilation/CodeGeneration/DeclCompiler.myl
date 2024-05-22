@@ -10,6 +10,7 @@ import Analyze := Typechecking.Analyze;
 
 fun compile_decl(c : CG.Compiler, decl : Ast.Decl) := match decl do 
     case DesugarableDecl(md) := compile_decl(c, md.get());
+    case TypeAliasDecl(?, ?, ?, ?) := do end; // Type aliases have no equivalent in java
     case EmptyDecl() := do end;
     case VarDecl(setter, lt, init, mutable, ?) := compile_var_decl(c, setter, lt, init, mutable);
     case FunDecl(name, typarams, params, return_type, body, ?, lenv) := compile_fun_decl(c, name, typarams, params, return_type, body, lenv);
@@ -270,7 +271,7 @@ end
 fun compile_var_decl(
     c : CG.Compiler, 
     setter : Ast.Setter, 
-    lt : Util.LateInitialized(Ast.Type), 
+    lt : Ast.LateType, 
     init_mut : Optional(Ast.Expr), 
     mutable : Bool) 
 do
