@@ -68,6 +68,7 @@ fun declare_global_variables(file : SFG.SourceFile) do
             case DesugarableDecl(mutdecl) := declare_global_variable(mutdecl.get());
             case TypeAliasDecl(?, ?, ?, ?) := do end; // Declares no global variable
             case EmptyDecl() := do end;
+            case NativeFunctionDecl(?, ?, ?) := do end;
             case FunDecl(?, ?, ?, ?, ?, ?, ?) := do end;
             case ClassDecl(?, ?, ?, ?, ?, ?) := do end;
             case EnumDecl(?, ?, ?, ?, ?, ?) := do end;
@@ -82,6 +83,10 @@ fun declare_functions_and_types(file : SFG.SourceFile) do
     fun declare_function_and_type(decl : Ast.Decl) do 
         match decl do 
             case DesugarableDecl(mutdecl) := declare_function_and_type(mutdecl.get());
+            case NativeFunctionDecl(name, ty, path) := do 
+                val info := Ast.VarInfo(false, ty, name, file.names);
+                file.names.values.insert(name, info);
+            end;
             case TypeAliasDecl(name, definition, exported, scope) := do 
                 val info := Ast.TyAliasInfo(name, definition, exported, file.names);
                 file.names.types.insert(name, info);

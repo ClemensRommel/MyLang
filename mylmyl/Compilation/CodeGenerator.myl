@@ -131,19 +131,17 @@ end
 fun declare_builtins(c : Compiler) do 
     val p := c.current_env.module_path;
     c.env.insert("panic", do val panic_info := VariableInfo(p); panic_info.is_no_fc_fn := true; panic_info end);
-    c.env.insert("print", do val print_info := VariableInfo(p); print_info.is_no_fc_fn := true; print_info end);
     c.env.insert("args", do val args_info := VariableInfo(p); args_info.is_no_fc_fn := true; args_info end);
-    c.env.insert("join", do val join_info := VariableInfo(p); join_info.is_no_fc_fn := true; join_info end);
-    c.env.insert("split", do val split_info := VariableInfo(p); split_info.is_no_fc_fn := true; split_info end);
-    c.env.insert("number", do val number_info := VariableInfo(p); number_info.is_no_fc_fn := true; number_info end);
-    c.env.insert("len", do val len_info := VariableInfo(p); len_info.is_no_fc_fn := true; len_info end);
-    c.env.insert("strip", do val strip_info := VariableInfo(p); strip_info.is_no_fc_fn := true; strip_info end);
-    c.env.insert("matches", do val match_info := VariableInfo(p); match_info.is_no_fc_fn := true; match_info end);
-    c.env.insert("openFile", do val of_info := VariableInfo(p); of_info.is_no_fc_fn := true; of_info end);
-    c.env.insert("writeToFile", do val write_info := VariableInfo(p); write_info.is_no_fc_fn := true; write_info end);
-    c.env.insert("isNull", do val isn_info := VariableInfo(p); isn_info.is_no_fc_fn := true; isn_info end);
-    c.env.insert("replace", do val repl_info := VariableInfo(p); repl_info.is_no_fc_fn := true; repl_info end);
-    c.env.insert("move_line_up", do val move_info := VariableInfo(p); move_info.is_no_fc_fn := true; move_info end);
+    //c.env.insert("join", do val join_info := VariableInfo(p); join_info.is_no_fc_fn := true; join_info end);
+    //c.env.insert("split", do val split_info := VariableInfo(p); split_info.is_no_fc_fn := true; split_info end);
+    //c.env.insert("number", do val number_info := VariableInfo(p); number_info.is_no_fc_fn := true; number_info end);
+    //c.env.insert("len", do val len_info := VariableInfo(p); len_info.is_no_fc_fn := true; len_info end);
+    //c.env.insert("strip", do val strip_info := VariableInfo(p); strip_info.is_no_fc_fn := true; strip_info end);
+    //c.env.insert("matches", do val match_info := VariableInfo(p); match_info.is_no_fc_fn := true; match_info end);
+    //c.env.insert("openFile", do val of_info := VariableInfo(p); of_info.is_no_fc_fn := true; of_info end);
+    //c.env.insert("writeToFile", do val write_info := VariableInfo(p); write_info.is_no_fc_fn := true; write_info end);
+    //c.env.insert("isNull", do val isn_info := VariableInfo(p); isn_info.is_no_fc_fn := true; isn_info end);
+    //c.env.insert("replace", do val repl_info := VariableInfo(p); repl_info.is_no_fc_fn := true; repl_info end);
 end
 
 fun compile(

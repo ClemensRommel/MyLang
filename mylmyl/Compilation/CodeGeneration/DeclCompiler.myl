@@ -13,6 +13,7 @@ fun compile_decl(c : CG.Compiler, decl : Ast.Decl) := match decl do
     case TypeAliasDecl(?, ?, ?, ?) := do end; // Type aliases have no equivalent in java
     case EmptyDecl() := do end;
     case VarDecl(setter, lt, init, mutable, ?) := compile_var_decl(c, setter, lt, init, mutable);
+    case NativeFunctionDecl(name, ty, path) := compile_native_function(c, name, ty, path);
     case FunDecl(name, typarams, params, return_type, body, ?, lenv) := compile_fun_decl(c, name, typarams, params, return_type, body, lenv);
     case ClassDecl(name, targs, members, opt_constr, ?, lenv) := compile_class_decl(c, name, targs, members, opt_constr, lenv.get());
     case EnumDecl(name, targs, variants, members, ?, lenv) := compile_enum_decl(c, name, targs, variants, members, lenv.get());
@@ -116,6 +117,45 @@ do
         c.append(";");
         c.newline();
     end;
+end
+
+fun compile_native_function(c : CG.Compiler, name : String, ty : Ast.Type, path : String) do 
+    val Function(?, params, ret) := ty else panic("Native function has non-function type");
+    if c.is_class then do 
+        c.append("public static "); c.append(TC.compile_type(c, ret)); c.append(" "); c.append(name);
+    end else do
+        val compiled_ty := TC.compile_type(c, ty);
+        c.append(compiled_ty); c.append(" "+name+" = ");
+    end;
+    c.append("(");
+    var need_comma := false;
+    val param_names := for param in params do 
+        if need_comma do c.append(", "); end;
+        val param_name := c.new_var();
+        c.append(TC.compile_type(c, param)); c.append(" "+param_name);
+        need_comma := true;
+        param_name
+    end;
+    c.append(") "); if !c.is_class do c.append("-> "); end; c.append("{"); c.indent(); c.newline();
+    fun compile_native_call() do 
+        c.append(path); c.append("(");
+        var needs_sep := false;
+        for param in param_names do 
+            if needs_sep do c.append(", "); end;
+            c.append(param);
+            needs_sep := true;
+        end;
+        c.append(")");
+    end;
+    if val VoidT() := ret then do 
+        compile_native_call();
+        c.append(";"); c.newline();
+        c.append("return null;");
+    end else do 
+        c.append("return "); compile_native_call(); c.append(";");
+    end;
+    c.dedent(); c.newline();
+    c.append("}"); c.newline();
 end
 
 fun compile_enum_decl(c : CG.Compiler, name : String, targs: Ast.TypeParameter[], variants : Ast.EnumConstructor[], members : Ast.Decl[], env : Ast.Namespace) do 

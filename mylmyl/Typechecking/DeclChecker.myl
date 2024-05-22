@@ -107,6 +107,17 @@ fun check_decl(tc : TC.Typechecker, decl : Ast.Decl) := match decl do
             panic("Main may not define any parameters");
         end;
     end;
+    case NativeFunctionDecl(name, ty, path) := do 
+        if matches(name, "__.*") do 
+            panic("Names may not start with __: '"+name+"'")
+        end
+        if tc.var_declared(name) and tc.scope_depth > 0  do 
+            panic("Function already declared: '"+name+"'");
+        end;
+        val resolved_ty := TR.resolve(tc.names, ty);
+        KC.check_kind(tc, resolved_ty, Ast.ConcreteType());
+        tc.declare(name, resolved_ty, false);
+    end;
     case ClassDecl(name, targs, members, constructor, exported, lenv) := do 
         val (info, new_scope) := if tc.scope_depth = 0 then do 
             val declared_info := tc.names.types.get(name); // Pre-created info

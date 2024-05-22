@@ -20,6 +20,7 @@ fun decl(p : P.Parser) : Ast.Decl do
         case CLASS() := class_decl(p);
         case ENUM() := enum_decl(p);
         case TYPE() := type_alias_decl(p);
+        case NATIVE() := native_item_decl(p);
         case SEMICOLON() := Ast.EmptyDecl();
     end
 end
@@ -184,4 +185,31 @@ fun type_alias_decl(p : P.Parser) : Ast.Decl do
     val definition := Type.type_literal(p);
     p.consume(Tokenizer.SEMICOLON(), "Expect ';' after type alias");
     Ast.TypeAliasDecl(name, definition, true, Ast.late_namespace())
+end
+
+fun native_item_decl(p : P.Parser) : Ast.Decl do 
+    match p.next().kind do 
+        case FUN() := native_function_decl(p);
+        case other := panic("Invalid start of declaration of native item: "+other);
+    end
+end
+
+fun native_function_decl(p : P.Parser) : Ast.Decl do 
+    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect name of native function").src;
+    p.consume(Tokenizer.LPAREN(), "Expect start of parameter types after name of native function");
+    val param_tys : Ast.Type[] := [];
+    var needs_comma := false;
+    while !p.matches_type(Tokenizer.RPAREN()) do 
+        if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate parameter types"); end;
+        param_tys.push(Type.type_literal(p));
+        needs_comma := true;
+    end;
+    val return_type := if p.matches_type(Tokenizer.COLON()) then do 
+        Type.type_literal(p)
+    end else Ast.VoidT();
+    val complete_type := Ast.Function([], param_tys, return_type); // Native functions cannot be generic
+    p.consume(Tokenizer.ASSIGN(), "Expect ':=' and path after native function declaration");
+    val path := p.consume(Tokenizer.STRING_LITERAL(), "Expect path of native function");
+    p.consume(Tokenizer.SEMICOLON(), "Expect ';' at end of native function");
+    Ast.NativeFunctionDecl(name, complete_type, path.src)
 end

@@ -27,6 +27,11 @@ fun gather_variable_info(env : Env.Env(CG.VariableInfo), decls : Ast.Decl[], p :
                 info.is_no_fc_fn := true; // Global functions cant be lambdas
                 env.insert(name, info);
             end;
+            case NativeFunctionDecl(name, ty, path) := do 
+                val info := CG.VariableInfo(p);
+                info.is_no_fc_fn := true; // 
+                env.insert(name, info);
+            end;
             case ClassDecl(name, ?, ?, ?, ?, ?) := do 
                 val info := CG.VariableInfo(p);
                 info.is_constructor := true;

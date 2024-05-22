@@ -40,3 +40,17 @@ fun fst[A, B](tuple : (A, B)) : A do
     val (a, b) := tuple;
     a
 end
+
+native fun print(String) := "System.out.println";
+native fun move_line_up() := "std.BuiltinFunctions.move_line_up";
+native fun join(String, String[]) : String := "std.BuiltinFunctions.join";
+native fun split(String, String) : String[] := "std.BuiltinFunctions.split";
+native fun len(String) : Number := "std.BuiltinFunctions.len";
+native fun strip(String) : String := "std.BuiltinFunctions.strip";
+native fun matches(String, String) : Bool := "std.BuiltinFunctions.matches";
+native fun openFile(String) : String := "std.BuiltinFunctions.openFile";
+native fun isNull(String) : Bool := "std.BuiltinFunctions.isNull";
+native fun writeToFile(String, String) := "std.BuiltinFunctions.writeToFile";
+native fun number(String) : Number := "std.BuiltinFunctions.number";
+// haystack, needle, new
+native fun replace(String, String, String) : String := "std.BuiltinFunctions.replace";

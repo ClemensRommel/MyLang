@@ -77,6 +77,7 @@ end;
 fun decl_mentions_var(decl : Ast.Decl, name : String) : Bool := match decl do
     case VarDecl(?, ?, init, ?, ?) := if val Some(e) := init then mentions_var(e, name) else false;
     case FunDecl(?, ?, ?, ?, body, ?, ?) := mentions_var(body, name);
+    case NativeFunctionDecl(?, ?, ?) := false;
     case ClassDecl(?, ?, members, constr, ?, ?) := any.[Ast.Decl](members, fun(t : Ast.Decl) : Bool := decl_mentions_var(t, name))
                                                 or (if val Some(c) := constr
                                                 then constr_mentions_var(c, name) else false);
@@ -151,6 +152,7 @@ fun analyze_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do
         end;
         case EmptyDecl() := do end;
         case FunDecl(name, typarams, parameters, ret_type, body, ?, ?) := scan_expr(scan_env, body);
+        case NativeFunctionDecl(?, ?, ?) := do end;
     end;
 end
 
@@ -368,5 +370,6 @@ fun scan_decl(scan_env : Env.AList(Bool), decl : Ast.Decl) do
         case EmptyDecl() := do end;
         case VarDecl(?, ?, init, ?, ?) := do if val Some(e) := init do scan_expr(scan_env, e) end; end;
         case FunDecl(?, ?, ?, ?, body, ?, ?) := scan_expr(scan_env, body);
+        case NativeFunctionDecl(?, ?, ?) := do end;
     end;
 end

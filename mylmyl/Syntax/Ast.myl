@@ -97,13 +97,19 @@ end
 enum Decl where 
     DesugarableDecl(Mut(Decl)),
     EmptyDecl(),
+
     VarDecl(Setter, LateType, Optional(Expr), Bool /* mut */, Bool /* */),
     ValElseDeclaration(Pattern, Expr, Expr, Bool /* mut */, Bool /* */, LateType, 
                        LateType, LateNamespace),
     FunDecl(String, TypeParameter[], Parameter[], Type, Expr, Bool /* */, LateNamespace),
+
+
     TypeAliasDecl(String, Type, Bool, LateNamespace),
+
     ClassDecl(String, TypeParameter[], Decl[], Optional(Constructor), Bool /* */, LateNamespace),
-    EnumDecl(String, TypeParameter[], EnumConstructor[], Decl[], Bool /* */, LateNamespace);
+    EnumDecl(String, TypeParameter[], EnumConstructor[], Decl[], Bool /* */, LateNamespace),
+
+    NativeFunctionDecl(String, Type, String);
 end;
 
 enum Import where 

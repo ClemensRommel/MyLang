@@ -1,9 +1,9 @@
 import java.util.ArrayList;
 public class __generated_input{
-    @FunctionalInterface public static interface __var0<__var10, __var11> {
-        __var11 call(__var10 __var12);
+    @FunctionalInterface public static interface __var0<__var11, __var12> {
+        __var12 call(__var11 __var13);
     }
-    public static record __var7<__var13, __var14>(__var13 field0, __var14 field1) {
+    public static record __var7<__var14, __var15>(__var14 field0, __var15 field1) {
         public String toString() {
             StringBuilder builder = new StringBuilder();
             builder.append("(");

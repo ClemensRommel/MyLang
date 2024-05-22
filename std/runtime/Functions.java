@@ -27,66 +27,12 @@ public class Functions {
         return lst;
     }
 
-    public static double len(String str) {
-        return (double) str.length();
-    }
-
     public static <A> A panic(String message) {
         throw new RuntimeException(message);
-    }
-    public static Void print(String message) {
-        System.out.println(message);
-        return null;
     }
 
     public static ArrayList<String> args() {
         return __cli_args;
-    }
-
-    public static String join(String sep, ArrayList<String> lst) {
-        return String.join(sep, lst);
-    }
-
-    public static ArrayList<String> split(String to_be_splitted, String splitter) {
-        var result = to_be_splitted.split(splitter);
-        return new ArrayList<>(Arrays.asList(result));
-    }
-
-    public static double number(String from) {
-        return Double.parseDouble(from);
-    }
-
-    public static String strip(String str) {
-        return str.strip();
-    }
-
-    public static boolean matches(String str, String regex) {
-        return str.matches(regex);
-    }
-
-    public static String openFile(String path) {
-        try {
-            return Files.readString(Paths.get(path));
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    public static Void writeToFile(String path, String content) {
-        try {
-            Files.writeString(Paths.get(path), content);
-        } catch (Exception e) {
-            panic("Could not write to file: "+path);
-        }
-        return null;
-    }
-
-    public static boolean isNull(Object o) {
-        return o == null;
-    }
-
-    public static String replace(String old, String searched, String replacement) {
-        return old.replace(searched, replacement);
     }
 
     private static ArrayList<String> __cli_args;
@@ -121,10 +67,5 @@ public class Functions {
     public static String __stringify(Object o) {
         if(o instanceof Double d) {return __stringify(d);}
         return o.toString();
-    }
-
-    public static Void move_line_up() {
-        System.out.print("\033[1A\033[2K");
-        return null;
     }
 }

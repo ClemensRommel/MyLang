@@ -16,17 +16,19 @@ enum TokenType where
 
     IDENTIFIER(),
 
-    // Value kexwords
+    // Value keywords
     VAR(), VAL(), VALUE_THIS(), NEW(), FUN(), IF(), THEN(), ELSE(), WHILE(), FOR(), IN(), BREAK(),
     RETURN(), MATCH(), CASE(),
 
     // Namespacing Keywords
     MODULE(), IMPORT(), EXPORT(), LOCAL(),
 
+    // Keyword for types and functions defined in host language
+    NATIVE(), 
+
     // Type Keywords
-    CLASS(), TYPE_FUN(), NUMBER(), BOOLEAN(), STRING(), VOID(), TYPE(), ENUM(),
-
-
+    CLASS(), TYPE_FUN(), NUMBER(), BOOLEAN(), STRING(), VOID(), TYPE(), ENUM(), 
+    
     EOF(), ERROR();
 end
 
@@ -206,6 +208,7 @@ class Tokenizer where
     end
 
     fun identifierToken(name : String) : TokenType := match name do 
+        case "native" := NATIVE();
         case "where" := WHERE();
         case "end" := END();
         case "true" := TRUE();
