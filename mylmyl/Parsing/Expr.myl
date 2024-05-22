@@ -249,7 +249,7 @@ end
 fun match_expr(p : P.Parser) : Ast.Expr do 
     val matched := expr(p);
     p.consume(Tokenizer.DO(), "Expect 'do' after matched expression");
-    val cases : (Ast.Pattern, Ast.Expr, Util.LateInitialized(Ast.Namespace))[] := [];
+    val cases : (Ast.Pattern, Ast.Expr, Ast.LateNamespace)[] := [];
     while !p.matches_type(Tokenizer.END()) do
         p.consume(Tokenizer.CASE(), "Expect 'case' to start pattern");
         val pat := Pattern.pattern(p);

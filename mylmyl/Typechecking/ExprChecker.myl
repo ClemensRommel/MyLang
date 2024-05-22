@@ -149,7 +149,7 @@ fun check_block(
     stmts : Ast.Stmt[], 
     end_expr : Optional(Ast.Expr),
     total : Ast.Expr, 
-    lenv : Util.LateInitialized(Ast.Namespace))
+    lenv : Ast.LateNamespace)
 do 
     tc.open_scope();
         for stmt in stmts do 
@@ -170,7 +170,7 @@ fun check_for(
     setter : Ast.Setter, 
     iterated : Ast.Expr,
     body : Ast.Expr, 
-    lenv : Util.LateInitialized(Ast.Namespace), 
+    lenv : Ast.LateNamespace, 
     lt : Ast.LateType,
     lit : Ast.LateType) 
 do 

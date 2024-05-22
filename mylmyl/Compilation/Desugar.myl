@@ -71,7 +71,7 @@ fun desugar_expr(d : Desugarer, e : Ast.Expr) : Ast.Expr := match e do
     case ? := e;
 end;
 
-fun get_outer_env(e : Util.LateInitialized(Ast.Namespace)) : Util.LateInitialized(Ast.Namespace) do 
+fun get_outer_env(e : Ast.LateNamespace) : Ast.LateNamespace do 
     val other := Ast.late_namespace();
     if e.is_init() do 
         other.init(e.get().close_scope());

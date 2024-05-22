@@ -199,7 +199,7 @@ fun infer_function(
     params : Ast.Parameter[], 
     return_type : Ast.Type,
     body : Ast.Expr,
-    lenv : Util.LateInitialized(Ast.Namespace)) : Ast.Type
+    lenv : Ast.LateNamespace) : Ast.Type
 do 
     t.open_scope();
         t.in_loops.push(false);
@@ -219,7 +219,7 @@ fun infer_block(
     stmts : Ast.Stmt[], 
     end_expr : Optional(Ast.Expr),
     lt : Ast.LateType,
-    lenv : Util.LateInitialized(Ast.Namespace)) : Ast.Type
+    lenv : Ast.LateNamespace) : Ast.Type
 do 
     t.open_scope();
         for stmt in stmts do 
@@ -240,7 +240,7 @@ fun infer_for(
     loop_var : Ast.Setter, 
     iterated : Ast.Expr, 
     body : Ast.Expr, 
-    lenv : Util.LateInitialized(Ast.Namespace), 
+    lenv : Ast.LateNamespace, 
     lt : Ast.LateType,
     lit : Ast.LateType) : Ast.Type 
 do 

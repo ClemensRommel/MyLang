@@ -25,7 +25,7 @@ fun compile_fun_decl(
     params : Ast.Parameter[], 
     return_type : Ast.Type, 
     body : Ast.Expr,
-    lenv : Util.LateInitialized(Ast.Namespace))
+    lenv : Ast.LateNamespace)
 do 
     val info := CG.VariableInfo(c.current_env.module_path);
     info.is_no_fc_fn := c.is_class; // Local functions cannot be compiled directly but to lambdas

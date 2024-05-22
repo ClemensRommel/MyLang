@@ -10,7 +10,7 @@ import Util;
 fun compile_match(
     c : CG.Compiler, 
     matched : Ast.Expr, 
-    arms : (Ast.Pattern, Ast.Expr, Util.LateInitialized(Ast.Namespace))[], 
+    arms : (Ast.Pattern, Ast.Expr, Ast.LateNamespace)[], 
     matched_ty : Ast.Type, 
     ret_ty : Ast.Type, 
     target : CG.Target) : String 

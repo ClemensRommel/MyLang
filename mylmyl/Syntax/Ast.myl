@@ -15,9 +15,9 @@ enum Expr where
     UnaryOperation(UnOp, Expr),
     InstantiationExpr(Expr, Type[], LateType),
     FunctionCall(Expr, Expr[]),
-    FunctionExpr(Parameter[], Type, Expr, Util.LateInitialized(Namespace)),
+    FunctionExpr(Parameter[], Type, Expr, LateNamespace),
     IfExpr(LateType, Condition, Expr, Expr),
-    MatchExpr(Expr, (Pattern, Expr, Util.LateInitialized(Namespace))[], 
+    MatchExpr(Expr, (Pattern, Expr, LateNamespace)[], 
               LateType, LateType),
     ListExpr(Expr[], LateType),
     RangeExpr(Expr, Expr),
@@ -25,9 +25,9 @@ enum Expr where
     PropertyExpr(Expr, String, Util.LateInitialized(AccessType), LateType, 
                                LateType),
     TupleExpr(Expr[], LateType),
-    BlockExpr(Stmt[], Optional(Expr), LateType, Util.LateInitialized(Namespace)),
+    BlockExpr(Stmt[], Optional(Expr), LateType, LateNamespace),
     WhileExpr(Condition, Expr, LateType),
-    ForExpr(Setter, Expr, Expr, Util.LateInitialized(Namespace), LateType, 
+    ForExpr(Setter, Expr, Expr, LateNamespace, LateType, 
                                 LateType),
     WildCardExpression(),
     ReturnExpr(Expr, LateType),
@@ -36,10 +36,11 @@ enum Expr where
 end
 
 type LateType := Util.LateInitialized(Type);
+type LateNamespace := Util.LateInitialized(Namespace);
 
 enum Condition where 
     BooleanCond(Expr),
-    PatternCond(Pattern, Expr, LateType, Util.LateInitialized(Namespace));
+    PatternCond(Pattern, Expr, LateType, LateNamespace);
 end
 
 class Mut(E) where 
@@ -98,11 +99,11 @@ enum Decl where
     EmptyDecl(),
     VarDecl(Setter, LateType, Optional(Expr), Bool /* mut */, Bool /* */),
     ValElseDeclaration(Pattern, Expr, Expr, Bool /* mut */, Bool /* */, LateType, 
-                       LateType, Util.LateInitialized(Namespace)),
-    FunDecl(String, TypeParameter[], Parameter[], Type, Expr, Bool /* */, Util.LateInitialized(Namespace)),
-    TypeAliasDecl(String, Type, Bool, Util.LateInitialized(Namespace)),
-    ClassDecl(String, TypeParameter[], Decl[], Optional(Constructor), Bool /* */, Util.LateInitialized(Namespace)),
-    EnumDecl(String, TypeParameter[], EnumConstructor[], Decl[], Bool /* */, Util.LateInitialized(Namespace));
+                       LateType, LateNamespace),
+    FunDecl(String, TypeParameter[], Parameter[], Type, Expr, Bool /* */, LateNamespace),
+    TypeAliasDecl(String, Type, Bool, LateNamespace),
+    ClassDecl(String, TypeParameter[], Decl[], Optional(Constructor), Bool /* */, LateNamespace),
+    EnumDecl(String, TypeParameter[], EnumConstructor[], Decl[], Bool /* */, LateNamespace);
 end;
 
 enum Import where 
@@ -122,7 +123,7 @@ end
 class Constructor where 
     val params : Parameter[];
     val body : Expr;
-    val lenv : Util.LateInitialized(Namespace) := late_namespace();
+    val lenv : LateNamespace := late_namespace();
 
     new(p : Parameter[], b : Expr) do 
         this.params := p;
@@ -170,7 +171,7 @@ end
 enum Type where 
     NumberT(), BooleanT(), StringT(), VoidT(),
     Tuple(Type[]), Any(),
-    Name(String, Util.LateInitialized(Namespace)), // Enviroment the name is defined in
+    Name(String, LateNamespace), // Enviroment the name is defined in
     Function(TypeParameter[], Type[], Type), ListOf(Type),
     ModuleAccess(String[], String, LateType), // Fully resolved type at end
     Applied(Type, Type[]),
@@ -206,7 +207,7 @@ end
 */
 
 fun late_type() : LateType := Util.LateInitialized.[Type]();
-fun late_namespace() : Util.LateInitialized(Namespace) := Util.LateInitialized.[Namespace]();
+fun late_namespace() : LateNamespace := Util.LateInitialized.[Namespace]();
 
 fun get_as_path(e : Expr) : AccessedObjectType := match e do 
     case DesugarableExpr(mute) := get_as_path(mute.get());
