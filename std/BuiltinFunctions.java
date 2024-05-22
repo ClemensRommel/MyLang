@@ -22,6 +22,9 @@ public class BuiltinFunctions {
     public static double len(String str) {
         return (double) str.length();
     }
+    public static int int_len(String str) {
+        return str.length();
+    }
     public static String strip(String str) {
         return str.strip();
     }
@@ -51,5 +54,8 @@ public class BuiltinFunctions {
     }
     public static String replace(String old, String searched, String replacement) {
         return old.replace(searched, replacement);
+    }
+    public static int int_from_number(double d) {
+        return (int) d;
     }
 }

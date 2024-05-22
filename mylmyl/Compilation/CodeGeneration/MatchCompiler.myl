@@ -22,8 +22,8 @@ do
         CG.AssignTo(Ast.Variable(temp_var))
     end else target;
     c.append("switch("); 
-    if val NumberT() := matched_ty do 
-        c.append("(Double) "); 
+    if val Numeric(nty) := matched_ty do 
+        c.append(boxed_number_cast(nty)); 
     end; 
     c.append(matched_compiled); c.append(") {"); c.indent(); c.newline();
     var had_unconditional_pattern := false;
@@ -41,6 +41,15 @@ do
         val AssignTo(Variable(temp)) := arm_target else panic("Unreachable: Invalid arm target");
         temp
     end else ""
+end;
+
+fun boxed_number_cast(nty : Ast.NumberType) : String := match nty do 
+    case F64() := "(Double) ";
+    case F32() := "(Float) ";
+    case I64() := "(Long) ";
+    case I32() := "(Integer) ";
+    case I16() := "(Short) ";
+    case I8() := "(Byte) ";
 end;
 
 fun compile_pattern(c : CG.Compiler, pattern : Ast.Pattern, matched_ty : Ast.Type) do 

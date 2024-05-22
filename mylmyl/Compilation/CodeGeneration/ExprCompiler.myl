@@ -13,7 +13,7 @@ import Util;
 
 fun compile_expr(c : CG.Compiler, expr : Ast.Expr, target : CG.Target) : String := match expr do 
     case DesugarableExpr(content) := compile_expr(c, content.get(), target);
-    case NumberLiteral(n) := use_with_target(c, if n % 1 = 0 then "" + n + ".0" else ""+n, target);
+    case NumberLiteral(n, number_type) := use_with_target(c, "("+number_cast(number_type) + (if n % 1 = 0 then "" + n + ".0" else ""+n) + ")", target);
     case StringLiteral(str) := do 
         use_with_target(c, CG.escape_string(str), target)
     end;
@@ -41,6 +41,15 @@ fun compile_expr(c : CG.Compiler, expr : Ast.Expr, target : CG.Target) : String 
     case MatchExpr(matched, arms, lmatchty, lretty) := MC.compile_match(c, matched, arms, lmatchty.get(), lretty.get(), target);
     case ReturnExpr(ret, lty) := compile_return(c, ret, lty.get(), target);
     case Break(lty) := compile_break(c, lty.get(), target);
+end;
+
+fun number_cast(num_ty : Ast.NumberType) : String := match num_ty do 
+    case F64() := "(double)";
+    case F32() := "(float)";
+    case I64() := "(long)";
+    case I32() := "(int)";
+    case I16() := "(short)";
+    case I8() := "(byte)";
 end;
 
 fun compile_tuple(c : CG.Compiler, subexprs : Ast.Expr[], ty : Ast.Type, target : CG.Target) : String do 
@@ -195,7 +204,7 @@ fun compile_identifier(c : CG.Compiler, fname : String, expected_ty : Ast.Type, 
 end
 
 fun default_value(ty : Ast.Type) : String := match ty do 
-    case NumberT() := "0.0"; 
+    case Numeric(nty) := "("+number_cast(nty)+"0)"; 
     case Any() := "null";
     case BooleanT() := "false"; 
     case StringT() := "\"\""; 
@@ -284,7 +293,7 @@ end
 
 fun compile_bin_op(op : Ast.BinOp, lhs : String, rhs : String) : String := match op do 
     case Add(lty) := match lty.get() do 
-        case NumberT() := lhs + "+" + rhs;
+        case Numeric(?) := lhs + "+" + rhs;
         case StringT() := "__stringify("+lhs+")+__stringify("+rhs+")";
     end;
     case Sub() := lhs + "-" + rhs;

@@ -1,10 +1,10 @@
+package test;
 import java.util.ArrayList;
-
-public class __generated_input{
-    @FunctionalInterface public static interface __var0<__var27, __var28> {
-        __var28 call(__var27 __var29);
+public class __generated_Test{
+    @FunctionalInterface public static interface __var0<__var28, __var29> {
+        __var29 call(__var28 __var30);
     }
-    public static record __var7<__var30, __var31>(__var30 field0, __var31 field1) {
+    public static record __var7<__var31, __var32>(__var31 field0, __var32 field1) {
         public String toString() {
             StringBuilder builder = new StringBuilder();
             builder.append("(");

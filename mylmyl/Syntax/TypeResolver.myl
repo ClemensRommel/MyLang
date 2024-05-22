@@ -9,7 +9,7 @@ import Util;
 // Macht auch das was require_types_exist tut
 fun resolve(names : Ast.Namespace, ty : Ast.Type) : Ast.Type do 
     match ty do 
-        case NumberT() := ty;
+        case Numeric(?) := ty;
         case Any() := ty;
         case BooleanT() := ty;
         case StringT() := ty;

@@ -10,7 +10,7 @@ fun check_pattern(tc : TC.Typechecker, pattern : Ast.Pattern, matched_ty : Ast.T
     fun pat_str() : String := "" + pattern;
     match pattern do 
         case NumericPattern(?) := do 
-            tc.require_assigneable(Ast.NumberT(), matched_ty, pat_str);
+            tc.require_numeric(matched_ty, pat_str);
         end;
         case StringPattern(?) := do 
             tc.require_assigneable(Ast.StringT(), matched_ty, pat_str);

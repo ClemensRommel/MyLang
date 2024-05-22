@@ -1,5 +1,4 @@
 fun main() do 
-    f("test");
+    val i : Int := 13i;
+    print(""+i);
 end
-
-native fun f(String) := "System.out.println";

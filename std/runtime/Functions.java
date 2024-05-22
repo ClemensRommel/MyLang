@@ -15,13 +15,74 @@ public class Functions {
         if (d % 1 == 0) {
             return (int) d;
         } else {
-            throw new InvalidIndexException(d);
+            throw new InvalidIndexException(""+d);
         }
     }
+
+    public static int __toIndex(float d) {
+        if (d % 1 == 0) {
+            return (int) d;
+        } else {
+            throw new InvalidIndexException(""+d);
+        }
+    }
+    public static int __toIndex(long l) {
+        return (int) l;
+    }
+    public static int __toIndex(int l) {
+        return (int) l;
+    }
+    public static int __toIndex(short l) {
+        return (int) l;
+    }
+    public static int __toIndex(byte l) {
+        return (int) l;
+    }
+
     public static ArrayList<Double> __range(double start, double end) {
         ArrayList<Double> lst = new ArrayList<>();
         if(end < start) return lst;
         for (double i = start; i < end; i++) {
+            lst.add(i);
+        }
+        return lst;
+    }
+    public static ArrayList<Float> __range(float start, float end) {
+        ArrayList<Float> lst = new ArrayList<>();
+        if(end < start) return lst;
+        for (float i = start; i < end; i++) {
+            lst.add(i);
+        }
+        return lst;
+    }
+    public static ArrayList<Long> __range(long start, long end) {
+        ArrayList<Long> lst = new ArrayList<>();
+        if(end < start) return lst;
+        for (long i = start; i < end; i++) {
+            lst.add(i);
+        }
+        return lst;
+    }
+    public static ArrayList<Integer> __range(int start, int end) {
+        ArrayList<Integer> lst = new ArrayList<>();
+        if(end < start) return lst;
+        for (int i = start; i < end; i++) {
+            lst.add(i);
+        }
+        return lst;
+    }
+    public static ArrayList<Short> __range(short start, short end) {
+        ArrayList<Short> lst = new ArrayList<>();
+        if(end < start) return lst;
+        for (short i = start; i < end; i++) {
+            lst.add(i);
+        }
+        return lst;
+    }
+    public static ArrayList<Byte> __range(byte start, byte end) {
+        ArrayList<Byte> lst = new ArrayList<>();
+        if(end < start) return lst;
+        for (byte i = start; i < end; i++) {
             lst.add(i);
         }
         return lst;
@@ -46,6 +107,11 @@ public class Functions {
     }
 
     public static boolean __equal(double a, double b) {return a == b;}
+    public static boolean __equal(float a, float b) {return a == b;}
+    public static boolean __equal(long a, long b) {return a == b;}
+    public static boolean __equal(int a, int b) {return a == b;}
+    public static boolean __equal(short a, short b) {return a == b;}
+    public static boolean __equal(byte a, byte b) {return a == b;}
     public static boolean __equal(boolean a, boolean b) {return a == b;}
     public static boolean __equal(Object a, Object b) {return a == b || a.equals(b);}
 
@@ -56,6 +122,25 @@ public class Functions {
             return ""+d;
         }
     }
+    public static String __stringify(float f) {
+        if(f % 1 == 0) {
+            return ((int) f) +"";
+        } else {
+            return ""+f;
+        }
+    }
+    public static String __stringify(long v) {
+        return "" + v;
+    }
+    public static String __stringify(int v) {
+        return "" + v;
+    }
+    public static String __stringify(short v) {
+        return "" + v;
+    }
+    public static String __stringify(byte v) {
+        return "" + v;
+    }
     public static String __stringify(boolean b) {return ""+b;}
     public static String __stringify(Double d) {
         if(d % 1 == 0) {
@@ -64,8 +149,16 @@ public class Functions {
             return ""+d;
         }
     }
+    public static String __stringify(Float f) {
+        if(f % 1 == 0) {
+            return ((int) (float) f) + "";
+        } else {
+            return "" + f;
+        }
+    }
     public static String __stringify(Object o) {
         if(o instanceof Double d) {return __stringify(d);}
+        if(o instanceof Float f) {return __stringify(f);}
         return o.toString();
     }
 }

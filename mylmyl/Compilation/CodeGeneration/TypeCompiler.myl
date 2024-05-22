@@ -6,7 +6,7 @@ import CG := Compilation.CodeGenerator;
 import SFG := IO.SourceFileGatherer;
 
 fun compile_type(c : CG.Compiler, t : Ast.Type) : String := match t do 
-    case NumberT() := if c.expect_ref_ty then "Double" else "double";
+    case Numeric(nty) := if c.expect_ref_ty then boxed_type(nty) else unboxed_type(nty);
     case Any() := "Object";
     case BooleanT() := if c.expect_ref_ty then "Boolean" else "boolean";
     case StringT() := "String";
@@ -80,6 +80,24 @@ fun compile_type(c : CG.Compiler, t : Ast.Type) : String := match t do
     case Never() := "Void";
 end;
 
+fun boxed_type(nty : Ast.NumberType) : String := match nty do 
+    case F64() := "Double";
+    case F32() := "Float";
+    case I64() := "Long";
+    case I32() := "Integer";
+    case I16() := "Short";
+    case I8() := "Byte";
+end;
+
+fun unboxed_type(nty : Ast.NumberType) : String := match nty do 
+    case F64() := "double";
+    case F32() := "float";
+    case I64() := "long";
+    case I32() := "int";
+    case I16() := "short";
+    case I8() := "byte";
+end;
+
 fun create_enqueued_type(c : CG.Compiler, ty : Ast.Type) : String do 
     if val Some(name) := c.get_enqueued_type(ty) then do 
         name 
@@ -114,7 +132,12 @@ fun name_in_module(c : CG.Compiler, name : String, scope : Ast.Namespace) : Stri
 end
 
 fun compile_upvalue_type(c : CG.Compiler, t : Ast.Type) : String := match t do 
-    case NumberT() := "NumberUpvalue";
+    case Numeric(F64()) := "NumberUpvalue";
+    case Numeric(F32()) := "FloatUpvalue";
+    case Numeric(I64()) := "LongUpvalue";
+    case Numeric(I32()) := "IntUpvalue";
+    case Numeric(I16()) := "ShortUpvalue";
+    case Numeric(I8()) := "ByteUpvalue";
     case BooleanT() := "BooleanUpvalue";
     case ? := "Upvalue<"+compile_type(c, t)+">";
 end;

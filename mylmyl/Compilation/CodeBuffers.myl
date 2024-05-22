@@ -5,7 +5,7 @@ import Util;
 
 class StringBuffer where 
     var buf : String := "";
-    var indent_level : Number := 0;
+    var indent_level : Int := 0i;
 
     fun append(str : String) do 
         this.buf := this.buf + str;
@@ -13,18 +13,18 @@ class StringBuffer where
 
     fun newline() do 
         this.append("\n");
-        for i in [0..this.indent_level] do 
+        for ? in [0i..this.indent_level] do 
             this.append("    ");
         end;
     end
     fun indent() do 
-        this.indent_level := this.indent_level + 1;
+        this.indent_level := this.indent_level + 1i;
     end
     fun dedent() do 
-        if this.indent_level <= 0 do 
+        if this.indent_level <= 0i do 
             panic("Error: Negative indent_level impossible");
         end
-        this.indent_level := this.indent_level - 1;
+        this.indent_level := this.indent_level - 1i;
     end
 
     fun strip_trailing() do 
@@ -84,11 +84,11 @@ class UncreatedTypes where
 end
 
 class NameGenerator where 
-    var counter : Number := 0;
+    var counter : Int := 0i;
 
     fun next_name() : String := do 
         val c := this.counter;
-        this.counter := this.counter + 1;
+        this.counter := this.counter + 1i;
         "__var"+c
     end;
 end;

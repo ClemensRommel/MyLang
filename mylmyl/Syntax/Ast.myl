@@ -6,7 +6,7 @@ import Util;
 
 enum Expr where 
     DesugarableExpr(Mut(Expr)),
-    NumberLiteral(Number),
+    NumberLiteral(Number, NumberType),
     StringLiteral(String),
     Boolean(Bool),
     NullLiteral(),
@@ -175,13 +175,17 @@ class Program where
 end
 
 enum Type where 
-    NumberT(), BooleanT(), StringT(), VoidT(),
+    Numeric(NumberType), BooleanT(), StringT(), VoidT(),
     Tuple(Type[]), Any(),
     Name(String, LateNamespace), // Enviroment the name is defined in
     Function(TypeParameter[], Type[], Type), ListOf(Type),
     ModuleAccess(String[], String, LateType), // Fully resolved type at end
     Applied(Type, Type[]),
     Never();
+end
+
+enum NumberType where 
+    F64(), F32(), I64(), I32(), I16(), I8();
 end
 
 enum Kind where 
@@ -195,22 +199,6 @@ class TypeParameter where
         this.name := n;
     end
 end
-
-/*
-
-var name_counter : Number := 0;
-
-class Symbol where
-    val text : String;
-    val id : Number;
-    new(text : String) do
-        this.text := src;
-        this.id := name_counter;
-        name_counter := name_counter + 1;
-    end
-end
-
-*/
 
 fun late_type() : LateType := Util.LateInitialized.[Type]();
 fun late_namespace() : LateNamespace := Util.LateInitialized.[Namespace]();

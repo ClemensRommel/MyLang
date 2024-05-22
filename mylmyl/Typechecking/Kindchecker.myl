@@ -6,7 +6,7 @@ import Ast := Syntax.Ast;
 
 fun check_kind(tc : TC.Typechecker, ty : Ast.Type, kind : Ast.Kind) do 
     match ty do 
-        case NumberT() := tc.require_kind(kind, Ast.ConcreteType(), ty);
+        case Numeric(?) := tc.require_kind(kind, Ast.ConcreteType(), ty);
         case BooleanT() := tc.require_kind(kind, Ast.ConcreteType(), ty);
         case StringT() := tc.require_kind(kind, Ast.ConcreteType(), ty);
         case VoidT() := tc.require_kind(kind, Ast.ConcreteType(), ty);
@@ -61,7 +61,7 @@ end
 
 fun kind_of(tc : TC.Typechecker, ty : Ast.Type) : Ast.Kind do
     match TR.resolve(tc.names, ty) do 
-        case NumberT() := Ast.ConcreteType();
+        case Numeric(?) := Ast.ConcreteType();
         case BooleanT() := Ast.ConcreteType();
         case StringT() := Ast.ConcreteType();
         case VoidT() := Ast.ConcreteType();

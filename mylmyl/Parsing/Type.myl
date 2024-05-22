@@ -32,7 +32,17 @@ end
 
 fun simple_type(p : P.Parser) : Ast.Type := 
     if p.matches_type(Tokenizer.NUMBER()) then
-        Ast.NumberT()
+        Ast.Numeric(Ast.F64())
+    else if p.matches_type(Tokenizer.FLOAT()) then 
+        Ast.Numeric(Ast.F32())
+    else if p.matches_type(Tokenizer.LONG()) then 
+        Ast.Numeric(Ast.I64())
+    else if p.matches_type(Tokenizer.INT()) then 
+        Ast.Numeric(Ast.I32())
+    else if p.matches_type(Tokenizer.SHORT()) then 
+        Ast.Numeric(Ast.I16())
+    else if p.matches_type(Tokenizer.BYTE()) then 
+        Ast.Numeric(Ast.I8())
     else if p.matches_type(Tokenizer.STRING()) then 
         Ast.StringT()
     else if p.matches_type(Tokenizer.BOOLEAN()) then 

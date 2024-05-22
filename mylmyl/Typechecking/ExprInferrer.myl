@@ -19,7 +19,7 @@ import Util;
 fun infer(t : TC.Typechecker, e : Ast.Expr) : Ast.Type := match e do 
     case WildCardExpression() := panic("Error: ? is not a valid expression");
     case DesugarableExpr(content) := infer(t, content.get());
-    case NumberLiteral(?) := Ast.NumberT();
+    case NumberLiteral(?, nty) := Ast.Numeric(nty);
     case Boolean(?) := Ast.BooleanT();
     case StringLiteral(?) := Ast.StringT();
     case NullLiteral() := Ast.VoidT();
@@ -108,9 +108,10 @@ fun infer(t : TC.Typechecker, e : Ast.Expr) : Ast.Type := match e do
         lty
     end;
     case RangeExpr(start, end_expr) := do 
-        EC.check(t, start, Ast.NumberT());
-        EC.check(t, end_expr, Ast.NumberT());
-        Ast.ListOf(Ast.NumberT())
+        val left := infer(t, start);
+        t.require_numeric(left, TC.lazy_str(start));
+        EC.check(t, end_expr, left);
+        Ast.ListOf(left)
     end;
     case PropertyExpr(obj, name, la, lt, lft) := if val Module(path) := accessed_object(t, obj) then do  
         val imported_names := TR.get_imported_module(t.names, path);
@@ -137,7 +138,8 @@ fun infer(t : TC.Typechecker, e : Ast.Expr) : Ast.Type := match e do
         member_ty
     end;
     case IndexExpr(lst, idx, llist_ty) := do
-        EC.check(t, idx, Ast.NumberT());
+        val index_ty := infer(t, idx);
+        t.require_numeric(index_ty, TC.lazy_str(idx));
         val list_ty := infer(t, lst);
         llist_ty.init(list_ty);
         val et := match list_ty do 
@@ -280,18 +282,15 @@ fun infer_binary(t : TC.Typechecker, op : Ast.BinOp, lhs : Ast.Expr, rhs : Ast.E
     case Add(lty) := do 
         val lhs_type := infer(t, lhs);
         match lhs_type do 
-            case NumberT() := do 
-                EC.check(t, rhs, Ast.NumberT());
-                lty.init(Ast.NumberT());
-                Ast.NumberT()
+            case Numeric(nty) := do 
+                EC.check(t, rhs, lhs_type);
+                lty.init(lhs_type);
+                lhs_type
             end;
-            case StringT() := do 
+            case ? := do 
                 EC.check(t, rhs, Ast.Any());
                 lty.init(Ast.StringT());
                 Ast.StringT()
-            end;
-            case ? := do 
-                t.error.[Ast.Type]("Invalid left type for +: "+lhs_type)
             end;
         end
     end;
@@ -305,9 +304,10 @@ fun infer_binary(t : TC.Typechecker, op : Ast.BinOp, lhs : Ast.Expr, rhs : Ast.E
     case Or() := infer_boolean_operator(t, lhs, rhs);
     case Xor() := infer_boolean_operator(t, lhs, rhs);
     case ? := do 
-        EC.check(t, lhs, Ast.NumberT());
-        EC.check(t, rhs, Ast.NumberT());
-        Ast.NumberT()
+        val lhs_ty := infer(t, lhs);
+        t.require_numeric(lhs_ty, TC.lazy_str(lhs));
+        EC.check(t, rhs, lhs_ty);
+        lhs_ty
     end;
 end;
 
@@ -318,8 +318,9 @@ fun infer_boolean_operator(t : TC.Typechecker, lhs : Ast.Expr, rhs : Ast.Expr) :
 end
 
 fun infer_numeric_comparison(t : TC.Typechecker, lhs : Ast.Expr, rhs : Ast.Expr) : Ast.Type do 
-    EC.check(t, lhs, Ast.NumberT());
-    EC.check(t, rhs, Ast.NumberT());
+    val lhs_ty := infer(t, lhs);
+    t.require_numeric(lhs_ty, TC.lazy_str(lhs));
+    EC.check(t, rhs, lhs_ty);
     Ast.BooleanT()
 end
 
@@ -330,12 +331,17 @@ fun infer_equality(t : TC.Typechecker, lhs : Ast.Expr, rhs : Ast.Expr) : Ast.Typ
 end
 
 fun infer_unary(t : TC.Typechecker, op : Ast.UnOp, operand : Ast.Expr) : Ast.Type do 
-    val op_type := match op do 
-        case Not() := Ast.BooleanT();
-        case ? := Ast.NumberT();
-    end;
-    EC.check(t, operand, op_type);
-    op_type 
+    match op do 
+        case Not() := do 
+            EC.check(t, operand, Ast.BooleanT());
+            Ast.BooleanT()
+        end;
+        case ? := do 
+            val num_ty := infer(t, operand);
+            t.require_numeric(num_ty, TC.lazy_str(Ast.UnaryOperation(op, operand)));
+            num_ty
+        end;
+    end
 end
 
 fun accessed_object(tc : TC.Typechecker, expr : Ast.Expr) : Ast.AccessedObjectType do 
@@ -384,7 +390,7 @@ fun get_property_of_info(tc : TC.Typechecker, class_info : Ast.TyInfo, name : St
 end
 
 fun builtin_list_property(elem_ty : Ast.Type, name : String, err_str : Fun() : String) : (Ast.Type, Ast.AccessType) := match name do 
-    case "length" := (Ast.NumberT(), Ast.FieldAccess());
+    case "length" := (Ast.Numeric(Ast.F64()), Ast.FieldAccess());
     case "first" := (elem_ty, Ast.FieldAccess());
     case "last" := (elem_ty, Ast.FieldAccess());
     case "push" := (Ast.Function([], [elem_ty], Ast.VoidT()), Ast.MethodAccess());

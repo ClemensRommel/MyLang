@@ -140,27 +140,33 @@ public class _implicit {
     public static double len(String __var73) {
         return std.BuiltinFunctions.len(__var73);
     }
-    public static String strip(String __var74) {
-        return std.BuiltinFunctions.strip(__var74);
+    public static int int_len(String __var74) {
+        return std.BuiltinFunctions.int_len(__var74);
     }
-    public static boolean matches(String __var75, String __var76) {
-        return std.BuiltinFunctions.matches(__var75, __var76);
+    public static String strip(String __var75) {
+        return std.BuiltinFunctions.strip(__var75);
     }
-    public static String openFile(String __var77) {
-        return std.BuiltinFunctions.openFile(__var77);
+    public static boolean matches(String __var76, String __var77) {
+        return std.BuiltinFunctions.matches(__var76, __var77);
     }
-    public static boolean isNull(String __var78) {
-        return std.BuiltinFunctions.isNull(__var78);
+    public static String openFile(String __var78) {
+        return std.BuiltinFunctions.openFile(__var78);
     }
-    public static Void writeToFile(String __var79, String __var80) {
-        std.BuiltinFunctions.writeToFile(__var79, __var80);
+    public static boolean isNull(String __var79) {
+        return std.BuiltinFunctions.isNull(__var79);
+    }
+    public static Void writeToFile(String __var80, String __var81) {
+        std.BuiltinFunctions.writeToFile(__var80, __var81);
         return null;
     }
-    public static double number(String __var81) {
-        return std.BuiltinFunctions.number(__var81);
+    public static double number(String __var82) {
+        return std.BuiltinFunctions.number(__var82);
     }
-    public static String replace(String __var82, String __var83, String __var84) {
-        return std.BuiltinFunctions.replace(__var82, __var83, __var84);
+    public static String replace(String __var83, String __var84, String __var85) {
+        return std.BuiltinFunctions.replace(__var83, __var84, __var85);
+    }
+    public static int int_from_number(double __var86) {
+        return std.BuiltinFunctions.int_from_number(__var86);
     }
     
 }

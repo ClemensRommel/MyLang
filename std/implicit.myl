@@ -46,6 +46,7 @@ native fun move_line_up() := "std.BuiltinFunctions.move_line_up";
 native fun join(String, String[]) : String := "std.BuiltinFunctions.join";
 native fun split(String, String) : String[] := "std.BuiltinFunctions.split";
 native fun len(String) : Number := "std.BuiltinFunctions.len";
+native fun int_len(String) : Int := "std.BuiltinFunctions.int_len";
 native fun strip(String) : String := "std.BuiltinFunctions.strip";
 native fun matches(String, String) : Bool := "std.BuiltinFunctions.matches";
 native fun openFile(String) : String := "std.BuiltinFunctions.openFile";
@@ -54,3 +55,4 @@ native fun writeToFile(String, String) := "std.BuiltinFunctions.writeToFile";
 native fun number(String) : Number := "std.BuiltinFunctions.number";
 // haystack, needle, new
 native fun replace(String, String, String) : String := "std.BuiltinFunctions.replace";
+native fun int_from_number(Number) : Int := "std.BuiltinFunctions.int_from_number";

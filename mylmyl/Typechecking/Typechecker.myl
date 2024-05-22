@@ -56,6 +56,11 @@ class Typechecker where
         end
     end
 
+    fun require_numeric(ty : Ast.Type, violating : Fun() : String) := match ty do 
+        case Numeric(?) := do end;
+        case ? := panic("Expected numeric type, got "+ty+" in "+violating());
+    end;
+
     fun open_scope() do 
         this.names := this.names.open_scope();
         this.scope_depth := this.scope_depth + 1;
@@ -81,10 +86,9 @@ class Typechecker where
     fun declare_type(name : String, ty_info : Ast.TyInfo) := this.names.types.insert(name, ty_info);
 
     fun is_global() : Bool := this.names.values.outer = None.[Env.Env(Ast.VarInfo)]();
-
     
     fun types_equal(to : Ast.Type, from : Ast.Type) : Bool := match (to, from) do 
-        case (NumberT(), NumberT()) := true;
+        case (Numeric(nty1), Numeric(nty2)) := nty1 = nty2;
         case (Any(), ?) := true; // Can assign everything to any
         case (BooleanT(), BooleanT()) := true;
         case (StringT(), StringT()) := true;

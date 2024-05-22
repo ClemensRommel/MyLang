@@ -15,7 +15,7 @@ import Util;
 fun check(tc : TC.Typechecker, e : Ast.Expr, t : Ast.Type) := match e do 
     case WildCardExpression() := panic("Error: ? is not a valid expression");
     case DesugarableExpr(content) := check(tc, content.get(), t);
-    case NumberLiteral(?) := tc.require_assigneable(t, Ast.NumberT(), TC.lazy_str(e));
+    case NumberLiteral(?, nty) := tc.require_assigneable(t, Ast.Numeric(nty), TC.lazy_str(e));
     case Boolean(?) := tc.require_assigneable(t, Ast.BooleanT(), TC.lazy_str(e));
     case StringLiteral(?) := tc.require_assigneable(t, Ast.StringT(), TC.lazy_str(e));
     case NullLiteral() := tc.require_assigneable(t, Ast.VoidT(), TC.lazy_str(e));
@@ -32,8 +32,8 @@ fun check(tc : TC.Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
             panic("Names may not start with __: '"+name+"'")
         end;
     end;
-    case BinaryOperation(op, lhs, rhs) := tc.require_assigneable(t, EI.infer_binary(tc, op, lhs, rhs), TC.lazy_str(e));
-    case UnaryOperation(op, operand) := tc.require_assigneable(t, EI.infer_unary(tc, op, operand), TC.lazy_str(e));
+    case BinaryOperation(op, lhs, rhs) := check_binary(tc, t, op, lhs, rhs);
+    case UnaryOperation(op, operand) := check_unary(tc, t, op, operand);
     case IfExpr(linit, cond, thenBr, elseBr) := do 
         linit.init(t);
         tc.open_scope();
@@ -91,16 +91,17 @@ fun check(tc : TC.Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
         lt.init(Ast.ListOf(et));
     end;
     case RangeExpr(start, end_expr) := do
-        check(tc, start, Ast.NumberT());
-        check(tc, end_expr, Ast.NumberT());
-        tc.require_assigneable(t, Ast.ListOf(Ast.NumberT()), TC.lazy_str(e));
+        val first_number_type := EI.infer(tc, start);
+        tc.require_numeric(first_number_type, TC.lazy_str(start));
+        check(tc, end_expr, first_number_type);
+        tc.require_assigneable(t, Ast.ListOf(first_number_type), TC.lazy_str(e));
     end;
     case PropertyExpr(obj, name, la, lt, lft) := do
         val infered_type := EI.infer(tc, e);
         tc.require_assigneable(t, infered_type, TC.lazy_str(e));
     end;
     case IndexExpr(lst, idx, llist_ty) := do
-        check(tc, idx, Ast.NumberT());
+        tc.require_numeric(EI.infer(tc, idx), fun() : String := "" + idx);
         val list_ty := EI.infer(tc, lst);
         llist_ty.init(list_ty);
         tc.require_assigneable(t, match list_ty do case StringT() := Ast.StringT(); case ListOf(et) := et; end, TC.lazy_str(e));
@@ -128,6 +129,83 @@ fun check(tc : TC.Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
         lty.init(t);
     end;
 end;
+
+fun check_binary(tc : TC.Typechecker, t : Ast.Type, op : Ast.BinOp, lhs : Ast.Expr, rhs : Ast.Expr) do 
+    match op do 
+        case LessThan() := check_comparison(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
+        case LessEqual() := check_comparison(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
+        case GreaterThan() := check_comparison(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
+        case GreaterEqual() := check_comparison(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
+        case Equals() := check_equality(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
+        case NotEquals() := check_equality(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
+        case And() := check_boolean_op(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
+        case Or() := check_boolean_op(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
+        case Xor() := check_boolean_op(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
+        case ? := check_basic_math(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
+    end;
+end
+
+fun check_boolean_op(tc : TC.Typechecker, t : Ast.Type, e : Ast.Expr, lhs : Ast.Expr, rhs : Ast.Expr) do 
+    tc.require_assigneable(t, Ast.BooleanT(), TC.lazy_str(e));
+    check(tc, lhs, t);
+    check(tc, rhs, t);
+end
+
+fun check_equality(tc : TC.Typechecker, t : Ast.Type, e : Ast.Expr, lhs : Ast.Expr, rhs : Ast.Expr) do 
+    tc.require_assigneable(t, Ast.BooleanT(), TC.lazy_str(e));
+    val left_ty := EI.infer(tc, lhs);
+    check(tc, rhs, left_ty);
+end
+
+fun check_comparison(tc : TC.Typechecker, t : Ast.Type, e : Ast.Expr, lhs : Ast.Expr, rhs : Ast.Expr) do 
+    tc.require_assigneable(t, Ast.BooleanT(), TC.lazy_str(e));
+    val left_ty := EI.infer(tc, lhs);
+    tc.require_numeric(left_ty, TC.lazy_str(lhs));
+    check(tc, rhs, left_ty);
+end
+
+fun check_basic_math(tc : TC.Typechecker, t : Ast.Type, e : Ast.Expr, lhs : Ast.Expr, rhs : Ast.Expr) do 
+    if val Numeric(nty) := t then do 
+        check(tc, lhs, t);
+        check(tc, rhs, t);
+        if val BinaryOperation(Add(lty), ?, ?) := e do 
+            lty.init(t);
+        end;
+    end else if val BinaryOperation(Add(lty), ?, ?) := e then do 
+        val lhs_ty := EI.infer(tc, lhs);
+        if val Numeric(?) := lhs_ty then do 
+            check(tc, rhs, lhs_ty);
+            tc.require_assigneable(t, lhs_ty, TC.lazy_str(e));
+            lty.init(lhs_ty);
+        end else do 
+            check(tc, rhs, Ast.Any());
+            lty.init(Ast.StringT());
+            tc.require_assigneable(t, Ast.StringT(), TC.lazy_str(e));
+        end;
+    end else do 
+        val lhs_ty := EI.infer(tc, lhs);
+        tc.require_numeric(lhs_ty, TC.lazy_str(lhs));
+        check(tc, rhs, lhs_ty);
+        tc.require_assigneable(t, lhs_ty, TC.lazy_str(e));
+    end
+end
+
+fun check_unary(tc : TC.Typechecker, t : Ast.Type, op : Ast.UnOp, operand : Ast.Expr) do 
+    match op do 
+        case Plus() := do 
+            tc.require_numeric(t, TC.lazy_str(Ast.UnaryOperation(op, operand)));
+            check(tc, operand, t);
+        end;
+        case Minus() := do 
+            tc.require_numeric(t, TC.lazy_str(Ast.UnaryOperation(op, operand)));
+            check(tc, operand, t);
+        end;
+        case Not() := do 
+            tc.require_assigneable(t, Ast.BooleanT(), TC.lazy_str(Ast.UnaryOperation(op, operand)));
+            check(tc, operand, Ast.BooleanT());
+        end;
+    end;
+end
 
 fun check_condition(tc : TC.Typechecker, cond : Ast.Condition) do 
     match cond do 

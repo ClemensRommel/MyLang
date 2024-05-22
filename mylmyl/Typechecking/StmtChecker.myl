@@ -42,7 +42,7 @@ fun infer_setter(tc : TC.Typechecker, s : Ast.Setter) : Ast.Type := match s do
         ty
     end;
     case IndexSetter(indexed, idx) := do 
-        EC.check(tc, idx, Ast.NumberT());
+        tc.require_numeric(EI.infer(tc, idx), fun() : String := "" + s);
         val list_ty := EI.infer(tc, indexed);
         val ListOf(elem_ty) := list_ty else panic("Cannot reassign index of non-list type "+list_ty+" in "+s);
         elem_ty

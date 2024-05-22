@@ -264,7 +264,19 @@ end
 fun literal(p : P.Parser) : Ast.Expr :=
     if p.matches_type(Tokenizer.NUMBER_LITERAL()) then do 
         val token := p.previous();
-        Ast.NumberLiteral(number(token.src))
+        val next := p.peek();
+        val number_type := if next.kind = Tokenizer.IDENTIFIER() then 
+            match next.src do 
+                case "d" := do p.next(); Ast.F64() end;
+                case "f" := do p.next(); Ast.F32() end;
+                case "l" := do p.next(); Ast.I64() end;
+                case "i" := do p.next(); Ast.I32() end;
+                case "s" := do p.next(); Ast.I16() end;
+                case "b" := do p.next(); Ast.I8() end;
+                case ? := Ast.F64();
+            end
+        else Ast.F64();
+        Ast.NumberLiteral(number(token.src), number_type)
     end else if p.matches_type(Tokenizer.STRING_LITERAL()) then do 
         val token := p.previous();
         Ast.StringLiteral(token.src)

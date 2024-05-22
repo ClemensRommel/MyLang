@@ -4,7 +4,7 @@ import Ast := Syntax.Ast;
 import Env := Syntax.Env;
 
 fun substitute(ty : Ast.Type, substitutes : Env.AList(Ast.Type)) : Ast.Type := match ty do 
-    case NumberT() := ty;
+    case Numeric(?) := ty;
     case Any() := ty;
     case BooleanT() := ty;
     case StringT() := ty;

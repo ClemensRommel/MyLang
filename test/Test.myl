@@ -1,3 +1,4 @@
-class TestType where 
-    val test_val : Number := 3;
+fun main() do 
+    val x : Int := 13i;
+    print(""+x);
 end

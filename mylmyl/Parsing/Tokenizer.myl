@@ -27,7 +27,8 @@ enum TokenType where
     NATIVE(), 
 
     // Type Keywords
-    CLASS(), TYPE_FUN(), NUMBER(), BOOLEAN(), STRING(), VOID(), TYPE(), ENUM(), 
+    CLASS(), TYPE_FUN(), BOOLEAN(), STRING(), VOID(), TYPE(), ENUM(), 
+    NUMBER(), FLOAT(), LONG(), INT(), SHORT(), BYTE(),
     
     EOF(), ERROR();
 end
@@ -45,21 +46,21 @@ end;
 
 class Tokenizer where 
     val source : String;
-    var position : Number;
+    var position : Int;
 
     var sourcePos : SourcePos;
 
     new(s : String) do 
         this.source := s;
-        this.position := 0;
+        this.position := 0i;
         this.sourcePos := SourcePos(0, 0);
     end;
 
     fun peek() : String := this.source[this.position];
-    fun peekNext() : String := this.source[this.position+1];
+    fun peekNext() : String := this.source[this.position+1i];
     fun next() : String do 
         val c := this.peek();
-        this.position := this.position + 1;
+        this.position := this.position + 1i;
         this.sourcePos := nextPos(c, this.sourcePos);
         c
     end
@@ -71,9 +72,9 @@ class Tokenizer where
         end
     end
 
-    fun at_end() : Bool := this.position >= len(this.source);
+    fun at_end() : Bool := this.position >= int_len(this.source);
 
-    fun charsLeft() : Number := len(this.source) - this.position;
+    fun charsLeft() : Int := int_len(this.source) - this.position;
 
     fun tokenize() : Token[] do 
         val tokens : Token[] := [];
@@ -194,7 +195,7 @@ class Tokenizer where
                     while !this.at_end() and matches(this.peek(), "[0-9]") do 
                         n := n + this.next();
                     end;
-                    if this.charsLeft() >= 2 and this.peek() = "." and matches(this.peekNext(), "[0-9]") do 
+                    if this.charsLeft() >= 2i and this.peek() = "." and matches(this.peekNext(), "[0-9]") do 
                         n := n + "."; this.next();
                         while !this.at_end() and matches(this.peek(), "[0-9]") do 
                             n := n + this.next();
@@ -242,6 +243,11 @@ class Tokenizer where
         case "case" := CASE();
         case "Fun" := TYPE_FUN();
         case "Number" := NUMBER();
+        case "Float" := FLOAT();
+        case "Long" := LONG();
+        case "Int" := INT();
+        case "Short" := SHORT();
+        case "Byte" := BYTE();
         case "Bool" := BOOLEAN();
         case "String" := STRING();
         case "Void" := VOID();
