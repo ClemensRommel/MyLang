@@ -63,13 +63,8 @@ end
 
 fun generated_code_path(starting_file : String) : String[] do 
     val parts := split(starting_file, "/");
-    val output_parts : String[] := [];
     val file_name := "__generated_"+split(parts.last, "\\.").first;
-    for i in [1..parts.length - 1] do // Alles außer dem letzten
-        output_parts.push(parts[i]);
-    end;
-    output_parts.push(file_name);
-    output_parts
+    [file_name]
 end
 
 val std_implicit_path : String := "std/implicit.myl";
