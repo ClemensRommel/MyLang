@@ -12,8 +12,6 @@ import TR := Syntax.TypeResolver;
 fun typecheck(sfg : SFG.SFGatherer, file : SFG.SourceFile) do 
     val tc := Typechecker(file);
 
-    declare_builtins(tc);
-
     print("== Typechecking "+file.path+" ==");
 
     for decl in file.ast.decls do 
@@ -149,18 +147,3 @@ fun print_namespace(nmscp : Ast.Namespace) do
 end
 
 fun lazy_str(e : Ast.Expr) : Fun() : String := fun() : String := "" + e;
-
-fun declare_builtins(tc : Typechecker) do 
-    tc.names.values.insert("panic", Ast.VarInfo(false, Ast.Function([], [Ast.StringT()], Ast.Never()), "panic", tc.names));
-    tc.names.values.insert("args", Ast.VarInfo(false, Ast.Function([], [], Ast.ListOf(Ast.StringT())), "args", tc.names));
-    //tc.names.values.insert("join", Ast.VarInfo(false, Ast.Function([], [Ast.StringT(), Ast.ListOf(Ast.StringT())], Ast.StringT()), "join", tc.names));
-    //tc.names.values.insert("split", Ast.VarInfo(false, Ast.Function([], [Ast.StringT(), Ast.StringT()], Ast.ListOf(Ast.StringT())), "split", tc.names));
-    //tc.names.values.insert("number", Ast.VarInfo(false, Ast.Function([], [Ast.StringT()], Ast.NumberT()), "number", tc.names));
-    //tc.names.values.insert("len", Ast.VarInfo(false, Ast.Function([], [Ast.StringT()], Ast.NumberT()), "len", tc.names));
-    //tc.names.values.insert("strip", Ast.VarInfo(false, Ast.Function([], [Ast.StringT()], Ast.StringT()), "strip", tc.names));
-    //tc.names.values.insert("matches", Ast.VarInfo(false, Ast.Function([], [Ast.StringT(), Ast.StringT()], Ast.BooleanT()), "matches", tc.names));
-    //tc.names.values.insert("openFile", Ast.VarInfo(false, Ast.Function([], [Ast.StringT()], Ast.StringT()), "openFile", tc.names));
-    //tc.names.values.insert("isNull", Ast.VarInfo(false, Ast.Function([], [Ast.Any()], Ast.BooleanT()), "isNull", tc.names));
-    //tc.names.values.insert("writeToFile", Ast.VarInfo(false, Ast.Function([], [Ast.StringT(), Ast.StringT()], Ast.VoidT()), "writeToFile", tc.names));
-    //tc.names.values.insert("replace", Ast.VarInfo(false, Ast.Function([], [Ast.StringT(), Ast.StringT(), Ast.StringT()], Ast.StringT()), "replace", tc.names));
-end

@@ -164,8 +164,8 @@ do
         infos, generated_prefix_str + join(".", generated_path), 
         ungenerated_types, the_sfg, file);
     c.env := infos.get(file.path);
-    declare_builtins(c);
     if  file.path != SFG.std_implicit_path do add_implicit_imports(c, infos.get(SFG.std_implicit_path)); end;
+    declare_builtins(c);
     declare_package(c, path_parts);
     import_implicits(c);
 

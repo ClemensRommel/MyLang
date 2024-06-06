@@ -1,0 +1,13 @@
+module std.collections;
+
+native class HashMap(K, V) := "java.util.HashMap" where 
+    new();
+    fun clear();
+    fun containsKey(K) : Bool;
+    fun containsValue(V) : Bool;
+    fun get(K) : V;
+    fun put(K, V) : V;
+    fun remove(K) : V;
+    fun size() : Int;
+    fun isEmpty() : Bool;
+end;
