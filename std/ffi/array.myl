@@ -1,0 +1,13 @@
+module std.ffi.array;
+
+native class NumberArray := "double[]";
+
+native class FloatArray := "float[]";
+
+native class LongArray := "long[]";
+
+native class IntArray := "int[]";
+
+native class ShortArray := "short[]";
+
+native class ByteArray := "byte[]";

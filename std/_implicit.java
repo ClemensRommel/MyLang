@@ -23,15 +23,15 @@ public class _implicit {
             }
             
         }
-        public default <K> Optional<K> map(mylmyl.__generated_Main.__var60<T, K> f)  {
+        public default <K> Optional<K> map(mylmyl.__generated_Main.__var61<T, K> f)  {
             switch(this) {
                 case None<T>() -> {
                     return new None();
                     
                 }
                 case Some<T>(T t) -> {
-                    var __var61 = f.call(t);
-                    return new Some(__var61);
+                    var __var62 = f.call(t);
+                    return new Some(__var62);
                     
                 }
                 default -> { panic("Inexhaustive match: "+this); throw new RuntimeException();}
@@ -56,7 +56,7 @@ public class _implicit {
         }
         public default boolean is_some()  {
             switch(this) {
-                case Some<T>(T __var62) -> {
+                case Some<T>(T __var63) -> {
                     return true;
                     
                 }
@@ -71,7 +71,7 @@ public class _implicit {
         }
         public default boolean is_none()  {
             switch(this) {
-                case Some<T>(T __var63) -> {
+                case Some<T>(T __var64) -> {
                     return false;
                     
                 }
@@ -103,13 +103,13 @@ public class _implicit {
             return __builder.toString();
         } 
     }
-    public static <T> boolean any(ArrayList<T> list, mylmyl.__generated_Main.__var60<T, Boolean> pred) {
-        __var65: for(var __var64 : list) {
+    public static <T> boolean any(ArrayList<T> list, mylmyl.__generated_Main.__var61<T, Boolean> pred) {
+        __var66: for(var __var65 : list) {
             final T t;
-            t = __var64;
+            t = __var65;
             {
-                var __var66 = pred.call(t);
-                if(__var66) {
+                var __var67 = pred.call(t);
+                if(__var67) {
                     {
                         if(true) {
                             return true;
@@ -125,61 +125,73 @@ public class _implicit {
         
     }
     
-    public static <A, B> B snd(mylmyl.__generated_Main.__var67<A, B> tuple) {
+    public static <T> boolean all(ArrayList<T> list, mylmyl.__generated_Main.__var61<T, Boolean> pred) {
+        __var69: for(var __var68 : list) {
+            final T t;
+            t = __var68;
+            {
+                var __var70 = pred.call(t);
+                if((!__var70)) {
+                    {
+                        if(true) {
+                            return false;
+                            
+                        }
+                    }
+                    
+                }
+            }
+            
+        }
+        return true;
+        
+    }
+    
+    public static <A, B> B snd(mylmyl.__generated_Main.__var71<A, B> tuple) {
         final A a;
         final B b;
-        final mylmyl.__generated_Main.__var67<A, B> __var68 = tuple;
-        a = __var68.field0();
-        b = __var68.field1();
+        final mylmyl.__generated_Main.__var71<A, B> __var72 = tuple;
+        a = __var72.field0();
+        b = __var72.field1();
         return b;
         
     }
     
-    public static <A, B> A fst(mylmyl.__generated_Main.__var67<A, B> tuple) {
+    public static <A, B> A fst(mylmyl.__generated_Main.__var71<A, B> tuple) {
         final A a;
         final B b;
-        final mylmyl.__generated_Main.__var67<A, B> __var69 = tuple;
-        a = __var69.field0();
-        b = __var69.field1();
+        final mylmyl.__generated_Main.__var71<A, B> __var73 = tuple;
+        a = __var73.field0();
+        b = __var73.field1();
         return a;
         
     }
     
-    public static Void print(String __var70) {
-        System.out.println(__var70);
+    public static Void print(String __var74) {
+        System.out.println(__var74);
         return null;
     }
     public static Void move_line_up() {
         std.BuiltinFunctions.move_line_up();
         return null;
     }
-    public static String join(String __var71, ArrayList<String> __var72) {
-        return std.BuiltinFunctions.join(__var71, __var72);
+    public static String join(String __var75, ArrayList<String> __var76) {
+        return std.BuiltinFunctions.join(__var75, __var76);
     }
-    public static ArrayList<String> split(String __var73, String __var74) {
-        return std.BuiltinFunctions.split(__var73, __var74);
+    public static ArrayList<String> split(String __var77, String __var78) {
+        return std.BuiltinFunctions.split(__var77, __var78);
     }
-    public static double len(String __var75) {
-        return std.BuiltinFunctions.len(__var75);
+    public static double len(String __var79) {
+        return std.BuiltinFunctions.len(__var79);
     }
-    public static int int_len(String __var76) {
-        return std.BuiltinFunctions.int_len(__var76);
+    public static int int_len(String __var80) {
+        return std.BuiltinFunctions.int_len(__var80);
     }
-    public static String strip(String __var77) {
-        return std.BuiltinFunctions.strip(__var77);
+    public static String strip(String __var81) {
+        return std.BuiltinFunctions.strip(__var81);
     }
-    public static boolean matches(String __var78, String __var79) {
-        return std.BuiltinFunctions.matches(__var78, __var79);
-    }
-    public static String openFile(String __var80) {
-        return std.BuiltinFunctions.openFile(__var80);
-    }
-    public static boolean isNull(String __var81) {
-        return std.BuiltinFunctions.isNull(__var81);
-    }
-    public static Void writeToFile(String __var82, String __var83) {
-        std.BuiltinFunctions.writeToFile(__var82, __var83);
-        return null;
+    public static boolean matches(String __var82, String __var83) {
+        return std.BuiltinFunctions.matches(__var82, __var83);
     }
     public static double number(String __var84) {
         return std.BuiltinFunctions.number(__var84);

@@ -1,4 +1,5 @@
 module Util;
+import fs := std.fs;
 
 class LateInitialized(A) where
     var field : Optional(A) := None.[A]();
@@ -20,15 +21,8 @@ fun wrap_linit[T](t : T) : LateInitialized(T) do
     linit
 end
 
-// Typesafe wrapper around builtin function (Temporary)
-fun read_file(path : String) : Optional(String) do 
-    val maybe_content := openFile(path);
-    if isNull(maybe_content) 
-        then None.[String]()
-        else Some.[String](maybe_content)
-end
-
 fun outputFile(path : String, compiled : String) do 
     val initial := split(path, "\\.").first; // Only file extension can contain . as it is not a valid part of a name
-    writeToFile(initial+".java", compiled);
+    val Some(file) := fs.create_file_path(initial+".java") else panic("Could not create path to file "+path);
+    fs.write(file, compiled);
 end

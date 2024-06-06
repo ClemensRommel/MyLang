@@ -3,8 +3,8 @@ module IO.SourceFileGatherer;
 
 import Parser := Parsing.Parser;
 import Ast := Syntax.Ast;
-import Util;
 import Env := Syntax.Env;
+import fs := std.fs;
 
 class SFGatherer where 
     val files_not_found : String[] := [];
@@ -36,7 +36,7 @@ class SourceFile where
 end;
 
 fun open_and_parse(sfg : SFGatherer, file : String) : Optional(SourceFile) do 
-    val Some(source) := Util.read_file(file) else do 
+    val Some(source) := fs.open_and_read(file) else do 
         sfg.files_not_found.push(file);
         return None.[SourceFile]()
     end;
