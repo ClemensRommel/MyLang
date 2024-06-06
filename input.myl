@@ -1,8 +1,0 @@
-fun main() do 
-    val i : Int := 13i;
-    print(""+i);
-end
-
-native class Test := "java.lang.StringBuilder" where 
-    new();
-end

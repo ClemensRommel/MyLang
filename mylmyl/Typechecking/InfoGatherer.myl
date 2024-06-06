@@ -31,14 +31,14 @@ fun import_implicit(sfg : SFG.SFGatherer, file : SFG.SourceFile) do
     if file.path = SFG.std_implicit_path do return null; end; // Skip implicits if they are being defined
     val implicit_file := sfg.parsed_sourcefiles.get(SFG.std_implicit_path);
     val file_names := file.names;
-    for (name, v) in implicit_file.names.values.bindings.bindings do 
+    for name in implicit_file.names.values.names do 
         if !file_names.values.has(name) do
-            file_names.values.insert(name, v);
+            file_names.values.insert(name, implicit_file.names.values.get(name));
         end
     end;
-    for (name, t) in implicit_file.names.types.bindings.bindings do 
+    for name in implicit_file.names.types.names do 
         if !file_names.types.has(name) do
-            file_names.types.insert(name, t);
+            file_names.types.insert(name, implicit_file.names.types.get(name));
         end
     end;
 end
@@ -69,6 +69,7 @@ fun declare_global_variables(file : SFG.SourceFile) do
             case TypeAliasDecl(?, ?, ?, ?) := do end; // Declares no global variable
             case EmptyDecl() := do end;
             case NativeFunctionDecl(?, ?, ?) := do end;
+            case NativeTypeDecl(?, ?, ?, ?, ?, ?, ?) := do end;
             case FunDecl(?, ?, ?, ?, ?, ?, ?) := do end;
             case ClassDecl(?, ?, ?, ?, ?, ?) := do end;
             case EnumDecl(?, ?, ?, ?, ?, ?) := do end;
@@ -126,6 +127,33 @@ fun declare_functions_and_types(file : SFG.SourceFile) do
                 varinf.is_constructor := true;
                 varinf.is_exported := exported;
                 file.names.values.insert(name, varinf);
+            end;
+            case NativeTypeDecl(name, typarams, native_name, method_types, opt_constr_ty, exported, ?) := do 
+                val scope := do 
+                    val inner := file.names.open_scope();
+                    for param in typarams do 
+                        inner.types.insert(param.name, Ast.TypeParameterInfo(param.name));
+                    end;
+                    inner
+                end;
+
+                val ty_info := Ast.NativeTypeInfo(
+                    name,
+                    typarams,
+                    native_name,
+                    method_types,
+                    exported,
+                    scope
+                );
+                file.names.types.insert(name, ty_info);
+                if val Some(tys) := opt_constr_ty do 
+                    val params := tys;
+                    val constr_ty := Ast.Function(typarams, params, DC.class_constr_ret_ty(typarams, name, scope));
+                    val varinf := Ast.VarInfo(false, constr_ty, name, scope);
+                    varinf.is_constructor := false; // Wrapper will be generated
+                    varinf.is_exported := exported;
+                    file.names.values.insert(name, varinf);
+                end;
             end;
             case EnumDecl(name, targs, constructors, members, exported, ?) := do
                 val scope := do 

@@ -1,0 +1,14 @@
+fun main() do 
+    val strbld := Test();
+    strbld.append("test");
+    strbld.append(" test 2");
+    print(strbld.toString());
+end
+
+native class Test := "java.lang.StringBuilder" where 
+    new();
+
+    fun append(String);
+
+    fun toString() : String;
+end

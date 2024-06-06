@@ -81,4 +81,5 @@ fun kind_of_info(tc : TC.Typechecker, info : Ast.TyInfo) : Ast.Kind := match inf
     case TypeParameterInfo(?) := Ast.ConcreteType(); // Type parameters cannot be generic (no higher kinded types)
     case ClassInfo(name, targs, fields, methods, exported, ?) := if targs.length = 0 then Ast.ConcreteType() else generic_kind(targs.length); 
     case EnumInfo(name, targs, constructors, methods, exported, ?) := if targs.length = 0 then Ast.ConcreteType() else generic_kind(targs.length); 
+    case NativeTypeInfo(?, targs, ?, ?, ?, ?) := if targs.length = 0 then Ast.ConcreteType() else generic_kind(targs.length); 
 end;

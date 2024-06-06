@@ -191,6 +191,39 @@ fun check_decl(tc : TC.Typechecker, decl : Ast.Decl) := match decl do
         tc.close_scope();
         lenv.init(body_env);
     end;
+    case NativeTypeDecl(name, typarams, native_name, methods, opt_constr_ty, exported, lenv) := do 
+        val (info, new_scope) := if tc.scope_depth = 0 then do 
+            val ty_info := tc.names.types.get(name);
+            (ty_info, Ast.scope_of_info(ty_info, tc.names))
+        end else do 
+            val inner_scope := tc.names.open_scope();
+            for t in typarams do 
+                inner_scope.types.insert(t.name, Ast.TypeParameterInfo(t.name));
+            end;
+            (Ast.NativeTypeInfo(name, typarams, native_name, methods, exported, inner_scope), inner_scope)
+        end;
+        tc.declare_type(name, info);
+        tc.open_scope();
+        val prev_scope := tc.names;
+        tc.names := new_scope; 
+            tc.in_loops.push(false);
+            tc.return_tys.push((false, Ast.Never()));
+            if val Some(t) := opt_constr_ty do 
+                for param in t do 
+                    KC.check_kind(tc, TR.resolve(tc.names, param), Ast.ConcreteType());
+                end
+            end;
+            for (method_name, method) in methods.bindings do 
+                KC.check_kind(tc, method, Ast.ConcreteType());
+            end;
+            val body_env := tc.names;
+            tc.return_tys.pop();
+            tc.in_loops.pop();
+        tc.names := prev_scope;
+        if tc.names.values.has("this") do print("" + (prev_scope = new_scope) + "" + (tc.names = new_scope)); panic("Still has this after block"); end;
+        tc.close_scope();
+        lenv.init(body_env);
+    end;
 end;
 
 fun check_body(tc : TC.Typechecker, body : Ast.Decl[]) do 

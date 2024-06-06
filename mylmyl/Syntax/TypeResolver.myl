@@ -17,7 +17,7 @@ fun resolve(names : Ast.Namespace, ty : Ast.Type) : Ast.Type do
         case Tuple(parts) := Ast.Tuple(for part in parts do resolve(names, part) end);
         case Name(name, lenv) := do
             val info := if !lenv.is_init() then do // Name belongs to current scope
-                if !names.types.has(name) do panic("Unknown type "+name+": available: "+names.types.bindings.bindings); end
+                if !names.types.has(name) do panic("Unknown type "+name+": available: "+names.types.bindings); end
                 val inf := names.types.get(name);
                 lenv.init(Ast.scope_of_info(inf, names));
                 inf

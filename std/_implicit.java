@@ -20,14 +20,14 @@ public class _implicit {
                 
             }
         }
-        public default <K> Optional<K> map(mylmyl.__generated_Main.__var58<T, K> f)  {
+        public default <K> Optional<K> map(mylmyl.__generated_Main.__var60<T, K> f)  {
             switch(this) {
                 case None<T>() -> {
                     return new None();
                 }
                 case Some<T>(T t) -> {
-                    var __var59 = f.call(t);
-                    return new Some(__var59);
+                    var __var61 = f.call(t);
+                    return new Some(__var61);
                 }
                 default -> { panic("Inexhaustive match: "+this); throw new RuntimeException();}
                 
@@ -47,7 +47,7 @@ public class _implicit {
         }
         public default boolean is_some()  {
             switch(this) {
-                case Some<T>(T __var60) -> {
+                case Some<T>(T __var62) -> {
                     return true;
                 }
                 case None<T>() -> {
@@ -59,7 +59,7 @@ public class _implicit {
         }
         public default boolean is_none()  {
             switch(this) {
-                case Some<T>(T __var61) -> {
+                case Some<T>(T __var63) -> {
                     return false;
                 }
                 case None<T>() -> {
@@ -87,13 +87,13 @@ public class _implicit {
             return __builder.toString();
         } 
     }
-    public static <T> boolean any(ArrayList<T> list, mylmyl.__generated_Main.__var58<T, Boolean> pred) {
-        __var63: for(var __var62 : list) {
+    public static <T> boolean any(ArrayList<T> list, mylmyl.__generated_Main.__var60<T, Boolean> pred) {
+        __var65: for(var __var64 : list) {
             final T t;
-            t = __var62;
+            t = __var64;
             {
-                var __var64 = pred.call(t);
-                if(__var64) {
+                var __var66 = pred.call(t);
+                if(__var66) {
                     {
                         if(true) {
                             return true;
@@ -107,66 +107,66 @@ public class _implicit {
         }
         return false;
     }
-    public static <A, B> B snd(mylmyl.__generated_Main.__var65<A, B> tuple) {
+    public static <A, B> B snd(mylmyl.__generated_Main.__var67<A, B> tuple) {
         final A a;
         final B b;
-        final mylmyl.__generated_Main.__var65<A, B> __var66 = tuple;
-        a = __var66.field0();
-        b = __var66.field1();
+        final mylmyl.__generated_Main.__var67<A, B> __var68 = tuple;
+        a = __var68.field0();
+        b = __var68.field1();
         return b;
     }
-    public static <A, B> A fst(mylmyl.__generated_Main.__var65<A, B> tuple) {
+    public static <A, B> A fst(mylmyl.__generated_Main.__var67<A, B> tuple) {
         final A a;
         final B b;
-        final mylmyl.__generated_Main.__var65<A, B> __var67 = tuple;
-        a = __var67.field0();
-        b = __var67.field1();
+        final mylmyl.__generated_Main.__var67<A, B> __var69 = tuple;
+        a = __var69.field0();
+        b = __var69.field1();
         return a;
     }
-    public static Void print(String __var68) {
-        System.out.println(__var68);
+    public static Void print(String __var70) {
+        System.out.println(__var70);
         return null;
     }
     public static Void move_line_up() {
         std.BuiltinFunctions.move_line_up();
         return null;
     }
-    public static String join(String __var69, ArrayList<String> __var70) {
-        return std.BuiltinFunctions.join(__var69, __var70);
+    public static String join(String __var71, ArrayList<String> __var72) {
+        return std.BuiltinFunctions.join(__var71, __var72);
     }
-    public static ArrayList<String> split(String __var71, String __var72) {
-        return std.BuiltinFunctions.split(__var71, __var72);
+    public static ArrayList<String> split(String __var73, String __var74) {
+        return std.BuiltinFunctions.split(__var73, __var74);
     }
-    public static double len(String __var73) {
-        return std.BuiltinFunctions.len(__var73);
+    public static double len(String __var75) {
+        return std.BuiltinFunctions.len(__var75);
     }
-    public static int int_len(String __var74) {
-        return std.BuiltinFunctions.int_len(__var74);
+    public static int int_len(String __var76) {
+        return std.BuiltinFunctions.int_len(__var76);
     }
-    public static String strip(String __var75) {
-        return std.BuiltinFunctions.strip(__var75);
+    public static String strip(String __var77) {
+        return std.BuiltinFunctions.strip(__var77);
     }
-    public static boolean matches(String __var76, String __var77) {
-        return std.BuiltinFunctions.matches(__var76, __var77);
+    public static boolean matches(String __var78, String __var79) {
+        return std.BuiltinFunctions.matches(__var78, __var79);
     }
-    public static String openFile(String __var78) {
-        return std.BuiltinFunctions.openFile(__var78);
+    public static String openFile(String __var80) {
+        return std.BuiltinFunctions.openFile(__var80);
     }
-    public static boolean isNull(String __var79) {
-        return std.BuiltinFunctions.isNull(__var79);
+    public static boolean isNull(String __var81) {
+        return std.BuiltinFunctions.isNull(__var81);
     }
-    public static Void writeToFile(String __var80, String __var81) {
-        std.BuiltinFunctions.writeToFile(__var80, __var81);
+    public static Void writeToFile(String __var82, String __var83) {
+        std.BuiltinFunctions.writeToFile(__var82, __var83);
         return null;
     }
-    public static double number(String __var82) {
-        return std.BuiltinFunctions.number(__var82);
+    public static double number(String __var84) {
+        return std.BuiltinFunctions.number(__var84);
     }
-    public static String replace(String __var83, String __var84, String __var85) {
-        return std.BuiltinFunctions.replace(__var83, __var84, __var85);
+    public static String replace(String __var85, String __var86, String __var87) {
+        return std.BuiltinFunctions.replace(__var85, __var86, __var87);
     }
-    public static int int_from_number(double __var86) {
-        return std.BuiltinFunctions.int_from_number(__var86);
+    public static int int_from_number(double __var88) {
+        return std.BuiltinFunctions.int_from_number(__var88);
     }
     
 }

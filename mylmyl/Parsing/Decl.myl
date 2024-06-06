@@ -179,16 +179,16 @@ fun native_class_decl(p : P.Parser) : Ast.Decl do
     val typarams := type_parameters(p, Tokenizer.LPAREN(), Tokenizer.RPAREN());
     p.consume(Tokenizer.ASSIGN(), "Expect ':=' before body and name of native type");
     val native_name := p.consume(Tokenizer.STRING_LITERAL(), "Expect native name of native type").src;
-    val (method_decls, constr) := if p.matches_type(Tokenizer.SEMICOLON()) then (Env.AList.[Ast.Type](), None.[Ast.Type]()) else do 
+    val (method_decls, constr) := if p.matches_type(Tokenizer.SEMICOLON()) then (Env.AList.[Ast.Type](), None.[Ast.Type[]]()) else do 
         p.consume(Tokenizer.WHERE(), "Expect 'where' before methods of native type");
         val list := Env.AList.[Ast.Type]();
-        var constr_ty := None.[Ast.Type]();
+        var constr_ty := None.[Ast.Type[]]();
         while !p.matches_type(Tokenizer.END()) do 
             if p.matches_type(Tokenizer.NEW()) then do 
                 val tys := parameter_types(p);
                 p.consume(Tokenizer.SEMICOLON(), "Expect ';' after parameter types of native constructor");
                 if constr_ty.is_some() do panic(p.err("Duplicate native constructor")); end;
-                constr_ty := Some.[Ast.Type](Ast.Function([], tys, Ast.Name(name, Ast.late_namespace())));
+                constr_ty := Some.[Ast.Type[]](tys);
             end else do
                 p.consume(Tokenizer.FUN(), "Expect 'fun' at start of native method");
                 val signature := function_signature(p);
@@ -198,7 +198,7 @@ fun native_class_decl(p : P.Parser) : Ast.Decl do
         end;
         (list, constr_ty)
     end;
-    Ast.NativeTypeDecl(name, typarams, native_name, method_decls, constr)
+    Ast.NativeTypeDecl(name, typarams, native_name, method_decls, constr, true, Ast.late_namespace())
 end
 
 fun function_signature(p : P.Parser) : Ast.FunctionSignature do 

@@ -143,7 +143,7 @@ end
 fun print_namespace(nmscp : Ast.Namespace) do 
     var env := Some.[Env.Env(Ast.TyInfo)](nmscp.types);
     while val Some(e) := env do 
-        print(""+e.bindings.bindings);
+        print(""+e.bindings);
         env := e.outer;
     end;
 end

@@ -1,3 +1,4 @@
+package test;
 import java.util.ArrayList;
 public class __generated_input{
     @FunctionalInterface public static interface __var0<__var30, __var31> {

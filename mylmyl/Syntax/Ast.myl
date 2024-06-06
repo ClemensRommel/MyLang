@@ -111,7 +111,7 @@ enum Decl where
 
     // TODO: Typeparameter für native functions
     NativeFunctionDecl(String, Type, String),
-    NativeTypeDecl(String /* name in myl*/, TypeParameter[], String /* java name*/, Env.AList(Type) /* Method types */, Optional(Type) /* Constructor signature */);
+    NativeTypeDecl(String /* name in myl*/, TypeParameter[], String /* java name*/, Env.AList(Type) /* Method types */, Optional(Type[]) /* Constructor signature */, Bool /* exported */, LateNamespace);
 end;
 
 class FunctionSignature where 
@@ -165,6 +165,7 @@ enum TyInfo where
     ClassInfo(String, TypeParameter[], Env.AList(VarInfo) /* fields */, Env.AList(VarInfo) /* methods */, Bool /* exported */, Namespace),
     EnumInfo(String, TypeParameter[], EnumConstructor[], Env.AList(VarInfo) /* methods, doesn't have fields */, Bool /* exported */, Namespace),
     TyAliasInfo(String, Type, Bool, Namespace),
+    NativeTypeInfo(String /* host name*/, TypeParameter[], String /* host name */, Env.AList(Type) /* method names */,Bool /* exported */, Namespace),
     TypeParameterInfo(String);
 end
 
@@ -262,7 +263,7 @@ class Namespace where
     fun env_defined_in(key : String) : Namespace do 
         var ty_env := this.types;
         var val_env := this.values;
-        while !ty_env.bindings.has(key) do
+        while !ty_env.bindings.containsKey(key) do
             if ty_env.outer.is_some() != val_env.outer.is_some() do 
                 print("Scope depth mismatch: ");
                 print("Types: ");
@@ -285,6 +286,7 @@ fun is_type_exported(info : TyInfo) : Bool := match info do
     case ClassInfo(?, ?, ?, ?, exported, ?) := exported;
     case TyAliasInfo(?, ?, exported, ?) := exported;
     case EnumInfo(?, ?, ?, ?, exported, ?) := exported;
+    case NativeTypeInfo(?, ?, ?, ?, exported, ?) := exported;
 end;
 
 fun scope_of_info(info : TyInfo, fallback : Namespace) : Namespace := match info do 
@@ -292,6 +294,7 @@ fun scope_of_info(info : TyInfo, fallback : Namespace) : Namespace := match info
     case TyAliasInfo(?, ?, ?, scope) := scope;
     case ClassInfo(?, ?, ?, ?, ?, scope) := scope;
     case EnumInfo(?, ?, ?, ?, ?, scope) := scope;
+    case NativeTypeInfo(?, ?, ?, ?, ?, scope) := scope;
 end;
 
 fun info_for(names : Namespace, ty : Type, error_message : Fun(Type) : String) : TyInfo do 

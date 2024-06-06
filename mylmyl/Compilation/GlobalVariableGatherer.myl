@@ -46,6 +46,14 @@ fun gather_variable_info(env : Env.Env(CG.VariableInfo), decls : Ast.Decl[], p :
                     env.insert(constr.name, info);
                 end;
             end;
+            case NativeTypeDecl(name, ?, ?, ?, opt_constr_ty, ?, ?) := do 
+                if val Some(constr) := opt_constr_ty do 
+                    val info := CG.VariableInfo(p);
+                    info.is_constructor := false; // Wrapper will be generated
+                    info.is_no_fc_fn := true;
+                    env.insert(name, info);
+                end
+            end;
             case VarDecl(setter, ?, ?, ?, ?) := do 
                 gather_info_for_setter(env, setter, p);
             end;

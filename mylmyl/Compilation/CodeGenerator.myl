@@ -190,8 +190,8 @@ do
 end
 
 fun add_implicit_imports(c : Compiler, file : Env.Env(VariableInfo)) do 
-    for (name, info) in file.bindings.bindings do 
-        c.env.insert(name, info);
+    for name in file.names do 
+        c.env.insert(name, file.get(name));
     end
 end
 

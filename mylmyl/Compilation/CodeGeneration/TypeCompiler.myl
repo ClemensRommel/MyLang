@@ -54,10 +54,11 @@ fun compile_type(c : CG.Compiler, t : Ast.Type) : String := match t do
     end;
     case Name(name, lnspc) := do 
         val scope := lnspc.get();
-        if val TyAliasInfo(?, def, ?, ?) := scope.types.get(name) then do 
-            compile_type(c, def)
-        end else 
-            name_in_module(c, name, lnspc.get())
+        match scope.types.get(name) do 
+            case TyAliasInfo(?, def, ?, ?) := compile_type(c, def);
+            case NativeTypeInfo(?, ?, native_name, ?, ?, ?) := native_name;
+            case ? := name_in_module(c, name, lnspc.get());
+        end
     end; // Classes are compiled with their name
     case ModuleAccess(given_path, accessed, lty) := compile_type(c, lty.get());
     case Applied(ap, tys) := do 
