@@ -48,18 +48,7 @@ end
 
 fun fun_decl(p : P.Parser) : Ast.Decl do 
     val name := p.consume(Tokenizer.IDENTIFIER(), "Expect name in function declaration");
-    val typarams : Ast.TypeParameter[] := if p.matches_type(Tokenizer.LBRACKET())
-        then do 
-            val params : Ast.TypeParameter[] := [];
-            var needs_comma := false;
-            while !p.matches_type(Tokenizer.RBRACKET()) do 
-                if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate type parameters"); end;
-                val param_name := p.consume(Tokenizer.IDENTIFIER(), "Expect type parameter name");
-                params.push(Ast.TypeParameter(param_name.src));
-                needs_comma := true;
-            end;
-            params
-        end else [];
+    val typarams := type_parameters(p, Tokenizer.LBRACKET(), Tokenizer.RBRACKET());
     val (params, return_type, body) := end_of_function(p, true);
     Ast.FunDecl(name.src, typarams, params, return_type, body, true, Ast.late_namespace())
 end
@@ -104,17 +93,7 @@ end
 
 fun class_decl(p : P.Parser) : Ast.Decl do 
     val name := p.consume(Tokenizer.IDENTIFIER(), "Expect class name after 'class' keyword");
-    val targs := if p.matches_type(Tokenizer.LPAREN()) then do 
-        val params: Ast.TypeParameter[] := [];
-        var needs_comma := false;
-        while !p.matches_type(Tokenizer.RPAREN()) do 
-            if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate type parameters"); end;
-            val param_name := p.consume(Tokenizer.IDENTIFIER(), "Expect type parameter name");
-            params.push(Ast.TypeParameter(param_name.src));
-            needs_comma := true;
-        end;
-        params
-    end else [];
+    val targs := type_parameters(p, Tokenizer.LPAREN(), Tokenizer.RPAREN());
     p.consume(Tokenizer.WHERE(), "Expect start of class body after class name: 'where'");
     val members : Ast.Decl[] := [];
     var constr : Optional(Ast.Constructor) := None.[Ast.Constructor]();
@@ -132,7 +111,6 @@ fun class_decl(p : P.Parser) : Ast.Decl do
     Ast.ClassDecl(name.src, targs, members, constr, true, Ast.late_namespace())
 end
 
-
 fun constructor(p : P.Parser) : Ast.Constructor do 
     val params := parse_parameters(p);
     p.consume(Tokenizer.DO(), "Expect do after end of constructor parameter declaration");
@@ -142,17 +120,7 @@ end
 
 fun enum_decl(p : P.Parser) : Ast.Decl do 
     val name := p.consume(Tokenizer.IDENTIFIER(), "Expect class name after 'class' keyword");
-    val targs := if p.matches_type(Tokenizer.LPAREN()) then do 
-        val params: Ast.TypeParameter[] := [];
-        var needs_comma := false;
-        while !p.matches_type(Tokenizer.RPAREN()) do 
-            if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate type parameters"); end;
-            val param_name := p.consume(Tokenizer.IDENTIFIER(), "Expect type parameter name");
-            params.push(Ast.TypeParameter(param_name.src));
-            needs_comma := true;
-        end;
-        params
-    end else [];
+    val targs := type_parameters(p, Tokenizer.LPAREN(), Tokenizer.RPAREN());
     p.consume(Tokenizer.WHERE(), "Expect start of enum body after enum name: 'where'");
     val constructors : Ast.EnumConstructor[] := [];
     var needs_comma := false;
@@ -190,26 +158,77 @@ end
 fun native_item_decl(p : P.Parser) : Ast.Decl do 
     match p.next().kind do 
         case FUN() := native_function_decl(p);
+        case CLASS() := native_class_decl(p);
         case other := panic("Invalid start of declaration of native item: "+other);
     end
 end
 
 fun native_function_decl(p : P.Parser) : Ast.Decl do 
     val name := p.consume(Tokenizer.IDENTIFIER(), "Expect name of native function").src;
-    p.consume(Tokenizer.LPAREN(), "Expect start of parameter types after name of native function");
-    val param_tys : Ast.Type[] := [];
-    var needs_comma := false;
-    while !p.matches_type(Tokenizer.RPAREN()) do 
-        if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate parameter types"); end;
-        param_tys.push(Type.type_literal(p));
-        needs_comma := true;
-    end;
-    val return_type := if p.matches_type(Tokenizer.COLON()) then do 
-        Type.type_literal(p)
-    end else Ast.VoidT();
-    val complete_type := Ast.Function([], param_tys, return_type); // Native functions cannot be generic
+    val param_tys := parameter_types(p);
+    val return_type := if p.matches_type(Tokenizer.COLON()) then Type.type_literal(p) else Ast.VoidT();
+    val complete_type := Ast.Function([], param_tys, return_type); // TODO: Native functions cannot be generic
     p.consume(Tokenizer.ASSIGN(), "Expect ':=' and path after native function declaration");
     val path := p.consume(Tokenizer.STRING_LITERAL(), "Expect path of native function");
     p.consume(Tokenizer.SEMICOLON(), "Expect ';' at end of native function");
     Ast.NativeFunctionDecl(name, complete_type, path.src)
 end
+
+fun native_class_decl(p : P.Parser) : Ast.Decl do 
+    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect name for native type").src;
+    val typarams := type_parameters(p, Tokenizer.LPAREN(), Tokenizer.RPAREN());
+    p.consume(Tokenizer.ASSIGN(), "Expect ':=' before body and name of native type");
+    val native_name := p.consume(Tokenizer.STRING_LITERAL(), "Expect native name of native type").src;
+    val (method_decls, constr) := if p.matches_type(Tokenizer.SEMICOLON()) then (Env.AList.[Ast.Type](), None.[Ast.Type]()) else do 
+        p.consume(Tokenizer.WHERE(), "Expect 'where' before methods of native type");
+        val list := Env.AList.[Ast.Type]();
+        var constr_ty := None.[Ast.Type]();
+        while !p.matches_type(Tokenizer.END()) do 
+            if p.matches_type(Tokenizer.NEW()) then do 
+                val tys := parameter_types(p);
+                p.consume(Tokenizer.SEMICOLON(), "Expect ';' after parameter types of native constructor");
+                if constr_ty.is_some() do panic(p.err("Duplicate native constructor")); end;
+                constr_ty := Some.[Ast.Type](Ast.Function([], tys, Ast.Name(name, Ast.late_namespace())));
+            end else do
+                p.consume(Tokenizer.FUN(), "Expect 'fun' at start of native method");
+                val signature := function_signature(p);
+                p.consume(Tokenizer.SEMICOLON(), "Expect ';' after signature of native method");
+                list.insert(signature.name, signature.ty);
+            end
+        end;
+        (list, constr_ty)
+    end;
+    Ast.NativeTypeDecl(name, typarams, native_name, method_decls, constr)
+end
+
+fun function_signature(p : P.Parser) : Ast.FunctionSignature do 
+    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect name of function").src;
+    val typarams := type_parameters(p, Tokenizer.LBRACKET(), Tokenizer.RBRACKET());
+    val param_types := parameter_types(p);
+    val ret_ty := if p.matches_type(Tokenizer.COLON()) then Type.type_literal(p) else Ast.VoidT();
+    Ast.FunctionSignature(name, Ast.Function(typarams, param_types, ret_ty))
+end
+
+fun parameter_types(p : P.Parser) : Ast.Type[] do 
+    p.consume(Tokenizer.LPAREN(), "Expect '(' at start of parameter types");
+    var needs_comma := false;
+    while !p.matches_type(Tokenizer.RPAREN()) do 
+        if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate parameter types"); end;
+        val ty := Type.type_literal(p);
+        needs_comma := true;
+        ty
+    end
+end 
+
+fun type_parameters(p : P.Parser, start_type : Tokenizer.TokenType, end_type : Tokenizer.TokenType) : Ast.TypeParameter[] := 
+    if p.matches_type(start_type) then do 
+        val params: Ast.TypeParameter[] := [];
+        var needs_comma := false;
+        while !p.matches_type(end_type) do 
+            if needs_comma do p.consume(Tokenizer.COMMA(), "Expect ',' to separate type parameters"); end;
+            val param_name := p.consume(Tokenizer.IDENTIFIER(), "Expect type parameter name");
+            params.push(Ast.TypeParameter(param_name.src));
+            needs_comma := true;
+        end;
+        params
+    end else [];

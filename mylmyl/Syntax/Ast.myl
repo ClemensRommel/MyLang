@@ -109,8 +109,19 @@ enum Decl where
     ClassDecl(String, TypeParameter[], Decl[], Optional(Constructor), Bool /* */, LateNamespace),
     EnumDecl(String, TypeParameter[], EnumConstructor[], Decl[], Bool /* */, LateNamespace),
 
-    NativeFunctionDecl(String, Type, String);
+    // TODO: Typeparameter für native functions
+    NativeFunctionDecl(String, Type, String),
+    NativeTypeDecl(String /* name in myl*/, TypeParameter[], String /* java name*/, Env.AList(Type) /* Method types */, Optional(Type) /* Constructor signature */);
 end;
+
+class FunctionSignature where 
+    val name : String;
+    val ty : Type;
+    new(n : String, t : Type) do 
+        this.name := n;
+        this.ty := t;
+    end;
+end
 
 enum Import where 
     BasicImport(String[]),
