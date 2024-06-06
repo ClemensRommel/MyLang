@@ -33,10 +33,19 @@ fun resolve(names : Ast.Namespace, ty : Ast.Type) : Ast.Type do
             end
         end;
         //TODO: Generics
-        case Function(typarams, params, ret_ty) := Ast.Function(
-            typarams,
-            for param in params do resolve(names, param) end,
-            resolve(names, ret_ty));
+        case Function(typarams, params, ret_ty) := do 
+            val inner := if typarams.length != 0 then do 
+                val n := names.open_scope();
+                for param in typarams do 
+                    n.types.insert(param.name, Ast.TypeParameterInfo(param.name));
+                end;
+                n
+            end else names;
+            Ast.Function(
+                typarams,
+                for param in params do resolve(inner, param) end,
+                resolve(inner, ret_ty))
+        end;
         case ListOf(tys) := Ast.ListOf(resolve(names, tys));
         case ModuleAccess(path, name, laccessed) := if laccessed.is_init() then do laccessed.get() end else do 
             if !has_imported_module(names, path) do

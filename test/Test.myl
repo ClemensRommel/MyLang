@@ -1,4 +1,5 @@
 fun main() do 
-    val x : Int := 13i;
-    print(""+x);
+    print(""+id.[Number](3));
 end
+
+native fun id[A](A) : A := "test.Test.id";

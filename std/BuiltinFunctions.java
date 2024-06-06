@@ -38,7 +38,7 @@ public class BuiltinFunctions {
             return null;
         }
     }
-    public static boolean isNull(Object o) {
+    public static <T> boolean isNull(T o) {
         return o == null;
     }
     public static Void writeToFile(String path, String content) {

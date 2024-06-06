@@ -138,7 +138,7 @@ fun declare_functions_and_types(file : SFG.SourceFile) do
                 );
                 file.names.types.insert(name, info);
                 val constr_ty := if val Some(con) := constr 
-                    then Ast.Function(targs, Ast.param_types(con.params), DC.class_constr_ret_ty(targs, name, scope))
+                    then Ast.Function(targs, early_bind_type_vars(Ast.param_types(con.params), targs, scope), DC.class_constr_ret_ty(targs, name, scope))
                     else Ast.Function(targs, [], DC.class_constr_ret_ty(targs, name, scope));
                 val varinf := Ast.VarInfo(false, constr_ty, name, scope);
                 varinf.is_constructor := true;

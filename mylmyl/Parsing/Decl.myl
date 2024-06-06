@@ -164,14 +164,11 @@ fun native_item_decl(p : P.Parser) : Ast.Decl do
 end
 
 fun native_function_decl(p : P.Parser) : Ast.Decl do 
-    val name := p.consume(Tokenizer.IDENTIFIER(), "Expect name of native function").src;
-    val param_tys := parameter_types(p);
-    val return_type := if p.matches_type(Tokenizer.COLON()) then Type.type_literal(p) else Ast.VoidT();
-    val complete_type := Ast.Function([], param_tys, return_type); // TODO: Native functions cannot be generic
+    val signature := function_signature(p);
     p.consume(Tokenizer.ASSIGN(), "Expect ':=' and path after native function declaration");
     val path := p.consume(Tokenizer.STRING_LITERAL(), "Expect path of native function");
     p.consume(Tokenizer.SEMICOLON(), "Expect ';' at end of native function");
-    Ast.NativeFunctionDecl(name, complete_type, path.src)
+    Ast.NativeFunctionDecl(signature.name, signature.ty, path.src)
 end
 
 fun native_class_decl(p : P.Parser) : Ast.Decl do 

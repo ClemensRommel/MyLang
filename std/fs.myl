@@ -6,7 +6,7 @@ native fun unsafe_create_file_path(String) : FilePath := "std.fs.open_file";
 
 fun create_file_path(path : String) : Optional(FilePath) do 
     val unsafe_file := unsafe_create_file_path(path);
-    if isFileNull(unsafe_file) // There was an error opening the file
+    if isNull.[FilePath](unsafe_file) // There was an error opening the file
         then None.[FilePath]()
         else Some.[FilePath](unsafe_file)
 end
@@ -17,7 +17,7 @@ native fun unsafe_read_file(FilePath) : String := "std.fs.read_file";
 
 fun read_string(file : FilePath) : Optional(String) do 
     val unsafe_content := unsafe_read_file(file);
-    if isStringNull(unsafe_content) 
+    if isNull.[String](unsafe_content) 
         then None.[String]()
         else Some.[String](unsafe_content)
 end
@@ -26,7 +26,7 @@ native fun unsafe_write_file(FilePath, String) : String := "std.fs.write_to_file
 
 fun write(file : FilePath, new_content : String) do 
     val err_msg := unsafe_write_file(file, new_content);
-    if isStringNull(err_msg) or err_msg != "" do 
+    if isNull.[String](err_msg) or err_msg != "" do 
         panic(err_msg);
     end;
 end
@@ -39,5 +39,4 @@ native fun delete(FilePath) := "std.fs.delete";
 
 fun open_and_read(path : String) : Optional(String) := if val Some(file) := create_file_path(path) then read_string(file) else None.[String]();
 
-native fun isFileNull(FilePath) : Bool := "std.BuiltinFunctions.isNull";
-native fun isStringNull(String) : Bool := "std.BuiltinFunctions.isNull";
+native fun isNull[T](T) : Bool := "std.BuiltinFunctions.isNull";

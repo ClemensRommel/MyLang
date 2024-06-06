@@ -183,10 +183,19 @@ do
 end
 
 fun compile_native_function(c : CG.Compiler, name : String, ty : Ast.Type, path : String) do 
-    val Function(?, params, ret) := ty else panic("Native function has non-function type");
+    val Function(typarams, params, ret) := ty else panic("Native function has non-function type");
     if c.is_class then do 
-        c.append("public static "); c.append(TC.compile_type(c, ret)); c.append(" "); c.append(name);
+        c.append("public static "); 
+        if typarams.length != 0 do 
+            c.append("<");
+            var need_comma := false;
+            for param in typarams do if need_comma do c.append(", "); end; c.append(param.name); need_comma := true; end;
+            c.append(">");
+        end;
+        c.append(TC.compile_type(c, ret)); 
+        c.append(" "); c.append(name);
     end else do
+        if typarams.length != 0 do panic("Error: Cannot compile local generic functions yet"); end;
         val compiled_ty := TC.compile_type(c, ty);
         c.append(compiled_ty); c.append(" "+name+" = ");
     end;
@@ -201,7 +210,8 @@ fun compile_native_function(c : CG.Compiler, name : String, ty : Ast.Type, path 
     end;
     c.append(") "); if !c.is_class do c.append("-> "); end; c.append("{"); c.indent(); c.newline();
     fun compile_native_call() do 
-        c.append(path); c.append("(");
+        c.append(path); 
+        c.append("(");
         var needs_sep := false;
         for param in param_names do 
             if needs_sep do c.append(", "); end;
