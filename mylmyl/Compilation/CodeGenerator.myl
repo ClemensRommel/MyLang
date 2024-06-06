@@ -155,7 +155,7 @@ do
     val path_parts := split(file.path, "/"); // Parts of path
     val file_name_parts := split(path_parts.last, "\\."); // Name before extension
     val file_name := file_name_parts.first;
-    val generated_prefix := split(the_sfg.file_prefix, "/");
+    val generated_prefix := split(SFG.file_prefix, "/");
     val generated_prefix_str := 
         join(".", generated_prefix) 
         + (if generated_prefix.length > 0  and generated_prefix != [""] then "." else "");
@@ -169,7 +169,7 @@ do
     declare_package(c, path_parts);
     import_implicits(c);
 
-    val output_path_parts := split(the_sfg.file_prefix, "/");
+    val output_path_parts := split(SFG.file_prefix, "/");
     if generated_path.length > 1 do
         c.append("import ");
         c.append(join(".", output_path_parts));
@@ -186,7 +186,7 @@ do
     c.dedent(); c.newline();
     c.append("}");
     c.newline();
-    c.buf.buf
+    c.buf.buf.toString()
 end
 
 fun add_implicit_imports(c : Compiler, file : Env.Env(VariableInfo)) do 
@@ -226,10 +226,12 @@ fun compile_imports(c : Compiler, imports : Ast.Import[], path_parts : String[])
         if parts.length > 1 then do // Classes without package before them dont need to be imported
             c.append("import ");
             var needs_dot := false;
-            for part in path_parts do 
-                if needs_dot do c.append("."); end;
-                c.append(part);
-                needs_dot := true;
+            if parts[0] != "std" do 
+                for part in path_parts do 
+                    if needs_dot do c.append("."); end;
+                    c.append(part);
+                    needs_dot := true;
+                end; 
             end;
             for j in [0..parts.length-1] do 
                 if needs_dot do c.append("."); end;
@@ -239,7 +241,7 @@ fun compile_imports(c : Compiler, imports : Ast.Import[], path_parts : String[])
             end;
             c.append("._"); c.append(parts[parts.length-1]);
             c.append(";"); c.newline();
-        end else do 
+        end else if parts[0] != "std" then do 
             c.append("import ");
             var needs_dot := false;
             for part in path_parts do 
@@ -252,7 +254,7 @@ fun compile_imports(c : Compiler, imports : Ast.Import[], path_parts : String[])
             c.append(parts[0]);
             c.append(";");
             c.newline();
-        end;
+        end else do end;
     end
     for i in imports do 
         match i do 
@@ -291,11 +293,10 @@ end
 fun namespace_for_path_parts(c : Compiler, path : String[]) : Ast.Namespace := 
     if path.length = 1 and c.current_env.imported_modules.has(path[0]) 
         then c.current_env.imported_modules.get(path[0]) 
-        else c.current_env.imported_modules.get(
-            join("/", path) + ".myl");
+        else c.current_env.imported_modules.get(SFG.path_to_module(path));
             
 fun var_info_for_namespace(c : Compiler, nmscp : Ast.Namespace) : Env.Env(VariableInfo) do 
-    val file_path := SFG.path_to_module(nmscp.module_path);
+    val file_path := join("/", nmscp.module_path) + ".myl";
     c.all_modules.get(file_path)
 end
 

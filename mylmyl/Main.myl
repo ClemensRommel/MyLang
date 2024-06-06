@@ -34,7 +34,7 @@ fun main() do
         Util.outputFile(output_path(path), compiled);
         move_line_up();
     end;
-    Compiler.generate_types(sfg.file_prefix + join("/", path_to_generated_code) + ".myl", ungenerated_types, name_gen);
+    Compiler.generate_types(SFG.file_prefix + join("/", path_to_generated_code) + ".myl", ungenerated_types, name_gen);
     print("Done");
 end
 

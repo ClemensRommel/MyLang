@@ -62,7 +62,7 @@ fun compile_types(out_path : String, types : CB.UncreatedTypes, name_gen : CB.Na
     
     tgen.dedent();tgen.newline();
     tgen.append("}");
-    Util.outputFile(out_path, tgen.buf.buf);
+    Util.outputFile(out_path, tgen.buf.buf.toString());
 end
 
 fun compile_function_type(c : TypeGenerator, ty : CB.UncreatedFunctionType) do 

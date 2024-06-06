@@ -12,63 +12,79 @@ public class _implicit {
             switch(this) {
                 case Some<T>(T t) -> {
                     return t;
+                    
                 }
                 case None<T>() -> {
                     return panic("Error: called unwrap on empty Optional");
+                    
                 }
                 default -> { panic("Inexhaustive match: "+this); throw new RuntimeException();}
                 
             }
+            
         }
         public default <K> Optional<K> map(mylmyl.__generated_Main.__var60<T, K> f)  {
             switch(this) {
                 case None<T>() -> {
                     return new None();
+                    
                 }
                 case Some<T>(T t) -> {
                     var __var61 = f.call(t);
                     return new Some(__var61);
+                    
                 }
                 default -> { panic("Inexhaustive match: "+this); throw new RuntimeException();}
                 
             }
+            
         }
         public default T expect(String e)  {
             switch(this) {
                 case Some<T>(T t) -> {
                     return t;
+                    
                 }
                 case None<T>() -> {
                     return panic(e);
+                    
                 }
                 default -> { panic("Inexhaustive match: "+this); throw new RuntimeException();}
                 
             }
+            
         }
         public default boolean is_some()  {
             switch(this) {
                 case Some<T>(T __var62) -> {
                     return true;
+                    
                 }
                 case None<T>() -> {
                     return false;
+                    
                 }
                 default -> { panic("Inexhaustive match: "+this); throw new RuntimeException();}
                 
             }
+            
         }
         public default boolean is_none()  {
             switch(this) {
                 case Some<T>(T __var63) -> {
                     return false;
+                    
                 }
                 case None<T>() -> {
                     return true;
+                    
                 }
                 default -> { panic("Inexhaustive match: "+this); throw new RuntimeException();}
                 
             }
+            
         }
+        
     }
     public static  record None<T>() implements Optional<T> {
         @Override public String toString() {
@@ -106,7 +122,9 @@ public class _implicit {
             
         }
         return false;
+        
     }
+    
     public static <A, B> B snd(mylmyl.__generated_Main.__var67<A, B> tuple) {
         final A a;
         final B b;
@@ -114,7 +132,9 @@ public class _implicit {
         a = __var68.field0();
         b = __var68.field1();
         return b;
+        
     }
+    
     public static <A, B> A fst(mylmyl.__generated_Main.__var67<A, B> tuple) {
         final A a;
         final B b;
@@ -122,7 +142,9 @@ public class _implicit {
         a = __var69.field0();
         b = __var69.field1();
         return a;
+        
     }
+    
     public static Void print(String __var70) {
         System.out.println(__var70);
         return null;

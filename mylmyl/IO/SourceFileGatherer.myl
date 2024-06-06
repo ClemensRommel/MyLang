@@ -8,10 +8,11 @@ import Env := Syntax.Env;
 
 class SFGatherer where 
     val files_not_found : String[] := [];
-    var file_prefix : String := "";
 
     val parsed_sourcefiles : Env.AList(SourceFile) := Env.AList.[SourceFile](); // Map of all parsed files to be reused
 end
+
+var file_prefix : String := "";
 
 // Parsed source file, ready for further processing
 class SourceFile where 
@@ -55,8 +56,8 @@ fun get_all_files(sfg : SFGatherer, starting_file : String) do
     val Some(file) := process_file(sfg, starting_file) else return null;
     for imported in file.ast.imports do 
         val path := path_to(imported);
-        if !sfg.parsed_sourcefiles.has(sfg.file_prefix + path) do 
-            get_all_files(sfg, sfg.file_prefix + path);
+        if !sfg.parsed_sourcefiles.has(path) do 
+            get_all_files(sfg, path);
         end;
     end
 end
@@ -71,7 +72,7 @@ val std_implicit_path : String := "std/implicit.myl";
 
 fun gather_files(start : String) : SFGatherer do 
     val sfg := SFGatherer();
-    sfg.file_prefix := file_path_prefix(start);
+    file_prefix := file_path_prefix(start);
     process_file(sfg, std_implicit_path); // Process first, as its needed for other files
     get_all_files(sfg, start);
     if sfg.files_not_found.length != 0 do 
@@ -100,7 +101,7 @@ end
 
 fun path_to_module(parts : String[]) : String do 
     val relative_path := join("/", parts) + ".myl"; 
-    relative_path
+    (if parts.first = "std" then "" else file_prefix) + relative_path
 end
 
 fun path_to_generated_module(sfg : SFGatherer, parts : String[], use_prefix : Bool) : String do 
@@ -117,7 +118,7 @@ fun path_to_generated_module(sfg : SFGatherer, parts : String[], use_prefix : Bo
         out := out + (if need_sep then "." else "") + "_" + last_part;
         out
     end;
-    val absolute_part := if use_prefix then join(".", split(sfg.file_prefix, "/")) else "";
+    val absolute_part := if use_prefix then join(".", split(file_prefix, "/")) else "";
     val resulting := absolute_part + (if absolute_part != "" then "." else "") + relative_part;
     resulting
 end

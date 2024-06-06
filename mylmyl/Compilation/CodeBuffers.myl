@@ -2,13 +2,14 @@ module Compilation.CodeBuffers;
 
 import Ast := Syntax.Ast;
 import Util;
+import string := std.string;
 
 class StringBuffer where 
-    var buf : String := "";
+    var buf : string.Builder := string.Builder();
     var indent_level : Int := 0i;
 
     fun append(str : String) do 
-        this.buf := this.buf + str;
+        this.buf.append(str);
     end
 
     fun newline() do 
@@ -28,7 +29,7 @@ class StringBuffer where
     end
 
     fun strip_trailing() do 
-        this.buf := strip(this.buf);
+        // Do nothing for now
     end
 end
 

@@ -1,0 +1,7 @@
+module std.string;
+
+native class Builder := "java.lang.StringBuilder" where 
+    new();
+    fun append(String);
+    fun toString() : String;
+end;

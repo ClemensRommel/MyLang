@@ -12,12 +12,12 @@ fun add_imports(sfg : SFG.SFGatherer, file : SFG.SourceFile) do
         match imported do 
             case BasicImport(path) := do
                 val path_as_str := SFG.path_to(imported);
-                val imported_file := sfg.parsed_sourcefiles.get(sfg.file_prefix + path_as_str);
+                val imported_file := sfg.parsed_sourcefiles.get(path_as_str);
                 file.names.imported_modules.insert(path_as_str, imported_file.names);
             end;
             case AliasImport(alias, path) := do 
                 val path_as_str := SFG.path_to(imported);
-                val imported_file := sfg.parsed_sourcefiles.get(sfg.file_prefix + path_as_str);
+                val imported_file := sfg.parsed_sourcefiles.get(path_as_str);
                 file.names.imported_modules.insert(path_as_str, imported_file.names);
                 file.names.imported_modules.insert(alias, imported_file.names);
                 // TODO: Declare alias

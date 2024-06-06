@@ -10,6 +10,7 @@ import Ast := Syntax.Ast;
 import Env := Syntax.Env;
 import Analyze := Typechecking.Analyze;
 import Util;
+import string := std.string;
 
 fun compile_expr(c : CG.Compiler, expr : Ast.Expr, target : CG.Target) : String := match expr do 
     case DesugarableExpr(content) := compile_expr(c, content.get(), target);
@@ -360,27 +361,27 @@ fun compile_if(
         c.append("final "); c.append(TC.compile_type(c, lt)); c.append(" "); c.append(name); c.append(";"); c.newline();
     end;
     val prev_buf := c.buf.buf; // Safe buffer before if to backtrack in case the if is not necessare
-    c.buf.buf := "";
+    c.buf.buf := string.Builder();
     val branch_target := match target do 
         case Ignore() := CG.Ignore();
         case Return() := CG.Return();
         case ? := CG.AssignTo(var_name);
     end;
     val cond_expr := compile_expr(c, cond, CG.UsedDirectly());
-    val cond_buf := c.buf.buf; // TODO: Redo this
-    c.buf.buf := "";
+    val cond_buf := c.buf.buf.toString(); // TODO: Redo this
+    c.buf.buf := string.Builder();
     c.append("if("); c.append(cond_expr); c.append(") {"); c.indent(); c.newline();
-    val if_buf := c.buf.buf;
-    c.buf.buf := "";
+    val if_buf := c.buf.buf.toString();
+    c.buf.buf := string.Builder();
     val thenBrExpr := compile_expr(c, thenBr, branch_target);
-    val thenIsIgnored := thenBrExpr = "" and c.buf.buf = "";
+    val thenIsIgnored := thenBrExpr = "" and c.buf.buf.toString() = "";
     c.strip_trailing();c.dedent();c.newline(); c.append("} else {"); c.indent();c.newline();
-    val else_buf := c.buf.buf;
-    c.buf.buf := "";
+    val else_buf := c.buf.buf.toString();
+    c.buf.buf :=string.Builder();
     val elseBrExpr := compile_expr(c, elseBr, branch_target);
-    val elseIsIgnored := elseBrExpr = "" and c.buf.buf = "";
+    val elseIsIgnored := elseBrExpr = "" and c.buf.buf.toString() = "";
     c.strip_trailing();c.dedent(); c.newline(); c.append("}"); c.newline();
-    val end_buf := c.buf.buf;
+    val end_buf := c.buf.buf.toString();
     c.buf.buf := prev_buf; // Restore previous buffer
     if thenIsIgnored and elseIsIgnored and CG.Ignore() = target then do // Both branches can be ignored
         c.append(compile_expr(c, cond, CG.Ignore())); // Recompile condition as ignored
