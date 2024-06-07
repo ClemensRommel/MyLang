@@ -78,21 +78,12 @@ public class _fs {
     }
     public static std._implicit.Optional<String> open_and_read(String path)  {
         var __var337 = create_file_path(path);
-        switch(__var337) {
-            case std._implicit.Some<java.nio.file.Path>(java.nio.file.Path file) -> {
-                return read_string(file);
-                
-            }
-            case std._implicit.Optional<java.nio.file.Path> __var338 -> {
-                return new std._implicit.None();
-                
-            }
-            
-        }
+        mylmyl.__generated_Main.__var62<java.nio.file.Path, std._implicit.Optional<String>> __var338 = (java.nio.file.Path __var339) -> read_string(__var339);
+        return __var337.flatmap(__var338);
         
     }
-    public static <T>boolean isNull(T __var339) {
-        return std.BuiltinFunctions.isNull(__var339);
+    public static <T>boolean isNull(T __var340) {
+        return std.BuiltinFunctions.isNull(__var340);
     }
     
 }

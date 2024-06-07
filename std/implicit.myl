@@ -11,6 +11,11 @@ enum Optional(T) where
         case Some(t) := Some.[K](f(t));
     end;
 
+    fun flatmap[K](f : Fun(T) : Optional(K)) : Optional(K) := match this do 
+        case None() := None.[K]();
+        case Some(t) := f(t);
+    end;
+
     fun expect(e : String) : T := match this do 
         case Some(t) := t;
         case None() := panic(e);

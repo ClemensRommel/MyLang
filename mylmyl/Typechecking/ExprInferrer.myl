@@ -13,6 +13,8 @@ import PC := Typechecking.PatternChecker;
 
 import Subst := Typechecking.Substitute;
 
+import Collections := std.collections;
+
 import Util;
 
 // Return type is always fully resolved
@@ -73,13 +75,13 @@ fun infer(t : TC.Typechecker, e : Ast.Expr) : Ast.Type := match e do
             else panic("Cannot instantiate non-generic type: "+instantiated_ty);
         if typarams.length != expected_typarams.length do 
             panic("Error: Expected "+expected_typarams.length
-                  +" type parameters, got "+typarams.length+" type parameters in "+e);
+                  +" type parameters, got "+typarams.length+" type parameters in "+e+" with type "+instantiated_ty);
         end 
-        val typaram_substitutes : Env.AList(Ast.Type) := Env.AList.[Ast.Type]();
+        val typaram_substitutes := Collections.HashMap.[String, Ast.Type]();
         for i in [0..typarams.length] do 
-            typaram_substitutes.insert(expected_typarams[i].name, typarams[i]);
+            typaram_substitutes.put(expected_typarams[i].name, typarams[i]);
         end;
-        val sty := Subst.substitute(instantiated_ty, typaram_substitutes);
+        val sty := Subst.substitute(Subst.remove_generics(instantiated_ty), typaram_substitutes);
         lty.init(sty);
         sty
     end;
@@ -359,9 +361,9 @@ fun get_property_ty(tc : TC.Typechecker, name : String, ty : Ast.Type, err_str :
         val inf := Ast.info_for(tc.names, app_ty, fun(wrong_ty : Ast.Type) : String := "Cannot read property of non-class-type "+wrong_ty+" in expression "+err_str());
         val declared_typarams := typarams_of(inf);
         if typarams.length != declared_typarams.length do panic("Expected "+declared_typarams.length+" type parameters, got "+typarams.length+" in "+ty); end;
-        val substitutes := Env.AList.[Ast.Type]();
+        val substitutes := Collections.HashMap.[String, Ast.Type]();
         for i in [0..typarams.length] do 
-            substitutes.insert(declared_typarams[i].name, typarams[i]);
+            substitutes.put(declared_typarams[i].name, typarams[i]);
         end;
         val resulting := Subst.substitute(unsub_ty, substitutes);
         (resulting, acc)

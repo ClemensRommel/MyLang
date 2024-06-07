@@ -37,6 +37,6 @@ end
 
 native fun delete(FilePath) := "std.fs.delete";
 
-fun open_and_read(path : String) : Optional(String) := if val Some(file) := create_file_path(path) then read_string(file) else None.[String]();
+fun open_and_read(path : String) : Optional(String) := create_file_path(path).flatmap.[String](read_string);
 
 native fun isNull[T](T) : Bool := "std.BuiltinFunctions.isNull";

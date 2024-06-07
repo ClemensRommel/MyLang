@@ -39,6 +39,21 @@ public class _implicit {
             }
             
         }
+        public default <K> Optional<K> flatmap(mylmyl.__generated_Main.__var62<T, Optional<K>> f)  {
+            switch(this) {
+                case None<T>() -> {
+                    return new None();
+                    
+                }
+                case Some<T>(T t) -> {
+                    return f.call(t);
+                    
+                }
+                default -> { panic("Inexhaustive match: "+this); throw new RuntimeException();}
+                
+            }
+            
+        }
         public default T expect(String e)  {
             switch(this) {
                 case Some<T>(T t) -> {

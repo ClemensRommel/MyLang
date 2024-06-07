@@ -210,6 +210,8 @@ class TypeParameter where
     new(n : String) do 
         this.name := n;
     end
+
+    fun toString() : String := this.name;
 end
 
 fun late_type() : LateType := Util.LateInitialized.[Type]();

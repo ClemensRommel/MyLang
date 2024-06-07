@@ -4,6 +4,7 @@ import Ast := Syntax.Ast;
 import Env := Syntax.Env;
 import Subst := Typechecking.Substitute;
 import Util;
+import Collections := std.collections;
 
 // Search for mutable variables that are captured by functions in this block
 fun analyze_captures(stmts : Ast.Stmt[], last : Optional(Ast.Expr)) : Env.AList(Bool) do
@@ -99,17 +100,17 @@ fun declared_vars_in(pat : Ast.Pattern, ty : Ast.Type, lst : (String, Ast.Type)[
     end;
     case ConstructorPattern(name, pats, lenumc, lenum, lenum_info) := do 
         val subst := if val Applied(from, to) := lenum.get() then do 
-            val slst := Env.AList.[Ast.Type]();
+            val slst := Collections.HashMap.[String, Ast.Type]();
             val EnumInfo(?, targs, ?, ?, ?, ?) := lenum_info.get() else panic("Cannot match on non-enum-type");
             for i in [0..targs.length] do 
-                slst.insert(targs[i].name, to[i]);
+                slst.put(targs[i].name, to[i]);
             end;
             slst
-        end else Env.AList.[Ast.Type]();
+        end else Collections.HashMap.[String, Ast.Type]();
         val constr := lenumc.get();
         for i in [0..constr.fields.length] do 
             val field := constr.fields[i];
-            val new_ty := Subst.substitute(field, subst);
+            val new_ty := Subst.substitute(Subst.remove_generics(field), subst);
             declared_vars_in(pats[i], new_ty, lst);
         end;
     end;

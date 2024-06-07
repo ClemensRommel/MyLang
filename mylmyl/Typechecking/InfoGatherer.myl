@@ -7,6 +7,8 @@ import SFG := IO.SourceFileGatherer;
 import DC := Typechecking.DeclChecker;
 import Subst := Typechecking.Substitute;
 
+import Collections := std.collections;
+
 fun add_imports(sfg : SFG.SFGatherer, file : SFG.SourceFile) do 
     for imported in file.ast.imports do 
         match imported do 
@@ -198,8 +200,9 @@ fun declare_functions_and_types(file : SFG.SourceFile) do
 end
 
 fun early_bind_type_vars(fields : Ast.Type[], targs : Ast.TypeParameter[], scope : Ast.Namespace) : Ast.Type[] do 
-    val substitutes := Env.AListOf.[Ast.Type](for arg in targs do (arg.name, Ast.Name(arg.name, Util.wrap_linit.[Ast.Namespace](scope))) end);
-    for field in fields do Subst.substitute(field, substitutes) end
+    val substitutes := Collections.HashMap.[String, Ast.Type]();
+    for arg in targs do substitutes.put(arg.name, Ast.Name(arg.name, Util.wrap_linit.[Ast.Namespace](scope))); end;
+    for field in fields do Subst.substitute(Subst.remove_generics(field), substitutes) end
 end
 
 
