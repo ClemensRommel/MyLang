@@ -6,14 +6,12 @@ import Env := Syntax.Env;
 import SFG := IO.SourceFileGatherer;
 
 
-fun gather_global_variable_info(files : Env.AList(SFG.SourceFile)) : Env.AList(Env.Env(CG.VariableInfo)) do 
-    val list := Env.AList.[Env.Env(CG.VariableInfo)]();
+fun gather_global_variable_info(files : Env.AList(SFG.SourceFile), list : Env.AList(Env.Env(CG.VariableInfo))) do 
     for (?, file) in files.bindings do 
         val env := Env.Env.[CG.VariableInfo]();
         gather_variable_info(env, file.ast.decls, file.names.module_path);
         list.insert(file.path, env);
     end;
-    list
 end
 
 fun gather_variable_info(env : Env.Env(CG.VariableInfo), decls : Ast.Decl[], p : String[]) do 

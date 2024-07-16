@@ -6,8 +6,8 @@ import Analyze := Typechecking.Analyze;
 import Util;
 import SFG := IO.SourceFileGatherer;
 import CB := Compilation.CodeBuffers;
-import DC := Compilation.CodeGeneration.DeclCompiler;
-import SC := Compilation.CodeGeneration.StmtCompiler;
+import DC := Compilation.GenerateJavaSource.DeclCompiler;
+import SC := Compilation.GenerateJavaSource.StmtCompiler;
 
 class Compiler where 
     var buf : CB.StringBuffer := CB.StringBuffer();

@@ -384,7 +384,7 @@ fun get_property_of_info(tc : TC.Typechecker, class_info : Ast.TyInfo, name : St
         end;
         case TyAliasInfo(def_name, definition, ?, scope) := get_property_ty(tc, name, definition, err_str);
         case NativeTypeInfo(type_name, targs, native_name, methods, exported, scope) := do 
-            if methods.has(name) then (methods.get(name), Ast.MethodAccess())
+            if methods.has(name) then (TR.resolve(scope, methods.get(name)), Ast.MethodAccess())
             else panic("Native type "+type_name+" defined to be "+native_name+" has no method called "+name)
         end;
         case EnumInfo(enum_name, targs, ?, methods, exported, nmspc) := do 

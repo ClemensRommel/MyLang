@@ -1,10 +1,10 @@
-module Compilation.CodeGeneration.ExprCompiler;
+module Compilation.GenerateJavaSource.ExprCompiler;
 
 import CG := Compilation.CodeGenerator;
-import SC := Compilation.CodeGeneration.StmtCompiler;
-import DC := Compilation.CodeGeneration.DeclCompiler;
-import MC := Compilation.CodeGeneration.MatchCompiler;
-import TC := Compilation.CodeGeneration.TypeCompiler;
+import SC := Compilation.GenerateJavaSource.StmtCompiler;
+import DC := Compilation.GenerateJavaSource.DeclCompiler;
+import MC := Compilation.GenerateJavaSource.MatchCompiler;
+import TC := Compilation.GenerateJavaSource.TypeCompiler;
 import SFG := IO.SourceFileGatherer;
 import Ast := Syntax.Ast;
 import Env := Syntax.Env;
@@ -624,7 +624,7 @@ fun compile_call(c : CG.Compiler, callee : Ast.Expr, call_args : Ast.Expr[], tar
     end;
     str := str + ")";
     match target do 
-        case Ignore() := do if str != "()" do c.append("__ignore("); c.append(str); c.append(");"); c.newline(); end; "" end;
+        case Ignore() := do if str != "()" do c.append(str); c.append(";"); c.newline(); end; "" end;
         case Return() := do 
             return_stmt(c, str)
         end;
@@ -726,6 +726,18 @@ do
         case AssignTo(Variable(n)) := do 
             c.append(n); c.append(" = (");
         end;
+        case AssignTo(WildcardSetter()) := do 
+            return ""; // Wildcard setter means value is unused, function expressions have no side effect
+        end;
+        case AssignTo(IndexSetter(lst, idx)) := do 
+            val list := compile_expr(c, lst, CG.UsedDirectly());
+            val index := compile_expr(c, idx, CG.UsedDirectly());
+            c.append(list+".set("+index+", (");
+        end;
+        case AssignTo(Property(obj, prop_name, ?)) := do 
+            val object := compile_expr(c, obj, CG.UsedDirectly());
+            c.append(object+"."+prop_name+" = (");
+        end;
         case Return() := do 
             c.append("return (");
         end;
@@ -760,8 +772,14 @@ do
     c.strip_trailing();
     if !body_is_block then do
         c.dedent(); c.newline();
+        if val AssignTo(IndexSetter(?, ?)) := target do 
+            c.append(")");
+        end;
         c.append("};"); c.newline();
     end else do 
+        if val AssignTo(IndexSetter(?, ?)) := target do 
+            c.append(")");
+        end;
         c.append(";"); c.newline();
     end;
 

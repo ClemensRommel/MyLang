@@ -1,0 +1,90 @@
+module asm;
+
+import ffiarray := std.ffi.array;
+
+native class Label := "org.objectweb.asm.Label" where 
+    new();
+end;
+
+native class MethodVisitor := "org.objectweb.asm.MethodVisitor" where 
+    fun visitParameter(String, Int);
+    fun visitCode();
+
+    fun visitFieldInsn(Int, String, String, String);
+    fun visitIincInsn(Int, Int);
+    fun visitInsn(Int);
+    fun visitIntInsn(Int, Int);
+    fun visitLabel(Label);
+    // fun visitInvokeDynamicInsn(String, String, Handle, Object..);
+    fun visitJumpInsn(Int, Label);
+    fun visitLdcInsn(JavaConstant);
+    fun visitLineNumber(Int, Label);
+    fun visitLocalVariable(String, String, String, Label, Label, Int);
+    // visitLookupSwitchInsn(Label, ffiarray.IntArray, Array of Label);
+    fun visitMethodInsn(Int, String, String, String, Bool);
+    // visitMultiANewArrayInsn(String, Int);
+    // fun visitTableSwitchInsn(Int, Int, Label, Label ...)
+    // fun visitTryCatchBlock(Label, Label, Label, String)
+    fun visitTypeInsn(Int, String);
+    fun visitVarInsn(Int, Int);
+    
+    fun visitEnd();
+end;
+
+native class FieldVisitor := "org.objectweb.asm.FieldVisitor" where 
+    fun visitEnd();
+end;
+
+native class  JavaConstant := "java.lang.Object";
+
+native fun field_init_value() : JavaConstant := "mylmyl.AsmHelp.create_field_init_value";
+native fun field_init_value_string(String) : JavaConstant := "mylmyl.AsmHelp.field_iv_string";
+native fun field_init_value_number(Number) : JavaConstant := "mylmyl.AsmHelp.field_iv_number";
+native fun field_init_value_int(Int) : JavaConstant := "mylmyl.AsmHelp.field_iv_int";
+native fun field_init_value_long(Long) : JavaConstant := "mylmyl.AsmHelp.field_iv_long";
+
+native fun null_str() : String := "mylmyl.AsmHelp.null_str";
+
+native class ClassWriter := "org.objectweb.asm.ClassWriter" where 
+    new(Int);
+
+    fun hasFlags(Int) : Bool;
+
+    fun visit(Int, Int, String, String, String, ffiarray.StringArray);
+    fun visitEnd();
+    fun visitMethod(Int, String, String, String, ffiarray.StringArray) : MethodVisitor;
+    fun visitField(Int, String, String, String, JavaConstant) : FieldVisitor;
+    fun visitPermittedSubclass(String);
+    fun visitSource(String, String);
+
+    fun toByteArray() : ffiarray.ByteArray;
+end;
+
+val V21 : Int := 65i;
+
+val COMPUTE_FRAMES : Int := 1i;
+val COMPUTE_MAXS : Int := 2i;
+
+val ACC_PUBLIC : Int := 1i; // class, field, method
+val ACC_PRIVATE : Int := 2i; // class, field, method
+val ACC_PROTECTED : Int := 4i; // class, field, method
+val ACC_STATIC : Int := 8i; // field, method
+val ACC_FINAL : Int := 16i; // class, field, method, parameter
+val ACC_SUPER : Int := 32i; // class
+val ACC_SYNCHRONIZED : Int := 32i; // method
+val ACC_OPEN : Int := 32i; // module
+val ACC_TRANSITIVE : Int := 32i; // module requires
+val ACC_VOLATILE : Int := 64i; // field
+val ACC_BRIDGE : Int := 64i; // method
+val ACC_STATIC_PHASE : Int := 64i; // module requires
+val ACC_VARARGS : Int := 128i; // method
+val ACC_TRANSIENT : Int := 128i; // field
+val ACC_NATIVE : Int := 256i; // method
+val ACC_INTERFACE : Int := 512i; // class
+val ACC_ABSTRACT : Int := 1024i; // class, method
+val ACC_STRICT : Int := 2048i; // method
+val ACC_SYNTHETIC : Int := 4096i; // class, field, method, parameter, module 
+val ACC_ANNOTATION  : Int := 8196i; // class
+val ACC_ENUM : Int := 16348i; // class(?) field inner
+val ACC_MANDATED : Int := 32768i; // field, method, parameter, module, module 
+val ACC_MODULE : Int := 32768i; // class

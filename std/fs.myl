@@ -1,5 +1,7 @@
 module std.fs;
 
+import ffiarray := std.ffi.array;
+
 native class FilePath := "java.nio.file.Path";
 
 native fun unsafe_create_file_path(String) : FilePath := "std.fs.open_file";
@@ -23,9 +25,17 @@ fun read_string(file : FilePath) : Optional(String) do
 end
 
 native fun unsafe_write_file(FilePath, String) : String := "std.fs.write_to_file";
+native fun unsafe_write_binary(FilePath, ffiarray.ByteArray) : String := "std.fs.write_bytearray";
 
 fun write(file : FilePath, new_content : String) do 
     val err_msg := unsafe_write_file(file, new_content);
+    if isNull.[String](err_msg) or err_msg != "" do 
+        panic(err_msg);
+    end;
+end
+
+fun write_bytes(file : FilePath, bytes : ffiarray.ByteArray) do 
+    val err_msg := unsafe_write_binary(file, bytes);
     if isNull.[String](err_msg) or err_msg != "" do 
         panic(err_msg);
     end;

@@ -84,6 +84,7 @@ fun compile_function_type(c : TypeGenerator, ty : CB.UncreatedFunctionType) do
     for i in [0..ty.param_count] do 
         if need_comma do c.append(", "); end
         c.append(typarams[i]); c.append(" "); c.append(c.new_var());
+        need_comma := true;
     end;
     c.append(");"); c.dedent(); c.newline();
     c.append("}");

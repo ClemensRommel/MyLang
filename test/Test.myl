@@ -1,5 +1,0 @@
-fun main() do 
-    print(""+id.[Number](3));
-end
-
-native fun id[A](A) : A := "test.Test.id";

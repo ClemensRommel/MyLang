@@ -1,0 +1,37 @@
+module Compilation.Backend;
+
+import SFG := IO.SourceFileGatherer;
+import CG := Compilation.CodeGenerator;
+import CB := Compilation.CodeBuffers;
+import GVG := Compilation.GlobalVariableGatherer;
+import TG := Compilation.TypeGenerator;
+
+import Env := Syntax.Env;
+
+class Backend where 
+    var compile_file : Fun(SFG.SourceFile, String[], CB.NameGenerator, SFG.SFGatherer) : String;
+    var preprocess_globals : Fun(Env.AList(SFG.SourceFile)) : Void;
+    var postprocess_types : Fun(String, CB.NameGenerator) : Void;
+    new() do end;
+end
+
+val java_source_backend : Backend := do 
+    val ungenerated_types := CB.UncreatedTypes();
+    val global_info := Env.AList.[Env.Env(CG.VariableInfo)]();
+    val backend := Backend();
+    val pg := fun(files : Env.AList(SFG.SourceFile)) do 
+        GVG.gather_global_variable_info(files, global_info);
+    end;
+    backend.preprocess_globals := pg;
+    val cf := fun(file : SFG.SourceFile, generated_path : String[], name_gen : CB.NameGenerator, sfg : SFG.SFGatherer) : String do 
+        CG.compile(file, name_gen, global_info, generated_path, ungenerated_types, sfg)
+    end;
+    backend.compile_file := cf;
+    val pt := fun(path : String, name_gen : CB.NameGenerator) : Void do 
+        TG.compile_types(path, ungenerated_types, name_gen);
+    end;
+    backend.postprocess_types := pt;
+    backend
+end;
+
+fun choose_backend() : Backend := java_source_backend;

@@ -11,3 +11,9 @@ native class IntArray := "int[]";
 native class ShortArray := "short[]";
 
 native class ByteArray := "byte[]";
+
+native class StringArray := "String[]";
+
+native fun null_str_array() : StringArray := "std.ffi.array_help.null_str_array";
+
+native fun byteArrayToStr(ByteArray) : String := "std.ffi.array_help.byteArrayToStr";

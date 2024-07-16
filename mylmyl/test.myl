@@ -1,0 +1,15 @@
+module test;
+
+import asm;
+
+import ffiarray := std.ffi.array;
+import fs := std.fs;
+
+fun main() do 
+    val cw := asm.ClassWriter(0i);
+    cw.visit(asm.V21, asm.ACC_PUBLIC, "test_class", asm.null_str(), "java/lang/Object", ffiarray.null_str_array());
+    cw.visitField(asm.ACC_PUBLIC + asm.ACC_FINAL + asm.ACC_STATIC, "test", "I", asm.null_str(), asm.field_init_value_int(2i)).visitEnd();
+    val res := cw.toByteArray();
+    val Some(path) := fs.create_file_path("test_class.class") else panic("Couldn't create output file");
+    fs.write_bytes(path, res);
+end;

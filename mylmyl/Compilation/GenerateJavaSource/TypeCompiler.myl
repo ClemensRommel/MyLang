@@ -1,4 +1,4 @@
-module Compilation.CodeGeneration.TypeCompiler;
+module Compilation.GenerateJavaSource.TypeCompiler;
 
 import Ast := Syntax.Ast;
 import Env := Syntax.Env;

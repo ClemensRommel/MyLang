@@ -105,6 +105,7 @@ fun declare_functions_and_types(file : SFG.SourceFile) do
             case DesugarableDecl(mutdecl) := declare_function_and_type(mutdecl.get());
             case NativeFunctionDecl(name, ty, path) := do 
                 val info := Ast.VarInfo(false, ty, name, file.names);
+                info.is_exported := true;
                 file.names.values.insert(name, info);
             end;
             case TypeAliasDecl(name, definition, exported, scope) := do 

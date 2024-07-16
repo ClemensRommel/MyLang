@@ -1,12 +1,13 @@
 module Main;
 
-import Compiler := Compilation.Compiler;
 import CB := Compilation.CodeBuffers;
 import Typechecking.Typechecker;
 import Typechecking.InfoGatherer;
 import Desugar := Compilation.Desugar;
 import SFG := IO.SourceFileGatherer;
 import Util;
+import asm;
+import Backend := Compilation.Backend;
 
 fun main() do 
     val cli_args := args();
@@ -26,15 +27,15 @@ fun main() do
     for (?, file) in files.bindings do 
         Desugar.desugar((file.undesugared_exprs, file.undesugared_decls, file.undesugared_stmts), name_gen);
     end;
-    val global_info := Compiler.gather_global_variable_info(files);
-    val ungenerated_types : CB.UncreatedTypes := CB.UncreatedTypes();
+    val backend := Backend.choose_backend();
+    backend.preprocess_globals(files);
     for (path, file) in files.bindings do 
         print("== Compiling "+path+" ==");
-        val compiled := Compiler.compile(file, name_gen, global_info, path_to_generated_code, ungenerated_types, sfg);
+        val compiled := backend.compile_file(file, path_to_generated_code, name_gen, sfg);
         Util.outputFile(output_path(path), compiled);
         move_line_up();
     end;
-    Compiler.generate_types(SFG.file_prefix + join("/", path_to_generated_code) + ".myl", ungenerated_types, name_gen);
+    backend.postprocess_types(SFG.file_prefix + join("/", path_to_generated_code) + ".myl", name_gen);
     print("Done");
 end
 

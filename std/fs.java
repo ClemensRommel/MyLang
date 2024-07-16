@@ -33,6 +33,14 @@ public class fs {
             return e.getMessage();
         }
     }
+    public static String write_bytearray(Path p, byte[] bytes) {
+        try {
+            Files.write(p, bytes);
+            return "";
+        } catch(IOException e) {
+            return e.getMessage();
+        }
+    }
     public static void delete(Path p) {
         try {
             Files.deleteIfExists(p);
