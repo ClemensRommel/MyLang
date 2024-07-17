@@ -3,8 +3,6 @@ package std.runtime;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import java.nio.file.*;
-
 public class Functions {
     // Ignore a value. Used for expression statements and main()
     public static <A> void __ignore(A a) {
