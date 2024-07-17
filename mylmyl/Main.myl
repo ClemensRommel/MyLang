@@ -30,36 +30,13 @@ fun typecheck(sfg : SFG.SFGatherer) do
 end;
 
 fun compile(sfg : SFG.SFGatherer) do 
-    val files := sfg.parsed_sourcefiles;
-    val path_to_generated_code := SFG.generated_code_path();
     val name_gen := CB.NameGenerator();
+    val files := sfg.parsed_sourcefiles;
 
     for (?, file) in files.bindings do 
         Desugar.desugar((file.undesugared_exprs, file.undesugared_decls, file.undesugared_stmts), name_gen);
     end;
 
     val backend := Backend.choose_backend();
-    backend.preprocess_globals(files);
-    for (path, file) in files.bindings do 
-        print("== Compiling "+path+" ==");
-        val compiled := backend.compile_file(file, path_to_generated_code, name_gen, sfg);
-        Util.outputFile(output_path(path), compiled);
-        move_line_up();
-    end;
-    backend.postprocess_types(SFG.file_prefix + join("/", path_to_generated_code) + ".myl", name_gen);
+    backend(sfg, name_gen);
 end;
-
-fun output_path(str : String) : String do 
-    val parts := split(str, "/");
-    var out := "";
-    var need_slash := false;
-    for i in [0..parts.length - 1] do 
-        if need_slash do out := out + "/"; end;
-        val part := parts[i];
-        out := out + part;
-        need_slash := true;
-    end;
-    val last_part := parts[parts.length-1];
-    out := out + (if need_slash then "/" else "") + "_"+last_part;
-    out
-end

@@ -22,6 +22,9 @@ fun process_initial_args(index : Number, cli_args : String[]) do
     end else if cli_args[index] = "--jbc" then do 
         backend_name := "java-bytecode";
         process_file_args(index + 1, cli_args);
+    end else if cli_args[index] = "--no-code" then do 
+        backend_name := "no-codegen";
+        process_file_args(index + 1, cli_args);
     end else do 
         process_file_args(index, cli_args);
     end

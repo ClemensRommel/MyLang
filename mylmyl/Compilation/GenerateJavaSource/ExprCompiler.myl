@@ -192,6 +192,7 @@ fun compile_identifier(c : CG.Compiler, fname : String, expected_ty : Ast.Type, 
                 c.append(", ");
             end
             c.append(param);
+            needs_comma := true;
         end;
         c.append(");");
         c.newline();

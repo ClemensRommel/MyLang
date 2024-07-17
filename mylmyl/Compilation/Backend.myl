@@ -9,37 +9,57 @@ import TG := Compilation.GenerateJavaSource.TypeGenerator;
 
 import asm;
 import IO.Args;
+import Util;
 
 import Env := Syntax.Env;
 
-class Backend where 
-    var compile_file : Fun(SFG.SourceFile, String[], CB.NameGenerator, SFG.SFGatherer) : String;
-    var preprocess_globals : Fun(Env.AList(SFG.SourceFile)) : Void;
-    var postprocess_types : Fun(String, CB.NameGenerator) : Void;
-    new() do end;
-end
+type Backend := Fun(SFG.SFGatherer, CB.NameGenerator) : Void;
 
-val java_source_backend : Backend := do 
+fun generate_java_source(sfg : SFG.SFGatherer, name_gen : CB.NameGenerator) do 
     val ungenerated_types := JCB.UncreatedTypes();
     val global_info := Env.AList.[Env.Env(CG.VariableInfo)]();
-    val backend := Backend();
-    val pg := fun(files : Env.AList(SFG.SourceFile)) do 
-        GVG.gather_global_variable_info(files, global_info);
+    val files := sfg.parsed_sourcefiles;
+    val path_to_generated_code := SFG.generated_code_path();
+
+    GVG.gather_global_variable_info(files, global_info);
+
+    for (path, file) in files.bindings do 
+        print("== Compiling "+path+" ==");
+        val compiled := CG.compile(file, name_gen, global_info, path_to_generated_code, ungenerated_types, sfg);
+        Util.outputFile(output_path(path), compiled);
+        move_line_up();
     end;
-    backend.preprocess_globals := pg;
-    val cf := fun(file : SFG.SourceFile, generated_path : String[], name_gen : CB.NameGenerator, sfg : SFG.SFGatherer) : String do 
-        CG.compile(file, name_gen, global_info, generated_path, ungenerated_types, sfg)
+
+    TG.compile_types(SFG.file_prefix + join("/", path_to_generated_code) + ".myl", ungenerated_types, name_gen);
+end
+
+fun generate_java_bytecode(sfg : SFG.SFGatherer, name_gen : CB.NameGenerator) do 
+    panic("Java Bytecode backend not yet implemented");
+end
+
+fun dont_generate_code(sfg : SFG.SFGatherer, name_gen : CB.NameGenerator) do 
+    print("Not generating code");
+    // Don't generate code
+end
+
+fun output_path(str : String) : String do 
+    val parts := split(str, "/");
+    var out := "";
+    var need_slash := false;
+    for i in [0..parts.length - 1] do 
+        if need_slash do out := out + "/"; end;
+        val part := parts[i];
+        out := out + part;
+        need_slash := true;
     end;
-    backend.compile_file := cf;
-    val pt := fun(path : String, name_gen : CB.NameGenerator) : Void do 
-        TG.compile_types(path, ungenerated_types, name_gen);
-    end;
-    backend.postprocess_types := pt;
-    backend
-end;
+    val last_part := parts[parts.length-1];
+    out := out + (if need_slash then "/" else "") + "_"+last_part;
+    out
+end
 
 fun choose_backend() : Backend := match IO.Args.backend_name do 
-    case "java" := java_source_backend;
-    case "java-bytecode" := panic("Java bytecode backend not yet implemented");
+    case "java" := generate_java_source;
+    case "java-bytecode" := generate_java_bytecode;
+    case "no-codegen" := dont_generate_code;
     case ? := panic("Internal: unsupported backend "+IO.Args.backend_name);
 end;

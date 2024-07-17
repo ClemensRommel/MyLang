@@ -105,9 +105,6 @@ public class Functions {
 
     public static void __init_runtime(String[] args) {
         var args_list = Arrays.asList(args);
-        if(args.length > 1) {
-            args_list = args_list.subList(1, args.length);
-        }
         __cli_args = new ArrayList<>(args_list);
     }
 

@@ -13,7 +13,8 @@ if run(f"java -jar \"MyLang.jar\" --java mylmyl/{main_file_name}.myl") != 0:
 
 libs = ["asm-9.7.jar"]
 
-run(f"javac -cp .;{';'.join(libs)} mylmyl/_{main_file_name}.java")
+if run(f"javac -cp .;{';'.join(libs)} mylmyl/_{main_file_name}.java") != 0:
+    exit(1)
 
 fd, filename = tempfile.mkstemp()
 try:
