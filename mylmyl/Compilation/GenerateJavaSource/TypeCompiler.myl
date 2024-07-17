@@ -2,7 +2,7 @@ module Compilation.GenerateJavaSource.TypeCompiler;
 
 import Ast := Syntax.Ast;
 import Env := Syntax.Env;
-import CG := Compilation.CodeGenerator;
+import CG := Compilation.GenerateJavaSource.CodeGenerator;
 import SFG := IO.SourceFileGatherer;
 
 fun compile_type(c : CG.Compiler, t : Ast.Type) : String := match t do 

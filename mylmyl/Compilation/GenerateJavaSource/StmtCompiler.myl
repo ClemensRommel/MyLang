@@ -1,6 +1,6 @@
 module Compilation.GenerateJavaSource.StmtCompiler;
 
-import CG := Compilation.CodeGenerator;
+import CG := Compilation.GenerateJavaSource.CodeGenerator;
 import EC := Compilation.GenerateJavaSource.ExprCompiler;
 import DC := Compilation.GenerateJavaSource.DeclCompiler;
 import Ast := Syntax.Ast;

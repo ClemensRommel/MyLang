@@ -10,8 +10,8 @@ public class _array {
     public static String[] null_str_array() {
         return std.ffi.array_help.null_str_array();
     }
-    public static String byteArrayToStr(byte[] __var228) {
-        return std.ffi.array_help.byteArrayToStr(__var228);
+    public static String byteArrayToStr(byte[] __var216) {
+        return std.ffi.array_help.byteArrayToStr(__var216);
     }
     
 }

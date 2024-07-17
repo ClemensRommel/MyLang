@@ -1,10 +1,11 @@
 module Compilation.Backend;
 
 import SFG := IO.SourceFileGatherer;
-import CG := Compilation.CodeGenerator;
+import CG := Compilation.GenerateJavaSource.CodeGenerator;
 import CB := Compilation.CodeBuffers;
-import GVG := Compilation.GlobalVariableGatherer;
-import TG := Compilation.TypeGenerator;
+import JCB := Compilation.GenerateJavaSource.JavaCodeBuffers;
+import GVG := Compilation.GenerateJavaSource.GlobalVariableGatherer;
+import TG := Compilation.GenerateJavaSource.TypeGenerator;
 
 import Env := Syntax.Env;
 
@@ -16,7 +17,7 @@ class Backend where
 end
 
 val java_source_backend : Backend := do 
-    val ungenerated_types := CB.UncreatedTypes();
+    val ungenerated_types := JCB.UncreatedTypes();
     val global_info := Env.AList.[Env.Env(CG.VariableInfo)]();
     val backend := Backend();
     val pg := fun(files : Env.AList(SFG.SourceFile)) do 

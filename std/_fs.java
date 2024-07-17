@@ -8,14 +8,14 @@ import java.util.ArrayList;
 import std.ffi._array;
 
 public class _fs {
-    public static java.nio.file.Path unsafe_create_file_path(String __var210) {
-        return std.fs.open_file(__var210);
+    public static java.nio.file.Path unsafe_create_file_path(String __var198) {
+        return std.fs.open_file(__var198);
     }
     public static std._implicit.Optional<java.nio.file.Path> create_file_path(String path) {
         final java.nio.file.Path unsafe_file;
         unsafe_file = unsafe_create_file_path(path);
-        var __var211 = isNull(unsafe_file);
-        if(__var211) {
+        var __var199 = isNull(unsafe_file);
+        if(__var199) {
             return new std._implicit.None();
             
         } else {
@@ -25,17 +25,17 @@ public class _fs {
         
     }
     
-    public static boolean file_exists(java.nio.file.Path __var212) {
-        return java.nio.file.Files.exists(__var212);
+    public static boolean file_exists(java.nio.file.Path __var200) {
+        return java.nio.file.Files.exists(__var200);
     }
-    public static String unsafe_read_file(java.nio.file.Path __var213) {
-        return std.fs.read_file(__var213);
+    public static String unsafe_read_file(java.nio.file.Path __var201) {
+        return std.fs.read_file(__var201);
     }
     public static std._implicit.Optional<String> read_string(java.nio.file.Path file) {
         final String unsafe_content;
         unsafe_content = unsafe_read_file(file);
-        var __var214 = isNull(unsafe_content);
-        if(__var214) {
+        var __var202 = isNull(unsafe_content);
+        if(__var202) {
             return new std._implicit.None();
             
         } else {
@@ -45,24 +45,24 @@ public class _fs {
         
     }
     
-    public static String unsafe_write_file(java.nio.file.Path __var215, String __var216) {
-        return std.fs.write_to_file(__var215, __var216);
+    public static String unsafe_write_file(java.nio.file.Path __var203, String __var204) {
+        return std.fs.write_to_file(__var203, __var204);
     }
-    public static String unsafe_write_binary(java.nio.file.Path __var217, byte[] __var218) {
-        return std.fs.write_bytearray(__var217, __var218);
+    public static String unsafe_write_binary(java.nio.file.Path __var205, byte[] __var206) {
+        return std.fs.write_bytearray(__var205, __var206);
     }
     public static Void write(java.nio.file.Path file, String new_content) {
         final String err_msg;
         err_msg = unsafe_write_file(file, new_content);
-        var __var219 = isNull(err_msg);
-        final boolean __var220;
-        if(!__var219) {
-            __var220 = !__equal(err_msg, "");
+        var __var207 = isNull(err_msg);
+        final boolean __var208;
+        if(!__var207) {
+            __var208 = !__equal(err_msg, "");
             
         } else {
-            __var220 =  true;
+            __var208 =  true;
         }
-        if(__var220) {
+        if(__var208) {
             {
                 panic(err_msg);
                 
@@ -74,15 +74,15 @@ public class _fs {
     public static Void write_bytes(java.nio.file.Path file, byte[] bytes) {
         final String err_msg;
         err_msg = unsafe_write_binary(file, bytes);
-        var __var221 = isNull(err_msg);
-        final boolean __var222;
-        if(!__var221) {
-            __var222 = !__equal(err_msg, "");
+        var __var209 = isNull(err_msg);
+        final boolean __var210;
+        if(!__var209) {
+            __var210 = !__equal(err_msg, "");
             
         } else {
-            __var222 =  true;
+            __var210 =  true;
         }
-        if(__var222) {
+        if(__var210) {
             {
                 panic(err_msg);
                 
@@ -96,18 +96,18 @@ public class _fs {
         return null;
     }
     
-    public static Void delete(java.nio.file.Path __var223) {
-        std.fs.delete(__var223);
+    public static Void delete(java.nio.file.Path __var211) {
+        std.fs.delete(__var211);
         return null;
     }
     public static std._implicit.Optional<String> open_and_read(String path)  {
-        var __var224 = create_file_path(path);
-        mylmyl.__generated_Main.__var62<java.nio.file.Path, std._implicit.Optional<String>> __var225 = (java.nio.file.Path __var226) -> read_string(__var226);
-        return __var224.flatmap(__var225);
+        var __var212 = create_file_path(path);
+        mylmyl.__generated_Main.__var62<java.nio.file.Path, std._implicit.Optional<String>> __var213 = (java.nio.file.Path __var214) -> read_string(__var214);
+        return __var212.flatmap(__var213);
         
     }
-    public static <T>boolean isNull(T __var227) {
-        return std.BuiltinFunctions.isNull(__var227);
+    public static <T>boolean isNull(T __var215) {
+        return std.BuiltinFunctions.isNull(__var215);
     }
     
 }

@@ -1,10 +1,11 @@
-module Compilation.TypeGenerator;
+module Compilation.GenerateJavaSource.TypeGenerator;
 
 import Util;
 import CB := Compilation.CodeBuffers;
+import JCB := Compilation.GenerateJavaSource.JavaCodeBuffers;
 
 class TypeGenerator where 
-    val buf : CB.StringBuffer := CB.StringBuffer();
+    val buf : JCB.StringBuffer := JCB.StringBuffer();
     val name_gen : CB.NameGenerator;
     new(ng : CB.NameGenerator) do 
         this.name_gen := ng;
@@ -33,7 +34,7 @@ class TypeGenerator where
     fun new_var() : String := this.name_gen.next_name();
 end
 
-fun compile_types(out_path : String, types : CB.UncreatedTypes, name_gen : CB.NameGenerator) do 
+fun compile_types(out_path : String, types : JCB.UncreatedTypes, name_gen : CB.NameGenerator) do 
     val tgen := TypeGenerator(name_gen);
 
     val path_parts := split(out_path, "/");
@@ -65,7 +66,7 @@ fun compile_types(out_path : String, types : CB.UncreatedTypes, name_gen : CB.Na
     Util.outputFile(out_path, tgen.buf.buf.toString());
 end
 
-fun compile_function_type(c : TypeGenerator, ty : CB.UncreatedFunctionType) do 
+fun compile_function_type(c : TypeGenerator, ty : JCB.UncreatedFunctionType) do 
     c.append("@FunctionalInterface public static interface "); c.append(ty.name);
     c.append("<");
     var need_comma := false;
@@ -92,7 +93,7 @@ fun compile_function_type(c : TypeGenerator, ty : CB.UncreatedFunctionType) do
 end
 
 
-fun compile_tuple_type(c : TypeGenerator, ty : CB.UncreatedTupleType) do 
+fun compile_tuple_type(c : TypeGenerator, ty : JCB.UncreatedTupleType) do 
     c.append("public static record "); c.append(ty.name);
     val tys : String[] := if ty.elem_count != 0 then do 
         c.append("<");

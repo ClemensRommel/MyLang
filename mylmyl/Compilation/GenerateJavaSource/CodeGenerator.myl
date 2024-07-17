@@ -1,16 +1,17 @@
-module Compilation.CodeGenerator;
+module Compilation.GenerateJavaSource.CodeGenerator;
 
 import Ast := Syntax.Ast;
 import Env := Syntax.Env;
 import Analyze := Typechecking.Analyze;
 import Util;
 import SFG := IO.SourceFileGatherer;
-import CB := Compilation.CodeBuffers;
-import DC := Compilation.GenerateJavaSource.DeclCompiler;
-import SC := Compilation.GenerateJavaSource.StmtCompiler;
+import CB  := Compilation.CodeBuffers;
+import JCB := Compilation.GenerateJavaSource.JavaCodeBuffers;
+import DC  := Compilation.GenerateJavaSource.DeclCompiler;
+import SC  := Compilation.GenerateJavaSource.StmtCompiler;
 
 class Compiler where 
-    var buf : CB.StringBuffer := CB.StringBuffer();
+    var buf : JCB.StringBuffer := JCB.StringBuffer();
     var name_gen : CB.NameGenerator;
     val sfg : SFG.SFGatherer;
 
@@ -19,7 +20,7 @@ class Compiler where
     var is_generated_interface : Bool := false;
     var expect_ref_ty : Bool := false; // Wether we're currently compiling a type that is a type parameter
 
-    val ungenerated_types : CB.UncreatedTypes;
+    val ungenerated_types : JCB.UncreatedTypes;
 
     var current_env : Ast.Namespace;
 
@@ -35,7 +36,7 @@ class Compiler where
         nameg : CB.NameGenerator, 
         modules : Env.AList(Env.Env(VariableInfo)), 
         gen_mod_path : String,
-        uncreated_types : CB.UncreatedTypes,
+        uncreated_types : JCB.UncreatedTypes,
         the_sfg : SFG.SFGatherer,
         file : SFG.SourceFile) 
     do 
@@ -149,7 +150,7 @@ fun compile(
     name_gen : CB.NameGenerator, 
     infos : Env.AList(Env.Env(VariableInfo)), 
     generated_path : String[], 
-    ungenerated_types : CB.UncreatedTypes,
+    ungenerated_types : JCB.UncreatedTypes,
     the_sfg : SFG.SFGatherer) : String 
 do 
     val path_parts := split(file.path, "/"); // Parts of path

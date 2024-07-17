@@ -1,6 +1,6 @@
-module Compilation.GlobalVariableGatherer;
+module Compilation.Compilation.GenerateJavaSource.GlobalVariableGatherer;
 
-import CG := Compilation.CodeGenerator;
+import CG := Compilation.GenerateJavaSource.CodeGenerator;
 import Ast := Syntax.Ast;
 import Env := Syntax.Env;
 import SFG := IO.SourceFileGatherer;
