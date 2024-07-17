@@ -8,7 +8,7 @@ def run(cmd : str) -> int:
     print(cmd)
     return os.system(cmd)
 
-if run(f"java -jar \"MyLang.jar\" mylmyl/{main_file_name}.myl") != 0:
+if run(f"java -jar \"MyLang.jar\" --java mylmyl/{main_file_name}.myl") != 0:
     exit(1)
 
 libs = ["asm-9.7.jar"]

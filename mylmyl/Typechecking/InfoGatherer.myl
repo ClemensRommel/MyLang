@@ -56,7 +56,7 @@ end
 
 fun add_builtins(file : SFG.SourceFile) do 
     file.names.values.insert("panic", Ast.VarInfo(false, Ast.Function([], [Ast.StringT()], Ast.Never()), "panic", file.names));
-    file.names.values.insert("args", Ast.VarInfo(false, Ast.Function([], [], Ast.ListOf(Ast.StringT())), "args", file.names));
+    //file.names.values.insert("args", Ast.VarInfo(false, Ast.Function([], [], Ast.ListOf(Ast.StringT())), "args", file.names));
     //tc.names.values.insert("join", Ast.VarInfo(false, Ast.Function([], [Ast.StringT(), Ast.ListOf(Ast.StringT())], Ast.StringT()), "join", tc.names));
     //tc.names.values.insert("split", Ast.VarInfo(false, Ast.Function([], [Ast.StringT(), Ast.StringT()], Ast.ListOf(Ast.StringT())), "split", tc.names));
     //tc.names.values.insert("number", Ast.VarInfo(false, Ast.Function([], [Ast.StringT()], Ast.NumberT()), "number", tc.names));

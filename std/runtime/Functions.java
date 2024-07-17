@@ -89,7 +89,14 @@ public class Functions {
     }
 
     public static <A> A panic(String message) {
-        throw new RuntimeException(message);
+        System.err.println("Panicked with :"+message+" at:");
+        Thread.dumpStack();
+        exit(1);
+        throw new RuntimeException("Should have exited by now");
+    }
+
+    public static void exit(int code) {
+        System.exit(code);
     }
 
     public static ArrayList<String> args() {

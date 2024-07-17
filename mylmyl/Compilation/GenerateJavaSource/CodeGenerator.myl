@@ -132,7 +132,7 @@ end
 fun declare_builtins(c : Compiler) do 
     val p := c.current_env.module_path;
     c.env.insert("panic", do val panic_info := VariableInfo(p); panic_info.is_no_fc_fn := true; panic_info end);
-    c.env.insert("args", do val args_info := VariableInfo(p); args_info.is_no_fc_fn := true; args_info end);
+    //c.env.insert("args", do val args_info := VariableInfo(p); args_info.is_no_fc_fn := true; args_info end);
     //c.env.insert("join", do val join_info := VariableInfo(p); join_info.is_no_fc_fn := true; join_info end);
     //c.env.insert("split", do val split_info := VariableInfo(p); split_info.is_no_fc_fn := true; split_info end);
     //c.env.insert("number", do val number_info := VariableInfo(p); number_info.is_no_fc_fn := true; number_info end);

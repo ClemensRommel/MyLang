@@ -5,6 +5,7 @@ import Parser := Parsing.Parser;
 import Ast := Syntax.Ast;
 import Env := Syntax.Env;
 import fs := std.fs;
+import IO.Args;
 
 class SFGatherer where 
     val files_not_found : String[] := [];
@@ -62,15 +63,16 @@ fun get_all_files(sfg : SFGatherer, starting_file : String) do
     end
 end
 
-fun generated_code_path(starting_file : String) : String[] do 
-    val parts := split(starting_file, "/");
+fun generated_code_path() : String[] do 
+    val parts := split(IO.Args.main_file_path, "/");
     val file_name := "__generated_"+split(parts.last, "\\.").first;
     [file_name]
 end
 
 val std_implicit_path : String := "std/implicit.myl";
 
-fun gather_files(start : String) : SFGatherer do 
+fun gather_files() : SFGatherer do 
+    val start := IO.Args.main_file_path;
     val sfg := SFGatherer();
     file_prefix := file_path_prefix(start);
     process_file(sfg, std_implicit_path); // Process first, as its needed for other files

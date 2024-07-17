@@ -6,27 +6,38 @@ import Typechecking.InfoGatherer;
 import Desugar := Compilation.Desugar;
 import SFG := IO.SourceFileGatherer;
 import Util;
-import asm;
 import Backend := Compilation.Backend;
+import Env := Syntax.Env;
+
+import IO.Args;
 
 fun main() do 
-    val cli_args := args();
-    if cli_args.length != 1 do 
-        panic("Invalid argument count: Only 1 is allowed (input file)");
-    end
-    val sfg := SFG.gather_files(cli_args[0]);
+    IO.Args.process_args();
+    val sfg := SFG.gather_files();
+    typecheck(sfg);
+    compile(sfg);
+    print("Done");
+end
+
+fun typecheck(sfg : SFG.SFGatherer) do 
     val files := sfg.parsed_sourcefiles;
-    val path_to_generated_code := SFG.generated_code_path(cli_args[0]);
     for (?, file) in files.bindings do 
         Typechecking.InfoGatherer.declare_globals(sfg, file);
     end;
     for (?, file) in files.bindings do
         Typechecking.Typechecker.typecheck(sfg, file);
     end;
+end;
+
+fun compile(sfg : SFG.SFGatherer) do 
+    val files := sfg.parsed_sourcefiles;
+    val path_to_generated_code := SFG.generated_code_path();
     val name_gen := CB.NameGenerator();
+
     for (?, file) in files.bindings do 
         Desugar.desugar((file.undesugared_exprs, file.undesugared_decls, file.undesugared_stmts), name_gen);
     end;
+
     val backend := Backend.choose_backend();
     backend.preprocess_globals(files);
     for (path, file) in files.bindings do 
@@ -36,8 +47,7 @@ fun main() do
         move_line_up();
     end;
     backend.postprocess_types(SFG.file_prefix + join("/", path_to_generated_code) + ".myl", name_gen);
-    print("Done");
-end
+end;
 
 fun output_path(str : String) : String do 
     val parts := split(str, "/");

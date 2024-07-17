@@ -1,0 +1,4 @@
+module std.process;
+
+native fun exit(Int) := "std.runtime.Functions.exit";
+native fun args() : String[] := "std.runtime.Functions.args";

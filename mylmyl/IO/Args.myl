@@ -1,0 +1,44 @@
+module IO.Args;
+
+import std.process;
+
+var main_file_path : String := "";
+var backend_name : String := "java";
+
+fun process_args() do 
+    val cli_args := std.process.args();
+    process_initial_args(0, cli_args);
+    
+end;
+
+fun process_initial_args(index : Number, cli_args : String[]) do 
+    if cli_args.length <= index do 
+        print_usage();
+        return null;
+    end;
+    if cli_args[index] = "--java" then do 
+        backend_name := "java";
+        process_file_args(index + 1, cli_args);
+    end else if cli_args[index] = "--jbc" then do 
+        backend_name := "java-bytecode";
+        process_file_args(index + 1, cli_args);
+    end else do 
+        process_file_args(index, cli_args);
+    end
+end
+
+fun process_file_args(index : Number, cli_args : String[]) do 
+    if cli_args.length <= index do // Not enough arguments left
+        print_usage();
+        return null;
+    end;
+    main_file_path := cli_args[index];
+end
+
+fun print_usage() do 
+    print("java -jar MyLang.jar [backend] <main source file>");
+    print("backend: ");
+    print("    --java       Generate java source code");
+    print("    --jbc        Generate java bytecode/class files");
+    std.process.exit(1i);
+end

@@ -7,6 +7,9 @@ import JCB := Compilation.GenerateJavaSource.JavaCodeBuffers;
 import GVG := Compilation.GenerateJavaSource.GlobalVariableGatherer;
 import TG := Compilation.GenerateJavaSource.TypeGenerator;
 
+import asm;
+import IO.Args;
+
 import Env := Syntax.Env;
 
 class Backend where 
@@ -35,4 +38,8 @@ val java_source_backend : Backend := do
     backend
 end;
 
-fun choose_backend() : Backend := java_source_backend;
+fun choose_backend() : Backend := match IO.Args.backend_name do 
+    case "java" := java_source_backend;
+    case "java-bytecode" := panic("Java bytecode backend not yet implemented");
+    case ? := panic("Internal: unsupported backend "+IO.Args.backend_name);
+end;
