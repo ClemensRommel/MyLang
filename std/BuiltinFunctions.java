@@ -58,4 +58,7 @@ public class BuiltinFunctions {
     public static int int_from_number(double d) {
         return (int) d;
     }
+    public static float float_from_number(double d) {
+        return (float) d;
+    }
 }

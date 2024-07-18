@@ -10,6 +10,9 @@ fun pattern(p : P.Parser) : Ast.Pattern :=
     if p.matches_type(Tokenizer.NUMBER_LITERAL()) then do 
         val token := p.previous();
         Ast.NumericPattern(number(token.src))
+    end else if p.matches_type(Tokenizer.MINUS()) then do 
+        val token := p.consume(Tokenizer.NUMBER_LITERAL(), "Expect number after - in pattern");
+        Ast.NumericPattern(-number(token.src))
     end else if p.matches_type(Tokenizer.STRING_LITERAL()) then do 
         val token := p.previous();
         Ast.StringPattern(token.src)

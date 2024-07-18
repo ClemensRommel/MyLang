@@ -9,5 +9,5 @@ fun A(k : Number, x1 : Fun() : Number, x2 : Fun() : Number, x3 : Fun() : Number,
 end
 
 fun main() : Void do
-    print A(10, fun() : Number := 1, fun() : Number := -1, fun() : Number := -1, fun() : Number := 1, fun() : Number := 0);
+    print(""+A(10, fun() : Number := 1, fun() : Number := -1, fun() : Number := -1, fun() : Number := 1, fun() : Number := 0));
 end

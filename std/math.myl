@@ -1,0 +1,13 @@
+module std.math;
+
+native fun number_to_float(Number) : Float := "(float)";
+native fun number_to_long(Number) : Long := "(long)";
+native fun number_to_int(Number) : Int := "(int)";
+
+native fun float_to_number(Float) : Number := "(double)";
+native fun float_to_long(Float) : Long := "(long)";
+native fun float_to_int(Float) : Int := "(int)";
+
+native fun int_to_number(Int) : Number := "(double)";
+native fun int_to_long(Int) : Long := "(long)";
+native fun int_to_float(Int) : Float := "(float)";

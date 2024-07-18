@@ -7,8 +7,8 @@ import java.util.ArrayList;
 
 
 public class _process {
-    public static Void exit(int __var894) {
-        std.runtime.Functions.exit(__var894);
+    public static Void exit(int __var899) {
+        std.runtime.Functions.exit(__var899);
         return null;
     }
     public static ArrayList<String> args() {

@@ -260,10 +260,10 @@ fun compile_imports(c : Compiler, imports : Ast.Import[], path_parts : String[])
     for i in imports do 
         match i do 
             case BasicImport(parts) := do 
-                compile_basic_import(parts);
+                //compile_basic_import(parts);
             end;
             case AliasImport(alias, parts) := do 
-                compile_basic_import(parts); // TODO: Alias deklarieren
+                //compile_basic_import(parts); // TODO: Alias deklarieren
             end;
         end;
     end;

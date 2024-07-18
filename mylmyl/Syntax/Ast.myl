@@ -181,6 +181,10 @@ fun param_types(params : Parameter[]) : Type[] :=
         end
     end;
 
+fun param_name(param : Parameter) : String := match param do 
+        case NormalParam(name, ?) := name;
+    end;
+
 class Program where 
     val imports : Import[] := [];
     val decls : Decl[] := [];

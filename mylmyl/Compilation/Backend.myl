@@ -1,11 +1,14 @@
 module Compilation.Backend;
 
 import SFG := IO.SourceFileGatherer;
-import CG := Compilation.GenerateJavaSource.CodeGenerator;
 import CB := Compilation.CodeBuffers;
+
+import JCG := Compilation.GenerateJavaSource.CodeGenerator;
 import JCB := Compilation.GenerateJavaSource.JavaCodeBuffers;
-import GVG := Compilation.GenerateJavaSource.GlobalVariableGatherer;
-import TG := Compilation.GenerateJavaSource.TypeGenerator;
+import JVG := Compilation.GenerateJavaSource.GlobalVariableGatherer;
+import JTG := Compilation.GenerateJavaSource.TypeGenerator;
+
+import BCG := Compilation.GenerateJavaBytecode.CodeGenerator;
 
 import asm;
 import IO.Args;
@@ -17,24 +20,30 @@ type Backend := Fun(SFG.SFGatherer, CB.NameGenerator) : Void;
 
 fun generate_java_source(sfg : SFG.SFGatherer, name_gen : CB.NameGenerator) do 
     val ungenerated_types := JCB.UncreatedTypes();
-    val global_info := Env.AList.[Env.Env(CG.VariableInfo)]();
+    val global_info := Env.AList.[Env.Env(JCG.VariableInfo)]();
     val files := sfg.parsed_sourcefiles;
     val path_to_generated_code := SFG.generated_code_path();
 
-    GVG.gather_global_variable_info(files, global_info);
+    JVG.gather_global_variable_info(files, global_info);
 
     for (path, file) in files.bindings do 
         print("== Compiling "+path+" ==");
-        val compiled := CG.compile(file, name_gen, global_info, path_to_generated_code, ungenerated_types, sfg);
+        val compiled := JCG.compile(file, name_gen, global_info, path_to_generated_code, ungenerated_types, sfg);
         Util.outputFile(output_path(path), compiled);
         move_line_up();
     end;
 
-    TG.compile_types(SFG.file_prefix + join("/", path_to_generated_code) + ".myl", ungenerated_types, name_gen);
+    JTG.compile_types(SFG.file_prefix + join("/", path_to_generated_code) + ".myl", ungenerated_types, name_gen);
 end
 
 fun generate_java_bytecode(sfg : SFG.SFGatherer, name_gen : CB.NameGenerator) do 
-    panic("Java Bytecode backend not yet implemented");
+    val files := sfg.parsed_sourcefiles;
+
+    for (path, file) in files.bindings do 
+        print("== Compiling "+path+" ==");
+        BCG.compile(file, split(output_path(path), "\\.").first, name_gen, sfg);
+        move_line_up();
+    end
 end
 
 fun dont_generate_code(sfg : SFG.SFGatherer, name_gen : CB.NameGenerator) do 

@@ -1,0 +1,72 @@
+module Compilation.GenerateJavaBytecode.ExprCompiler;
+
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+
+import asm;
+import ffiarray := std.ffi.array;
+import math := std.math;
+
+fun compile_expr(mv : asm.MethodVisitor, expr : Ast.Expr) := match expr do 
+    case DesugarableExpr(me) := compile_expr(mv, me.get());
+    case StringLiteral(value) := do // Push constant on stack
+        mv.visitLdcInsn(asm.field_init_value_string(value));
+    end;
+    case NumberLiteral(value, ty) := compile_number_literal(mv, value, ty);
+    case Boolean(value) := if value then do 
+        mv.visitInsn(asm.ICONST_1);
+    end else do 
+        mv.visitInsn(asm.ICONST_0);
+    end; 
+    case NullLiteral() := mv.visitInsn(asm.ACONST_NULL);
+    case ? := panic("Cannot compile expression "+expr+" yet");
+end;
+
+fun compile_number_literal(mv : asm.MethodVisitor, value : Number, ty : Ast.NumberType) := match ty do 
+        case F64() := match value do 
+            case 0 := mv.visitInsn(asm.DCONST_0);
+            case 1 := mv.visitInsn(asm.DCONST_1);
+            case ? := mv.visitLdcInsn(asm.field_init_value_number(value));
+        end;
+        case F32() := match value do 
+            case 0 := mv.visitInsn(asm.FCONST_0);
+            case 1 := mv.visitInsn(asm.FCONST_1);
+            case 2 := mv.visitInsn(asm.FCONST_2);
+            case ? := mv.visitLdcInsn(asm.const_float(math.number_to_float(value)));
+        end;
+        case I64() := match value do 
+            case 0 := mv.visitInsn(asm.LCONST_0);
+            case 1 := mv.visitInsn(asm.LCONST_1);
+            case ? := mv.visitLdcInsn(asm.field_init_value_long(math.number_to_long(value)));
+        end;
+        case I32() := match value do 
+            case -1 := mv.visitInsn(asm.ICONST_M1);
+            case 0 := mv.visitInsn(asm.ICONST_0);
+            case 1 := mv.visitInsn(asm.ICONST_1);
+            case 2 := mv.visitInsn(asm.ICONST_2);
+            case 3 := mv.visitInsn(asm.ICONST_3);
+            case 4 := mv.visitInsn(asm.ICONST_4);
+            case 5 := mv.visitInsn(asm.ICONST_5);
+            case ? := mv.visitLdcInsn(asm.field_init_value_int(math.number_to_int(value)));
+        end;
+        case I16() := match value do 
+            case -1 := mv.visitInsn(asm.ICONST_M1);
+            case 0 := mv.visitInsn(asm.ICONST_0);
+            case 1 := mv.visitInsn(asm.ICONST_1);
+            case 2 := mv.visitInsn(asm.ICONST_2);
+            case 3 := mv.visitInsn(asm.ICONST_3);
+            case 4 := mv.visitInsn(asm.ICONST_4);
+            case 5 := mv.visitInsn(asm.ICONST_5);
+            case ? := mv.visitLdcInsn(asm.field_init_value_int(math.number_to_int(value)));
+        end;
+        case I8() := match value do 
+            case -1 := mv.visitInsn(asm.ICONST_M1);
+            case 0 := mv.visitInsn(asm.ICONST_0);
+            case 1 := mv.visitInsn(asm.ICONST_1);
+            case 2 := mv.visitInsn(asm.ICONST_2);
+            case 3 := mv.visitInsn(asm.ICONST_3);
+            case 4 := mv.visitInsn(asm.ICONST_4);
+            case 5 := mv.visitInsn(asm.ICONST_5);
+            case ? := mv.visitLdcInsn(asm.field_init_value_int(math.number_to_int(value)));
+        end;
+    end;

@@ -1,0 +1,76 @@
+module Compilation.GenerateJavaBytecode.DeclCompiler;
+
+import SFG := IO.SourceFileGatherer;
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+import EC := Compilation.GenerateJavaBytecode.ExprCompiler;
+
+import asm;
+import ffiarray := std.ffi.array;
+
+fun compile_decl(cw : asm.ClassWriter, className : String, decl : Ast.Decl) := match decl do 
+    case EmptyDecl() := do end;
+    case DesugarableDecl(md) := compile_decl(cw, className, md.get());
+    case FunDecl(name, typarams, params, rettype, body, exported, nmspc) := do 
+        val mv := cw.visitMethod(asm.ACC_PUBLIC + asm.ACC_STATIC, name, 
+                                 method_descriptor(typarams, params, rettype), 
+                                 method_signature(typarams, params, rettype), 
+                                 ffiarray.null_str_array());
+        function_parameters(mv, typarams, params);
+        mv.visitCode();
+        compile_function_body(mv, body);
+        mv.visitEnd();
+        if name = "main" and params = [] and rettype = Ast.VoidT() do 
+            val main_mv := cw.visitMethod(asm.ACC_PUBLIC + asm.ACC_STATIC, "main", "([Ljava/lang/String;)V", asm.null_str(), ffiarray.null_str_array());
+            main_mv.visitParameter("args", 0i);
+            main_mv.visitCode();
+            main_mv.visitMethodInsn(asm.INVOKESTATIC, className, "main", "()Ljava/lang/Void;", false);
+            main_mv.visitInsn(asm.RETURN);
+            main_mv.visitMaxs(0i, 0i);
+            main_mv.visitEnd();
+        end;
+    end;
+    case ? := panic("Unimplemented declaration type: "+decl);
+end;
+
+fun method_descriptor(typarams : Ast.TypeParameter[], params :  Ast.Parameter[], rettype :  Ast.Type) : String do
+    "("+join("", for param_ty in Ast.param_types(params) do type_descriptor(param_ty) end) + ")" + type_descriptor(rettype)
+end
+
+fun type_descriptor(ty : Ast.Type) : String := match ty do 
+    case Numeric(num_ty) := match num_ty do 
+        case F64() := "D";
+        case F32() := "F";
+        case I64() := "J";
+        case I32() := "I";
+        case I16() := "S";
+        case I8() := "B";
+    end;
+    case BooleanT() := "Z";
+    case StringT() := "Ljava/lang/String;";
+    case VoidT() := "Ljava/lang/Void;";
+    case Any() := "Ljava/lang/Object;";
+    case ListOf(?)  := "Ljava/util/ArrayList;";
+    case Never() := "Ljava/lang/Object;";
+    case ? := panic("Cannot create type decriptor for "+ty+" yet");
+end;
+
+fun method_signature(typarams : Ast.TypeParameter[], params : Ast.Parameter[], rettype : Ast.Type) : String do 
+    // TODO: Generics
+    asm.null_str()
+end
+
+fun function_parameters(mv : asm.MethodVisitor, typarams : Ast.TypeParameter[], params : Ast.Parameter[]) do 
+    for param in params do 
+        mv.visitParameter(Ast.param_name(param), asm.ACC_FINAL);
+    end
+end
+
+fun compile_function_body(mv : asm.MethodVisitor, body : Ast.Expr) do 
+    mv.visitFieldInsn(asm.GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
+    mv.visitLdcInsn(asm.field_init_value_string("Hello World"));
+    mv.visitMethodInsn(asm.INVOKEVIRTUAL, "java/io/PrintStream", "println", "(Ljava/lang/String;)V", false);
+    mv.visitInsn(asm.ACONST_NULL);
+    mv.visitInsn(asm.ARETURN);
+    mv.visitMaxs(0i, 0i);
+end

@@ -1,0 +1,40 @@
+module Compilation.GenerateJavaBytecode.CodeGenerator;
+
+import SFG := IO.SourceFileGatherer;
+import CB := Compilation.CodeBuffers;
+
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+
+import DC := Compilation.GenerateJavaBytecode.DeclCompiler;
+
+import ffiarray := std.ffi.array;
+import fs := std.fs;
+
+import asm;
+
+fun compile(
+    file : SFG.SourceFile,
+    path_no_extension : String,
+    name_gen : CB.NameGenerator,
+    sfg : SFG.SFGatherer
+)
+do 
+    val path_parts := split(file.path, "/");
+    val file_name_parts := split(path_parts.last, "\\.");
+    val file_name := file_name_parts.first;
+
+    val cw := asm.ClassWriter(asm.COMPUTE_FRAMES + asm.COMPUTE_MAXS);
+    cw.visit(asm.V21, asm.ACC_PUBLIC, path_no_extension, asm.null_str(), "java/lang/Object", ffiarray.null_str_array());
+    if file_name = "implicit" do return null; end;
+    for decl in file.ast.decls do 
+        // compile declaration
+        DC.compile_decl(cw, path_no_extension, decl);
+    end;
+
+    cw.visitEnd();
+    val res := cw.toByteArray();
+
+    val Some(path) := fs.create_file_path(path_no_extension+".class") else panic("Could not create class path for "+path_no_extension);
+    fs.write_bytes(path, res);
+end
