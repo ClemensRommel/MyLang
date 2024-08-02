@@ -32,8 +32,8 @@ fun check(tc : TC.Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
             panic("Names may not start with __: '"+name+"'")
         end;
     end;
-    case BinaryOperation(op, lhs, rhs) := check_binary(tc, t, op, lhs, rhs);
-    case UnaryOperation(op, operand) := check_unary(tc, t, op, operand);
+    case BinaryOperation(op, lhs, rhs, lty) := check_binary(tc, t, op, lhs, rhs, lty);
+    case UnaryOperation(op, operand, lty) := check_unary(tc, t, op, operand, lty);
     case IfExpr(linit, cond, thenBr, elseBr) := do 
         linit.init(t);
         tc.open_scope();
@@ -130,48 +130,49 @@ fun check(tc : TC.Typechecker, e : Ast.Expr, t : Ast.Type) := match e do
     end;
 end;
 
-fun check_binary(tc : TC.Typechecker, t : Ast.Type, op : Ast.BinOp, lhs : Ast.Expr, rhs : Ast.Expr) do 
+fun check_binary(tc : TC.Typechecker, t : Ast.Type, op : Ast.BinOp, lhs : Ast.Expr, rhs : Ast.Expr, lty : Ast.LateType) do 
     match op do 
-        case LessThan() := check_comparison(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
-        case LessEqual() := check_comparison(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
-        case GreaterThan() := check_comparison(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
-        case GreaterEqual() := check_comparison(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
-        case Equals() := check_equality(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
-        case NotEquals() := check_equality(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
-        case And() := check_boolean_op(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
-        case Or() := check_boolean_op(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
-        case Xor() := check_boolean_op(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
-        case ? := check_basic_math(tc, t, Ast.BinaryOperation(op, lhs, rhs), lhs, rhs);
+        case LessThan() := check_comparison(tc, t, Ast.BinaryOperation(op, lhs, rhs, lty), lhs, rhs, lty);
+        case LessEqual() := check_comparison(tc, t, Ast.BinaryOperation(op, lhs, rhs, lty), lhs, rhs, lty);
+        case GreaterThan() := check_comparison(tc, t, Ast.BinaryOperation(op, lhs, rhs, lty), lhs, rhs, lty);
+        case GreaterEqual() := check_comparison(tc, t, Ast.BinaryOperation(op, lhs, rhs, lty), lhs, rhs, lty);
+        case Equals() := check_equality(tc, t, Ast.BinaryOperation(op, lhs, rhs, lty), lhs, rhs, lty);
+        case NotEquals() := check_equality(tc, t, Ast.BinaryOperation(op, lhs, rhs, lty), lhs, rhs, lty);
+        case And() := check_boolean_op(tc, t, Ast.BinaryOperation(op, lhs, rhs, lty), lhs, rhs, lty);
+        case Or() := check_boolean_op(tc, t, Ast.BinaryOperation(op, lhs, rhs, lty), lhs, rhs, lty);
+        case Xor() := check_boolean_op(tc, t, Ast.BinaryOperation(op, lhs, rhs, lty), lhs, rhs, lty);
+        case ? := check_basic_math(tc, t, Ast.BinaryOperation(op, lhs, rhs, lty), lhs, rhs, lty);
     end;
 end
 
-fun check_boolean_op(tc : TC.Typechecker, t : Ast.Type, e : Ast.Expr, lhs : Ast.Expr, rhs : Ast.Expr) do 
+fun check_boolean_op(tc : TC.Typechecker, t : Ast.Type, e : Ast.Expr, lhs : Ast.Expr, rhs : Ast.Expr, lty : Ast.LateType) do 
     tc.require_assigneable(t, Ast.BooleanT(), TC.lazy_str(e));
+    lty.init(Ast.BooleanT());
     check(tc, lhs, t);
     check(tc, rhs, t);
 end
 
-fun check_equality(tc : TC.Typechecker, t : Ast.Type, e : Ast.Expr, lhs : Ast.Expr, rhs : Ast.Expr) do 
+fun check_equality(tc : TC.Typechecker, t : Ast.Type, e : Ast.Expr, lhs : Ast.Expr, rhs : Ast.Expr, lty : Ast.LateType) do 
     tc.require_assigneable(t, Ast.BooleanT(), TC.lazy_str(e));
     val left_ty := EI.infer(tc, lhs);
+    lty.init(left_ty);
     check(tc, rhs, left_ty);
 end
 
-fun check_comparison(tc : TC.Typechecker, t : Ast.Type, e : Ast.Expr, lhs : Ast.Expr, rhs : Ast.Expr) do 
+fun check_comparison(tc : TC.Typechecker, t : Ast.Type, e : Ast.Expr, lhs : Ast.Expr, rhs : Ast.Expr, lty : Ast.LateType) do 
     tc.require_assigneable(t, Ast.BooleanT(), TC.lazy_str(e));
     val left_ty := EI.infer(tc, lhs);
+    lty.init(left_ty);
     tc.require_numeric(left_ty, TC.lazy_str(lhs));
     check(tc, rhs, left_ty);
 end
 
-fun check_basic_math(tc : TC.Typechecker, t : Ast.Type, e : Ast.Expr, lhs : Ast.Expr, rhs : Ast.Expr) do 
+fun check_basic_math(tc : TC.Typechecker, t : Ast.Type, e : Ast.Expr, lhs : Ast.Expr, rhs : Ast.Expr, lty : Ast.LateType) do 
     if val Numeric(nty) := t then do 
         check(tc, lhs, t);
         check(tc, rhs, t);
-        if val BinaryOperation(Add(lty), ?, ?) := e do 
-            lty.init(t);
-        end;
-    end else if val BinaryOperation(Add(lty), ?, ?) := e then do 
+        lty.init(t);
+    end else if val BinaryOperation(Add(), ?, ?, ?) := e then do 
         val lhs_ty := EI.infer(tc, lhs);
         if val Numeric(?) := lhs_ty then do 
             check(tc, rhs, lhs_ty);
@@ -187,23 +188,23 @@ fun check_basic_math(tc : TC.Typechecker, t : Ast.Type, e : Ast.Expr, lhs : Ast.
         tc.require_numeric(lhs_ty, TC.lazy_str(lhs));
         check(tc, rhs, lhs_ty);
         tc.require_assigneable(t, lhs_ty, TC.lazy_str(e));
+        lty.init(lhs_ty);
     end
 end
 
-fun check_unary(tc : TC.Typechecker, t : Ast.Type, op : Ast.UnOp, operand : Ast.Expr) do 
+fun check_unary(tc : TC.Typechecker, t : Ast.Type, op : Ast.UnOp, operand : Ast.Expr, lty : Ast.LateType) do 
     match op do 
-        case Plus() := do 
-            tc.require_numeric(t, TC.lazy_str(Ast.UnaryOperation(op, operand)));
-            check(tc, operand, t);
-        end;
-        case Minus() := do 
-            tc.require_numeric(t, TC.lazy_str(Ast.UnaryOperation(op, operand)));
-            check(tc, operand, t);
-        end;
         case Not() := do 
-            tc.require_assigneable(t, Ast.BooleanT(), TC.lazy_str(Ast.UnaryOperation(op, operand)));
+            tc.require_assigneable(t, Ast.BooleanT(), TC.lazy_str(Ast.UnaryOperation(op, operand, lty)));
             check(tc, operand, Ast.BooleanT());
+            lty.init(Ast.BooleanT());
         end;
+        case ? := do 
+            tc.require_numeric(t, TC.lazy_str(Ast.UnaryOperation(op, operand, lty)));
+            check(tc, operand, t);
+            lty.init(t);
+        end;
+        
     end;
 end
 

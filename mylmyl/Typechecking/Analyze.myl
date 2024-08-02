@@ -25,8 +25,8 @@ fun mentions_var(expr : Ast.Expr, name : String) : Bool := match expr do
     case Boolean(?) := false;
     case NullLiteral() := false;
     case Identifier(n, ?) := n = name;
-    case BinaryOperation(?, left, right) := mentions_var(left, name) or mentions_var(right, name);
-    case UnaryOperation(?, part) := mentions_var(part, name);
+    case BinaryOperation(?, left, right, ?) := mentions_var(left, name) or mentions_var(right, name);
+    case UnaryOperation(?, part, ?) := mentions_var(part, name);
     case FunctionCall(callee, called) := mentions_var(callee, name) or 
                                          any.[Ast.Expr](called, fun(t : Ast.Expr) : Bool := mentions_var(t, name));
                                         // Name shadowing is not allowed. If it will be, this has to change
@@ -173,11 +173,11 @@ end
 fun analyze_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do 
     match expr do 
         case DesugarableExpr(content) := analyze_expr(scan_env, content.get());
-        case BinaryOperation(?, left, right) := do 
+        case BinaryOperation(?, left, right, ?) := do 
             analyze_expr(scan_env, left);
             analyze_expr(scan_env, right);
         end;
-        case UnaryOperation(?, operand) := analyze_expr(scan_env, operand);
+        case UnaryOperation(?, operand, ?) := analyze_expr(scan_env, operand);
         case FunctionCall(callee, call_args) := do 
             analyze_expr(scan_env, callee);
             for arg in call_args do 
@@ -243,11 +243,11 @@ end
 fun scan_expr(scan_env : Env.AList(Bool), expr : Ast.Expr) do 
     match expr do 
         case DesugarableExpr(content) := scan_expr(scan_env, content.get());
-        case BinaryOperation(?, left, right) := do 
+        case BinaryOperation(?, left, right, ?) := do 
             scan_expr(scan_env, left);
             scan_expr(scan_env, right);
         end;
-        case UnaryOperation(?, operand) := scan_expr(scan_env, operand);
+        case UnaryOperation(?, operand, ?) := scan_expr(scan_env, operand);
         case FunctionCall(callee, call_args) := do 
             scan_expr(scan_env, callee);
             for arg in call_args do 

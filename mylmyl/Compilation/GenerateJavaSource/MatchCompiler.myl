@@ -60,6 +60,18 @@ fun compile_pattern(c : CG.Compiler, pattern : Ast.Pattern, matched_ty : Ast.Typ
     end else if val NumericPattern(n) := pattern then do 
         val temp := c.new_var();
         c.append("Double "+temp+" when "+temp+" == "+n);
+    end else if val WildcardPattern() := pattern then do 
+        match matched_ty do 
+            case Numeric(F64()) := do 
+                c.append("Double "); c.append(c.new_var());
+            end;
+            case Numeric(F32()) := do 
+                c.append("Float "); c.append(c.new_var());
+            end;
+            case ? := do 
+                c.append(TC.compile_type(c, matched_ty)); c.append(" "); c.append(c.new_var());
+            end;
+        end;
     end else if val NamePattern(n) := pattern then do 
         val info := CG.VariableInfo(c.current_env.module_path);
         c.env.insert(n, info);
@@ -107,7 +119,9 @@ fun compile_complex_pattern(
         c.env.insert(n, info);
         c.append(TC.compile_type(c, matched_ty)+" "+n);
     end;
-    case WildcardPattern() := c.append(TC.compile_type(c, matched_ty)+" "+c.new_var());
+    case WildcardPattern() := do
+        c.append(TC.compile_type(c, matched_ty)+" "+c.new_var());
+    end;
     case ConstructorPattern(name, subpatterns, constr, lenum_ty, linf) := do 
         val enum_info := linf.get();
         val scope := Ast.scope_of_info(enum_info, c.current_env); // Just any namespace, won't be use

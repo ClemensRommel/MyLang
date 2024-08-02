@@ -67,10 +67,6 @@ fun function_parameters(mv : asm.MethodVisitor, typarams : Ast.TypeParameter[], 
 end
 
 fun compile_function_body(mv : asm.MethodVisitor, body : Ast.Expr) do 
-    mv.visitFieldInsn(asm.GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;");
-    mv.visitLdcInsn(asm.field_init_value_string("Hello World"));
-    mv.visitMethodInsn(asm.INVOKEVIRTUAL, "java/io/PrintStream", "println", "(Ljava/lang/String;)V", false);
-    mv.visitInsn(asm.ACONST_NULL);
-    mv.visitInsn(asm.ARETURN);
-    mv.visitMaxs(0i, 0i);
+    EC.compile_expr(mv, body);
+    mv.visitInsn(asm.POP); // Pop result value, return not implemented yet
 end

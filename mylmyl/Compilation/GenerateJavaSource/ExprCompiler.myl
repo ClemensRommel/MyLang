@@ -25,8 +25,8 @@ fun compile_expr(c : CG.Compiler, expr : Ast.Expr, target : CG.Target) : String 
     case Boolean(b) := use_with_target(c, if b then "true" else "false", target);
     case NullLiteral() := use_with_target(c, "null", target);
     case Identifier(name, lty) := compile_identifier(c, name, lty.get(), target);
-    case BinaryOperation(op, left, right) := compile_binary(c, op, left, right, target);
-    case UnaryOperation(op, operand) := compile_unary(c, op, operand, target);
+    case BinaryOperation(op, left, right, op_type) := compile_binary(c, op, left, right, op_type, target);
+    case UnaryOperation(op, operand, ?) := compile_unary(c, op, operand, target);
     case IfExpr(lt, cond, thenBr, elseBr) := compile_if(c, lt.get(), cond, thenBr, elseBr, target);
     case BlockExpr(stmts, end_expr, lt, lenv) := compile_block(c, stmts, end_expr, lt.get(), lenv.get(), target);
     case ForExpr(loop_var, iterated, body, lenv, lt, lit) := compile_for(c, loop_var, 
@@ -223,6 +223,7 @@ fun compile_binary(
     op : Ast.BinOp, 
     left : Ast.Expr,
     right : Ast.Expr,
+    op_type : Ast.LateType,
     target : CG.Target
 ) : String 
 do 
@@ -237,7 +238,7 @@ do
     val operation := do 
         val lhs := compile_expr(c, left, CG.UsedDirectly());
         val rhs := compile_expr(c, right, CG.UsedDirectly());
-        compile_bin_op(op, lhs, rhs)
+        compile_bin_op(op, lhs, rhs, op_type)
     end;
     match target do 
         case Return() := do 
@@ -293,8 +294,8 @@ fun compile_lazy_binary(c : CG.Compiler, op : Ast.BinOp, left : Ast.Expr, right 
     end
 end
 
-fun compile_bin_op(op : Ast.BinOp, lhs : String, rhs : String) : String := match op do 
-    case Add(lty) := match lty.get() do 
+fun compile_bin_op(op : Ast.BinOp, lhs : String, rhs : String, lty : Ast.LateType) : String := match op do 
+    case Add() := match lty.get() do 
         case Numeric(?) := lhs + "+" + rhs;
         case StringT() := "__stringify("+lhs+")+__stringify("+rhs+")";
     end;

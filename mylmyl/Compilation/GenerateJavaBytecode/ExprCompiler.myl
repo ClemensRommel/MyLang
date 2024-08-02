@@ -3,9 +3,12 @@ module Compilation.GenerateJavaBytecode.ExprCompiler;
 import Ast := Syntax.Ast;
 import Env := Syntax.Env;
 
+import SC := Compilation.GenerateJavaBytecode.StmtCompiler;
+
 import asm;
 import ffiarray := std.ffi.array;
 import math := std.math;
+import Util;
 
 fun compile_expr(mv : asm.MethodVisitor, expr : Ast.Expr) := match expr do 
     case DesugarableExpr(me) := compile_expr(mv, me.get());
@@ -18,55 +21,236 @@ fun compile_expr(mv : asm.MethodVisitor, expr : Ast.Expr) := match expr do
     end else do 
         mv.visitInsn(asm.ICONST_0);
     end; 
-    case NullLiteral() := mv.visitInsn(asm.ACONST_NULL);
+    case BinaryOperation(op, lhs, rhs, lty) := compile_binary(mv, expr, op, lhs, rhs, lty);
+    case UnaryOperation(op, operand, lty) := match op do 
+        case Plus() := compile_expr(mv, operand);
+        case Minus() := do 
+            compile_expr(mv, operand);
+            mv.visitInsn(match lty.get() do 
+                case Numeric(F64()) := asm.DNEG;
+                case Numeric(F32()) := asm.FNEG;
+                case Numeric(I64()) := asm.LNEG;
+                case Numeric(?) := asm.INEG;
+                case ? := panic("Internal: cannot negate non-numeric types");
+            end);
+        end;
+        case Not() := do 
+            compile_expr(mv, operand);
+            val true_label := asm.Label();
+            val end_label := asm.Label();
+            mv.visitJumpInsn(asm.IFNE, true_label);
+            mv.visitInsn(asm.ICONST_1);
+            mv.visitJumpInsn(asm.GOTO, end_label);
+            mv.visitLabel(true_label);
+            mv.visitInsn(asm.ICONST_0);
+            mv.visitLabel(end_label);
+        end;
+    end;
+    case BlockExpr(stmts, end_expr, lty, lnmspc) := do 
+        for stmt in stmts do 
+            SC.compile_stmt(mv, stmt);
+        end;
+        if val Some(e) := end_expr do 
+            compile_expr(mv, e);
+        end;
+    end;
+    case NullLiteral() := do mv.visitInsn(asm.ACONST_NULL); end;
     case ? := panic("Cannot compile expression "+expr+" yet");
 end;
 
+fun compile_binary(mv : asm.MethodVisitor, expr : Ast.Expr, op : Ast.BinOp, lhs : Ast.Expr, rhs : Ast.Expr, lty : Ast.LateType) := match op do 
+        case Add() := do 
+            compile_binary_op(mv, lhs, rhs, match lty.get() do 
+                case Numeric(F64()) := asm.DADD;
+                case Numeric(F32()) := asm.FADD;
+                case Numeric(I64()) := asm.LADD;
+                case Numeric(?) := asm.IADD;
+                case ? := panic("Unsupported type for addition yet: "+ lty.get());
+            end);
+        end;
+        case Sub() := do 
+            compile_binary_op(mv, lhs, rhs, match lty.get() do 
+                case Numeric(F64()) := asm.DSUB;
+                case Numeric(F32()) := asm.FSUB;
+                case Numeric(I64()) := asm.LSUB;
+                case Numeric(I32()) := asm.ISUB;
+            end);
+        end;
+        case Mul() := do 
+            compile_binary_op(mv, lhs, rhs, match lty.get() do 
+                case Numeric(F64()) := asm.DMUL;
+                case Numeric(F32()) := asm.FMUL;
+                case Numeric(I64()) := asm.LMUL;
+                case Numeric(?) := asm.IMUL;
+            end);
+        end;
+        case Div() := do 
+            compile_binary_op(mv, lhs, rhs, match lty.get() do 
+                case Numeric(F64()) := asm.DDIV;
+                case Numeric(F32()) := asm.FDIV;
+                case Numeric(I64()) := asm.LDIV;
+                case Numeric(?) := asm.IDIV;
+            end);
+        end;
+        case Mod() := do 
+            compile_binary_op(mv, lhs, rhs, match lty.get() do 
+                case Numeric(F64()) := asm.DREM;
+                case Numeric(F32()) := asm.FREM;
+                case Numeric(I64()) := asm.LREM;
+                case Numeric(?) := asm.IREM;
+            end)
+        end;
+        case LessThan() := compile_numeric_comparison(mv, lhs, rhs, op, lty);
+        case LessEqual() := compile_numeric_comparison(mv, lhs, rhs, op, lty);
+        case GreaterEqual() := compile_numeric_comparison(mv, lhs, rhs, op, lty);
+        case GreaterThan() := compile_numeric_comparison(mv, lhs, rhs, op, lty);
+        case Equals() := match lty.get() do 
+            case Numeric(?) := compile_numeric_comparison(mv, lhs, rhs, op, lty);
+            case BooleanT() := do 
+                val lt := Util.wrap_linit.[Ast.Type](Ast.Numeric(Ast.I8()));
+                compile_numeric_comparison(mv, lhs, rhs, op, lt);
+            end;
+            case ? := do  // call .equal
+                compile_expr(mv, lhs);
+                compile_expr(mv, rhs);
+                mv.visitMethodInsn(asm.INVOKEVIRTUAL, "java/lang/Object", "equals", "(Ljava/Lang/Object;)Z", false);
+            end;
+        end;
+        case NotEquals() := match lty.get() do 
+            case Numeric(?) := compile_numeric_comparison(mv, lhs, rhs, op, lty);
+            case BooleanT() := do 
+                val lt := Util.wrap_linit.[Ast.Type](Ast.Numeric(Ast.I8()));
+                compile_numeric_comparison(mv, lhs, rhs, op, lt); 
+            end;
+            case ? := do 
+                compile_expr(mv, lhs);
+                compile_expr(mv, rhs);
+                mv.visitMethodInsn(asm.INVOKEVIRTUAL, "java/lang/Object", "equals", "(Ljava/Lang/Object;)Z", false);
+                val true_label := asm.Label();
+                val end_label := asm.Label();
+                mv.visitJumpInsn(asm.IFNE, true_label);
+                mv.visitInsn(asm.ICONST_1);
+                mv.visitJumpInsn(asm.GOTO, end_label);
+                mv.visitLabel(true_label);
+                mv.visitInsn(asm.ICONST_0);
+                mv.visitLabel(end_label);
+            end;
+        end;
+        case And() := do 
+            compile_expr(mv, lhs);
+            val label_false := asm.Label();
+            val end_label := asm.Label();
+            mv.visitJumpInsn(asm.IFEQ, label_false); // short circuit if false
+            compile_expr(mv, rhs);
+            mv.visitJumpInsn(asm.IFEQ, label_false);
+            mv.visitInsn(asm.ICONST_1);
+            mv.visitJumpInsn(asm.GOTO, end_label);
+            mv.visitLabel(label_false);
+            mv.visitInsn(asm.ICONST_0);
+            mv.visitLabel(end_label);
+        end;
+        case Or() := do 
+            compile_expr(mv, lhs);
+            val label_true := asm.Label();
+            val end_label := asm.Label();
+            mv.visitJumpInsn(asm.IFNE, label_true); // short circuit if true
+            compile_expr(mv, rhs);
+            mv.visitJumpInsn(asm.IFNE, label_true);
+            mv.visitInsn(asm.ICONST_0);
+            mv.visitJumpInsn(asm.GOTO, end_label);
+            mv.visitLabel(label_true);
+            mv.visitInsn(asm.ICONST_1);
+            mv.visitLabel(end_label);
+        end;
+        case Xor() := do 
+            compile_expr(mv, lhs);
+            compile_expr(mv, rhs);
+            mv.visitInsn(asm.IXOR);
+        end;
+    end;
+
+fun compile_numeric_comparison(mv : asm.MethodVisitor, lhs : Ast.Expr, rhs : Ast.Expr, op : Ast.BinOp, lty : Ast.LateType) do 
+    compile_expr(mv, lhs);
+    compile_expr(mv, rhs);
+    val Numeric(nty) := lty.get() else panic("Unreachable: Cannot compare non-numeric types"+Ast.BinaryOperation(op, lhs, rhs, lty));
+    val false_label := asm.Label();
+    val end_label := asm.Label();
+    if nty = Ast.F64() or nty = Ast.F32() or nty = Ast.I64() then do 
+        mv.visitInsn(match nty do 
+            case I64() := asm.LCMP;
+            case F64() := match op do 
+                case LessThan() := asm.DCMPG;
+                case LessEqual() := asm.DCMPG;
+                case GreaterThan() := asm.DCMPL;
+                case GreaterEqual() := asm.DCMPL;
+                case Equals() := asm.DCMPL;
+                case NotEquals() := asm.DCMPL;
+            end;
+            case F32() := match op do 
+                case LessThan() := asm.FCMPG;
+                case LessEqual() := asm.FCMPG;
+                case GreaterThan() := asm.FCMPL;
+                case GreaterEqual() := asm.FCMPL;
+                case Equals() := asm.FCMPL;
+                case NotEquals() := asm.FCMPL;
+            end;
+        end);
+        mv.visitJumpInsn(match op do 
+            case LessThan() := asm.IFGE;
+            case LessEqual() := asm.IFGT;
+            case GreaterThan() := asm.IFLE;
+            case GreaterEqual() := asm.IFLT;
+            case Equals() := asm.IFNE;
+            case NotEquals() := asm.IFEQ;
+        end, false_label);
+    end else do 
+        mv.visitJumpInsn(match op do 
+            case LessThan() := asm.IF_ICMPGE;
+            case LessEqual() := asm.IF_ICMPGT;
+            case GreaterThan() := asm.IF_ICMPLE;
+            case GreaterEqual() := asm.IF_ICMPLT;
+            case Equals() := asm.IF_ICMPNE;
+            case NotEquals() := asm.IF_ICMPEQ;
+        end, false_label);
+    end;
+    mv.visitInsn(asm.ICONST_1);
+    mv.visitJumpInsn(asm.GOTO, end_label);
+    mv.visitLabel(false_label);
+    mv.visitInsn(asm.ICONST_0);
+    mv.visitLabel(end_label);
+end
+
+fun compile_binary_op(mv : asm.MethodVisitor, lhs : Ast.Expr, rhs : Ast.Expr, ins : Int) do 
+    compile_expr(mv, lhs);
+    compile_expr(mv, rhs);
+    mv.visitInsn(ins);
+end
+
 fun compile_number_literal(mv : asm.MethodVisitor, value : Number, ty : Ast.NumberType) := match ty do 
         case F64() := match value do 
-            case 0 := mv.visitInsn(asm.DCONST_0);
-            case 1 := mv.visitInsn(asm.DCONST_1);
-            case ? := mv.visitLdcInsn(asm.field_init_value_number(value));
+            case 0 := do mv.visitInsn(asm.DCONST_0); end;
+            case 1 := do mv.visitInsn(asm.DCONST_1); end;
+            case n := do mv.visitLdcInsn(asm.field_init_value_number(value)); end;
         end;
         case F32() := match value do 
-            case 0 := mv.visitInsn(asm.FCONST_0);
-            case 1 := mv.visitInsn(asm.FCONST_1);
-            case 2 := mv.visitInsn(asm.FCONST_2);
-            case ? := mv.visitLdcInsn(asm.const_float(math.number_to_float(value)));
+            case 0 := do mv.visitInsn(asm.FCONST_0); end;
+            case 1 := do mv.visitInsn(asm.FCONST_1); end;
+            case 2 := do mv.visitInsn(asm.FCONST_2); end;
+            case n := do mv.visitLdcInsn(asm.const_float(math.number_to_float(value))); end;
         end;
         case I64() := match value do 
-            case 0 := mv.visitInsn(asm.LCONST_0);
-            case 1 := mv.visitInsn(asm.LCONST_1);
-            case ? := mv.visitLdcInsn(asm.field_init_value_long(math.number_to_long(value)));
+            case 0 := do mv.visitInsn(asm.LCONST_0); end;
+            case 1 := do mv.visitInsn(asm.LCONST_1); end;
+            case n := do mv.visitLdcInsn(asm.field_init_value_long(math.number_to_long(value))); end;
         end;
-        case I32() := match value do 
-            case -1 := mv.visitInsn(asm.ICONST_M1);
-            case 0 := mv.visitInsn(asm.ICONST_0);
-            case 1 := mv.visitInsn(asm.ICONST_1);
-            case 2 := mv.visitInsn(asm.ICONST_2);
-            case 3 := mv.visitInsn(asm.ICONST_3);
-            case 4 := mv.visitInsn(asm.ICONST_4);
-            case 5 := mv.visitInsn(asm.ICONST_5);
-            case ? := mv.visitLdcInsn(asm.field_init_value_int(math.number_to_int(value)));
-        end;
-        case I16() := match value do 
-            case -1 := mv.visitInsn(asm.ICONST_M1);
-            case 0 := mv.visitInsn(asm.ICONST_0);
-            case 1 := mv.visitInsn(asm.ICONST_1);
-            case 2 := mv.visitInsn(asm.ICONST_2);
-            case 3 := mv.visitInsn(asm.ICONST_3);
-            case 4 := mv.visitInsn(asm.ICONST_4);
-            case 5 := mv.visitInsn(asm.ICONST_5);
-            case ? := mv.visitLdcInsn(asm.field_init_value_int(math.number_to_int(value)));
-        end;
-        case I8() := match value do 
-            case -1 := mv.visitInsn(asm.ICONST_M1);
-            case 0 := mv.visitInsn(asm.ICONST_0);
-            case 1 := mv.visitInsn(asm.ICONST_1);
-            case 2 := mv.visitInsn(asm.ICONST_2);
-            case 3 := mv.visitInsn(asm.ICONST_3);
-            case 4 := mv.visitInsn(asm.ICONST_4);
-            case 5 := mv.visitInsn(asm.ICONST_5);
-            case ? := mv.visitLdcInsn(asm.field_init_value_int(math.number_to_int(value)));
+        case ? := match value do 
+            //case -1 := do mv.visitInsn(asm.ICONST_M1); end;
+            case 0 := do mv.visitInsn(asm.ICONST_0); end;
+            case 1 := do mv.visitInsn(asm.ICONST_1); end;
+            case 2 := do mv.visitInsn(asm.ICONST_2); end;
+            case 3 := do mv.visitInsn(asm.ICONST_3); end;
+            case 4 := do mv.visitInsn(asm.ICONST_4); end;
+            case 5 := do mv.visitInsn(asm.ICONST_5); end;
+            case n := do mv.visitLdcInsn(asm.field_init_value_int(math.number_to_int(value))); end;
         end;
     end;

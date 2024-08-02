@@ -1,0 +1,17 @@
+module Compilation.GenerateJavaBytecode.StmtCompiler;
+
+import Ast := Syntax.Ast;
+import Env := Syntax.Env;
+
+import EC := Compilation.GenerateJavaBytecode.ExprCompiler;
+
+import asm;
+
+fun compile_stmt(mv : asm.MethodVisitor, stmt : Ast.Stmt) := match stmt do 
+    case DesugarableStmt(ms) := compile_stmt(mv, ms.get());
+    case ExprStmt(expr) := do 
+        EC.compile_expr(mv, expr);
+        mv.visitInsn(asm.POP); // Pop result of expression
+    end;
+    case EmptyStmt() := do end;
+end;

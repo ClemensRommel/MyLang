@@ -23,7 +23,7 @@ fun boolean_combination(p : P.Parser) : Ast.Expr do
             case OR() := Ast.Or();
             case XOR() := Ast.Xor();
         end;
-        lhs := Ast.BinaryOperation(op, lhs, rhs); 
+        lhs := Ast.BinaryOperation(op, lhs, rhs, Ast.late_type()); 
     end;
     lhs
 end
@@ -47,7 +47,7 @@ fun comparison(p : P.Parser) : Ast.Expr do
             case GREATER_EQUAL() := Ast.GreaterEqual();
             case GREATER() := Ast.GreaterThan();
         end;
-        result := Ast.BinaryOperation(op, result, rhs);
+        result := Ast.BinaryOperation(op, result, rhs, Ast.late_type());
     end;
     result
 end
@@ -58,9 +58,9 @@ fun addition(p : P.Parser) : Ast.Expr do
         val op := p.previous().kind;
         val rhs := multiplication(p);
         lhs := Ast.BinaryOperation(match op do 
-            case PLUS() := Ast.Add(Ast.late_type());
+            case PLUS() := Ast.Add();
             case MINUS() := Ast.Sub();
-        end, lhs, rhs);
+        end, lhs, rhs, Ast.late_type());
     end;
     lhs
 end
@@ -74,7 +74,7 @@ fun multiplication(p : P.Parser) : Ast.Expr do
             case STAR() := Ast.Mul();
             case PERCENT() := Ast.Mod();
             case SLASH() := Ast.Div();
-        end, lhs, rhs);
+        end, lhs, rhs, Ast.late_type());
     end;
     lhs
 end
@@ -87,7 +87,7 @@ fun unary(p : P.Parser) : Ast.Expr :=
             case BANG() := Ast.Not();
         end;
         val operand := unary(p);
-        Ast.UnaryOperation(operation, operand)
+        Ast.UnaryOperation(operation, operand, Ast.late_type())
     end else do 
         use_expr(p)
     end;

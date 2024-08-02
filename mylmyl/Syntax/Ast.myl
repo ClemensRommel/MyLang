@@ -11,8 +11,8 @@ enum Expr where
     Boolean(Bool),
     NullLiteral(),
     Identifier(String, LateType),
-    BinaryOperation(BinOp, Expr, Expr),
-    UnaryOperation(UnOp, Expr),
+    BinaryOperation(BinOp, Expr, Expr, LateType),
+    UnaryOperation(UnOp, Expr, LateType),
     InstantiationExpr(Expr, Type[], LateType),
     FunctionCall(Expr, Expr[]),
     FunctionExpr(Parameter[], Type, Expr, LateNamespace),
@@ -66,7 +66,7 @@ enum AccessType where
 end
 
 enum BinOp where 
-    Add(LateType), Sub(), Mul(), Div(), Mod(), LessThan(), LessEqual(), GreaterEqual(), GreaterThan(), Equals(), NotEquals(), 
+    Add(), Sub(), Mul(), Div(), Mod(), LessThan(), LessEqual(), GreaterEqual(), GreaterThan(), Equals(), NotEquals(), 
     And(), Or(), Xor();
 end
 enum UnOp where 

@@ -39,8 +39,8 @@ fun infer(t : TC.Typechecker, e : Ast.Expr) : Ast.Type := match e do
         lty.init(res);
         res
     end;
-    case BinaryOperation(op, lhs, rhs) := infer_binary(t, op, lhs, rhs);
-    case UnaryOperation(op, operand) := infer_unary(t, op, operand);
+    case BinaryOperation(op, lhs, rhs, lty) := infer_binary(t, op, lhs, rhs, lty);
+    case UnaryOperation(op, operand, lty) := infer_unary(t, op, operand, lty);
     case IfExpr(linit, cond, thenBr, elseBr) := do 
         t.open_scope();
             EC.check_condition(t, cond);
@@ -280,8 +280,8 @@ do
     resulting
 end
 
-fun infer_binary(t : TC.Typechecker, op : Ast.BinOp, lhs : Ast.Expr, rhs : Ast.Expr) : Ast.Type := match op do 
-    case Add(lty) := do 
+fun infer_binary(t : TC.Typechecker, op : Ast.BinOp, lhs : Ast.Expr, rhs : Ast.Expr, lty : Ast.LateType) : Ast.Type := match op do 
+    case Add() := do 
         val lhs_type := infer(t, lhs);
         match lhs_type do 
             case Numeric(nty) := do 
@@ -296,51 +296,57 @@ fun infer_binary(t : TC.Typechecker, op : Ast.BinOp, lhs : Ast.Expr, rhs : Ast.E
             end;
         end
     end;
-    case LessThan() := infer_numeric_comparison(t, lhs, rhs);
-    case LessEqual() := infer_numeric_comparison(t, lhs, rhs);
-    case GreaterThan() := infer_numeric_comparison(t, lhs, rhs);
-    case GreaterEqual() := infer_numeric_comparison(t, lhs, rhs);
-    case Equals() := infer_equality(t, lhs, rhs);
-    case NotEquals() := infer_equality(t, lhs, rhs);
-    case And() := infer_boolean_operator(t, lhs, rhs);
-    case Or() := infer_boolean_operator(t, lhs, rhs);
-    case Xor() := infer_boolean_operator(t, lhs, rhs);
+    case LessThan() := infer_numeric_comparison(t, lhs, rhs, lty);
+    case LessEqual() := infer_numeric_comparison(t, lhs, rhs, lty);
+    case GreaterThan() := infer_numeric_comparison(t, lhs, rhs, lty);
+    case GreaterEqual() := infer_numeric_comparison(t, lhs, rhs, lty);
+    case Equals() := infer_equality(t, lhs, rhs, lty);
+    case NotEquals() := infer_equality(t, lhs, rhs, lty);
+    case And() := infer_boolean_operator(t, lhs, rhs, lty);
+    case Or() := infer_boolean_operator(t, lhs, rhs, lty);
+    case Xor() := infer_boolean_operator(t, lhs, rhs, lty);
     case ? := do 
         val lhs_ty := infer(t, lhs);
         t.require_numeric(lhs_ty, TC.lazy_str(lhs));
         EC.check(t, rhs, lhs_ty);
+        lty.init(lhs_ty);
         lhs_ty
     end;
 end;
 
-fun infer_boolean_operator(t : TC.Typechecker, lhs : Ast.Expr, rhs : Ast.Expr) : Ast.Type do 
+fun infer_boolean_operator(t : TC.Typechecker, lhs : Ast.Expr, rhs : Ast.Expr, lty : Ast.LateType) : Ast.Type do 
     EC.check(t, lhs, Ast.BooleanT());
     EC.check(t, rhs, Ast.BooleanT());
+    lty.init(Ast.BooleanT());
     Ast.BooleanT()
 end
 
-fun infer_numeric_comparison(t : TC.Typechecker, lhs : Ast.Expr, rhs : Ast.Expr) : Ast.Type do 
+fun infer_numeric_comparison(t : TC.Typechecker, lhs : Ast.Expr, rhs : Ast.Expr, lty : Ast.LateType) : Ast.Type do 
     val lhs_ty := infer(t, lhs);
+    lty.init(lhs_ty);
     t.require_numeric(lhs_ty, TC.lazy_str(lhs));
     EC.check(t, rhs, lhs_ty);
     Ast.BooleanT()
 end
 
-fun infer_equality(t : TC.Typechecker, lhs : Ast.Expr, rhs : Ast.Expr) : Ast.Type do 
+fun infer_equality(t : TC.Typechecker, lhs : Ast.Expr, rhs : Ast.Expr, lty : Ast.LateType) : Ast.Type do 
     val compared_type := infer(t, lhs);
+    lty.init(compared_type);
     EC.check(t, rhs, compared_type);
     Ast.BooleanT()
 end
 
-fun infer_unary(t : TC.Typechecker, op : Ast.UnOp, operand : Ast.Expr) : Ast.Type do 
+fun infer_unary(t : TC.Typechecker, op : Ast.UnOp, operand : Ast.Expr, lty : Ast.LateType) : Ast.Type do 
     match op do 
         case Not() := do 
             EC.check(t, operand, Ast.BooleanT());
+            lty.init(Ast.BooleanT());
             Ast.BooleanT()
         end;
         case ? := do 
             val num_ty := infer(t, operand);
-            t.require_numeric(num_ty, TC.lazy_str(Ast.UnaryOperation(op, operand)));
+            lty.init(num_ty);
+            t.require_numeric(num_ty, TC.lazy_str(Ast.UnaryOperation(op, operand, lty)));
             num_ty
         end;
     end
